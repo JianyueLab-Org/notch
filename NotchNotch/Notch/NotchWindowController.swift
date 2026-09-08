@@ -29,6 +29,7 @@ final class NotchWindowController {
     /// has the entitlement to use it.
     private let nowPlaying = NowPlayingController(source: CompositeNowPlayingSource(children: [
         SpotifyScriptingSource(),
+        MusicScriptingSource(),
         AccessibilityNowPlayingSource(),
     ]))
     private(set) var geometry: NotchGeometry
