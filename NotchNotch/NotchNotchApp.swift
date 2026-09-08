@@ -20,6 +20,11 @@ struct NotchNotchApp: App {
         // nothing in SwiftUI's scene vocabulary produces a borderless
         // click-through panel above the menu bar.
         MenuBarExtra("NotchNotch", systemImage: "menubar.rectangle") {
+            Button("Toggle Notch Panel") {
+                appDelegate.notchController?.toggle()
+            }
+            .keyboardShortcut("t")
+            Divider()
             Button("Re-detect Notch") {
                 appDelegate.notchController?.reload()
             }

@@ -83,6 +83,16 @@ final class NotchStateMachine: ObservableObject {
         }
     }
 
+    /// Force the panel open — menu bar toggle, hotkey, etc.
+    func expandImmediately() {
+        cancelPendingWork()
+        guard state != .expanded else { return }
+        Log.state.notice("state: \(self.state.rawValue, privacy: .public) -> expanded (forced)")
+        withAnimation(NotchConfiguration.expandAnimation) {
+            state = .expanded
+        }
+    }
+
     // MARK: - Transitions
 
     private func pointerIsInside() {

@@ -58,6 +58,7 @@ final class NotchHoverMonitor {
             return event
         }
 
+        startPolling()
         Log.hover.notice("hover: monitors installed")
     }
 
@@ -66,31 +67,29 @@ final class NotchHoverMonitor {
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }
         globalMonitor = nil
         localMonitor = nil
-        setPollingEnabled(false)
+        stopPolling()
         Log.hover.notice("hover: monitors removed")
     }
 
-    /// Safety net for the open panel.
-    ///
-    /// Event monitors can miss the *last* move — flick the cursor away fast
-    /// enough, or let another app grab the event stream, and the panel is left
-    /// stuck open with no further events to close it. Sampling
-    /// `NSEvent.mouseLocation` at a low rate makes that unstickable. It only
-    /// runs while the panel is open, so at rest the app is fully idle.
-    func setPollingEnabled(_ enabled: Bool) {
-        guard enabled != (pollTask != nil) else { return }
-        if enabled {
-            pollTask = Task { [weak self] in
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: NotchConfiguration.pointerPollInterval)
-                    guard !Task.isCancelled, let self else { return }
-                    self.onMove(NSEvent.mouseLocation, false)
-                }
+    private func startPolling() {
+        guard pollTask == nil else { return }
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: NotchConfiguration.pointerPollInterval)
+                guard !Task.isCancelled, let self else { return }
+                let isDragging = (NSEvent.pressedMouseButtons & 1) != 0
+                self.onMove(NSEvent.mouseLocation, isDragging)
             }
-        } else {
-            pollTask?.cancel()
-            pollTask = nil
         }
+    }
+
+    private func stopPolling() {
+        pollTask?.cancel()
+        pollTask = nil
+    }
+
+    func setPollingEnabled(_ enabled: Bool) {
+        // Continuous polling is active
     }
 
     /// Read the cursor from `NSEvent.mouseLocation` rather than the event's own

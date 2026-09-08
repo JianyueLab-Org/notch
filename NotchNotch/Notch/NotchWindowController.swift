@@ -99,6 +99,15 @@ final class NotchWindowController {
         Log.lifecycle.notice("controller: reloaded onto \(detected.screenName, privacy: .public)")
     }
 
+    /// Toggles between expanded and collapsed states.
+    func toggle() {
+        if stateMachine.state.isOnScreen {
+            stateMachine.collapseImmediately()
+        } else {
+            stateMachine.expandImmediately()
+        }
+    }
+
     // MARK: - Window
 
     private func buildWindowIfNeeded() {
