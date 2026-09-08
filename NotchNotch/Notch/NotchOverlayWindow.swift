@@ -59,6 +59,8 @@ final class NotchOverlayWindow: NSPanel {
         // Start click-through. See `setInteractive(_:)`.
         ignoresMouseEvents = true
 
+        registerForDraggedTypes([.fileURL])
+
         Log.window.notice("window: created at level \(Self.overlayLevel.rawValue, privacy: .public)")
     }
 

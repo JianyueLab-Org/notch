@@ -32,6 +32,8 @@ final class NotchWindowController {
         MusicScriptingSource(),
         AccessibilityNowPlayingSource(),
     ]))
+    private let shelf = ShelfController()
+    @Published var activeTab: NotchActiveTab = .nowPlaying
     private(set) var geometry: NotchGeometry
 
     /// Last cursor position we were told about. `ignoresMouseEvents` is a
@@ -56,9 +58,12 @@ final class NotchWindowController {
         observeScreenChanges()
 
         lastPointer = NSEvent.mouseLocation
-        let monitor = NotchHoverMonitor { [weak self] location in
+        let monitor = NotchHoverMonitor { [weak self] location, isDragging in
             guard let self else { return }
             self.lastPointer = location
+            if isDragging && self.stateMachine.state == .collapsed {
+                self.activeTab = .shelf
+            }
             self.stateMachine.pointerMoved(to: location)
             // Read the state *after* the mutation has landed — see the note in
             // `observeState()` about @Published firing on willSet.
@@ -102,7 +107,16 @@ final class NotchWindowController {
         let layout = stateMachine.layout
         let window = NotchOverlayWindow(contentRect: layout.windowFrame)
 
-        let hosting = NSHostingView(rootView: NotchPanelView(machine: stateMachine, media: nowPlaying))
+        let panelView = NotchPanelView(
+            machine: stateMachine,
+            media: nowPlaying,
+            shelf: shelf,
+            activeTab: Binding(
+                get: { [weak self] in self?.activeTab ?? .nowPlaying },
+                set: { [weak self] in self?.activeTab = $0 }
+            )
+        )
+        let hosting = NSHostingView(rootView: panelView)
         // The hosting view must not paint a background of its own, or the
         // "transparent window" is a grey rectangle.
         hosting.layer?.backgroundColor = .clear

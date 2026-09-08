@@ -2,21 +2,23 @@
 //  NotchPanelView.swift
 //  NotchNotch
 //
-//  The whole visual shell. Everything is a function of `machine.state` and
-//  `machine.layout`; there is no local animation state, so there is exactly one
-//  thing that can be out of sync and it lives in the state machine.
-//
-//  NOTE ON macOS 13: this uses ObservableObject / @ObservedObject rather than
-//  @Observable, because the Observation framework is macOS 14+. Swap them when
-//  the deployment target rises.
+//  The visual shell with segmented navigation between Now Playing and Drop Shelf.
 //
 
 import SwiftUI
+
+enum NotchActiveTab: String, CaseIterable, Identifiable {
+    case nowPlaying = "Now Playing"
+    case shelf = "Drop Shelf"
+    var id: String { rawValue }
+}
 
 struct NotchPanelView: View {
 
     @ObservedObject var machine: NotchStateMachine
     @ObservedObject var media: NowPlayingController
+    @ObservedObject var shelf: ShelfController
+    @Binding var activeTab: NotchActiveTab
 
     private var isOpen: Bool { machine.state.isVisiblyExpanded }
 
@@ -49,23 +51,89 @@ struct NotchPanelView: View {
                 if machine.state.isOnScreen { expandedContent }
             }
             .frame(width: bodySize.width, height: bodySize.height)
-            // Shadow only once open — while collapsed the body is meant to be
-            // indistinguishable from the physical notch, and a shadow would
-            // give it away as a rectangle sitting on the bezel.
             .shadow(color: .black.opacity(isOpen ? 0.45 : 0), radius: 14, y: 6)
     }
 
     @ViewBuilder
-    private var content: some View {
+    private var expandedContent: some View {
+        VStack(spacing: 8) {
+            tabHeader
+
+            Group {
+                switch activeTab {
+                case .nowPlaying:
+                    mediaContent
+                case .shelf:
+                    DropShelfView(shelf: shelf)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, machine.layout.geometry.notchRect.height + 4)
+        .padding(.bottom, 12)
+        .frame(width: machine.layout.expandedSize.width,
+               height: machine.layout.expandedSize.height)
+        .foregroundStyle(.white)
+        // Fading with the same spring keeps the text from appearing to pop in
+        // late; clipping stops it spilling out while the body is still small.
+        .opacity(isOpen ? 1 : 0)
+        .allowsHitTesting(isOpen)
+        .clipped()
+    }
+
+    private var tabHeader: some View {
+        HStack(spacing: 4) {
+            tabButton(tab: .nowPlaying, systemImage: "music.note", title: "Playing", badge: nil)
+            tabButton(tab: .shelf, systemImage: "tray.full", title: "Shelf", badge: shelf.items.isEmpty ? nil : "\(shelf.items.count)")
+        }
+        .padding(3)
+        .background(Capsule().fill(Color.white.opacity(0.10)))
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private func tabButton(tab: NotchActiveTab, systemImage: String, title: String, badge: String?) -> some View {
+        let isSelected = activeTab == tab
+        return Button {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                activeTab = tab
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 10, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                if let badge {
+                    Text(badge)
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(isSelected ? Color.white.opacity(0.25) : Color.accentColor))
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 3)
+            .background(
+                Capsule().fill(isSelected ? Color.white.opacity(0.18) : Color.clear)
+            )
+            .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.55))
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var mediaContent: some View {
         if let track = media.nowPlaying, track.hasTrack {
             NowPlayingView(track: track) { media.send($0) }
         } else {
-            emptyState
+            emptyMediaState
         }
     }
 
     @ViewBuilder
-    private var emptyState: some View {
+    private var emptyMediaState: some View {
         VStack(spacing: 8) {
             if case .needsPermission(let reason) = media.authorization {
                 Image(systemName: "lock.shield")
@@ -93,24 +161,5 @@ struct NotchPanelView: View {
         }
         .padding(.horizontal, 40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    @ViewBuilder
-    private var expandedContent: some View {
-        VStack(spacing: 10) {
-
-            content
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, machine.layout.geometry.notchRect.height + 6)
-        .padding(.bottom, 16)
-        .frame(width: machine.layout.expandedSize.width,
-               height: machine.layout.expandedSize.height)
-        .foregroundStyle(.white)
-        // Fading with the same spring keeps the text from appearing to pop in
-        // late; clipping stops it spilling out while the body is still small.
-        .opacity(isOpen ? 1 : 0)
-        .allowsHitTesting(isOpen)
-        .clipped()
     }
 }

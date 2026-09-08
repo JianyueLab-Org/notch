@@ -16,7 +16,7 @@ final class NotchHoverMonitor {
     private var localMonitor: Any?
     private var pollTask: Task<Void, Never>?
 
-    private let onMove: (CGPoint) -> Void
+    private let onMove: (CGPoint, Bool) -> Void
 
     /// The events worth watching. Drags are included so the panel still tracks
     /// the cursor while a file is being dragged around (Phase 2 needs that, and
@@ -25,7 +25,7 @@ final class NotchHoverMonitor {
         .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
     ]
 
-    init(onMove: @escaping (CGPoint) -> Void) {
+    init(onMove: @escaping (CGPoint, Bool) -> Void) {
         self.onMove = onMove
     }
 
@@ -37,18 +37,24 @@ final class NotchHoverMonitor {
         // click-through, so every move belongs to somebody else) and exactly
         // what stops working the moment the cursor is over our own expanded
         // panel...
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: Self.mask) { [weak self] _ in
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: Self.mask) { [weak self] event in
             // AppKit delivers these on the main thread. `assumeIsolated` asserts
             // that rather than hopping, so a future AppKit change would trap
             // loudly here instead of racing silently.
-            MainActor.assumeIsolated { self?.deliverCurrentLocation() }
+            MainActor.assumeIsolated {
+                let isDragging = [.leftMouseDragged, .rightMouseDragged, .otherMouseDragged].contains(event.type)
+                self?.deliverCurrentLocation(isDragging: isDragging)
+            }
         }
 
         // ...so we also install a *local* monitor, which runs inside
         // NSApplication.sendEvent and therefore sees the moves the global one
         // cannot. Returning the event unchanged keeps normal dispatch intact.
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: Self.mask) { [weak self] event in
-            MainActor.assumeIsolated { self?.deliverCurrentLocation() }
+            MainActor.assumeIsolated {
+                let isDragging = [.leftMouseDragged, .rightMouseDragged, .otherMouseDragged].contains(event.type)
+                self?.deliverCurrentLocation(isDragging: isDragging)
+            }
             return event
         }
 
@@ -78,7 +84,7 @@ final class NotchHoverMonitor {
                 while !Task.isCancelled {
                     try? await Task.sleep(for: NotchConfiguration.pointerPollInterval)
                     guard !Task.isCancelled, let self else { return }
-                    self.onMove(NSEvent.mouseLocation)
+                    self.onMove(NSEvent.mouseLocation, false)
                 }
             }
         } else {
@@ -90,8 +96,8 @@ final class NotchHoverMonitor {
     /// Read the cursor from `NSEvent.mouseLocation` rather than the event's own
     /// `locationInWindow`: for a global monitor there is no window to convert
     /// from, and this is already in the screen space everything else uses.
-    private func deliverCurrentLocation() {
-        onMove(NSEvent.mouseLocation)
+    private func deliverCurrentLocation(isDragging: Bool) {
+        onMove(NSEvent.mouseLocation, isDragging)
     }
 
     deinit {
