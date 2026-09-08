@@ -87,6 +87,7 @@ final class NotchStateMachine: ObservableObject {
     func expandImmediately() {
         cancelPendingWork()
         guard state != .expanded else { return }
+        print("[NotchNotch] ⚡️ Forced expand! (\(state.rawValue) -> expanded)")
         Log.state.notice("state: \(self.state.rawValue, privacy: .public) -> expanded (forced)")
         withAnimation(NotchConfiguration.expandAnimation) {
             state = .expanded
@@ -103,6 +104,8 @@ final class NotchStateMachine: ObservableObject {
 
         switch state {
         case .collapsed, .collapsing:
+            print("[NotchNotch] 🎯 Pointer entered notch region! Expanding... (\(state.rawValue) -> expanding)")
+            fflush(stdout)
             transition(to: .expanding, animation: NotchConfiguration.expandAnimation)
             settle(to: .expanded, after: NotchConfiguration.expandSettleDuration)
         case .expanding, .expanded:
@@ -129,6 +132,8 @@ final class NotchStateMachine: ObservableObject {
 
     private func beginCollapse() {
         guard state.isVisiblyExpanded else { return }
+        print("[NotchNotch] 💨 Pointer left notch region. Collapsing... (\(state.rawValue) -> collapsing)")
+        fflush(stdout)
         transition(to: .collapsing, animation: NotchConfiguration.collapseAnimation)
         settle(to: .collapsed, after: NotchConfiguration.collapseSettleDuration)
     }

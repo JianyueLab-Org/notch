@@ -75,6 +75,7 @@ final class NotchHoverMonitor {
         guard pollTimer == nil else { return }
         let interval = Double(NotchConfiguration.pointerPollInterval.components.seconds)
             + Double(NotchConfiguration.pointerPollInterval.components.attoseconds) / 1e18
+        print("[NotchNotch] ⏱️ Hover polling timer started (interval: \(interval)s, ~\(Int(1.0/interval)) Hz)")
         let timer = Timer(timeInterval: max(0.02, interval), repeats: true) { [weak self] _ in
             guard let self else { return }
             let isDragging = (NSEvent.pressedMouseButtons & 1) != 0

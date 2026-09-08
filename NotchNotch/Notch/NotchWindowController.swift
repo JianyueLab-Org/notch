@@ -73,6 +73,8 @@ final class NotchWindowController {
         hoverMonitor = monitor
 
         Log.lifecycle.notice("controller: started (\(self.geometry.source.rawValue, privacy: .public) notch on \(self.geometry.screenName, privacy: .public))")
+        print("[NotchWindowController] Started with geometry: \(self.geometry.notchRect), screen: \(self.geometry.screenFrame)")
+        fflush(stdout)
     }
 
     func stop() {
