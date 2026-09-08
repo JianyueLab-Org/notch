@@ -14,7 +14,7 @@ final class NotchHoverMonitor {
 
     private var globalMonitor: Any?
     private var localMonitor: Any?
-    private var pollTask: Task<Void, Never>?
+    private var pollTimer: Timer?
 
     private let onMove: (CGPoint, Bool) -> Void
 
@@ -72,20 +72,21 @@ final class NotchHoverMonitor {
     }
 
     private func startPolling() {
-        guard pollTask == nil else { return }
-        pollTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: NotchConfiguration.pointerPollInterval)
-                guard !Task.isCancelled, let self else { return }
-                let isDragging = (NSEvent.pressedMouseButtons & 1) != 0
-                self.onMove(NSEvent.mouseLocation, isDragging)
-            }
+        guard pollTimer == nil else { return }
+        let interval = Double(NotchConfiguration.pointerPollInterval.components.seconds)
+            + Double(NotchConfiguration.pointerPollInterval.components.attoseconds) / 1e18
+        let timer = Timer(timeInterval: max(0.02, interval), repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let isDragging = (NSEvent.pressedMouseButtons & 1) != 0
+            self.onMove(NSEvent.mouseLocation, isDragging)
         }
+        RunLoop.main.add(timer, forMode: .common)
+        pollTimer = timer
     }
 
     private func stopPolling() {
-        pollTask?.cancel()
-        pollTask = nil
+        pollTimer?.invalidate()
+        pollTimer = nil
     }
 
     func setPollingEnabled(_ enabled: Bool) {
@@ -99,7 +100,7 @@ final class NotchHoverMonitor {
         onMove(NSEvent.mouseLocation, isDragging)
     }
 
-    deinit {
-        pollTask?.cancel()
+    isolated deinit {
+        pollTimer?.invalidate()
     }
 }

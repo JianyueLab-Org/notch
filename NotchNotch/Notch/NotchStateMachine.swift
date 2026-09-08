@@ -135,7 +135,7 @@ final class NotchStateMachine: ObservableObject {
 
     private func transition(to next: NotchState, animation: Animation) {
         guard state != next else { return }
-        Log.state.debug("state: \(self.state.rawValue, privacy: .public) -> \(next.rawValue, privacy: .public)")
+        Log.state.notice("state: \(self.state.rawValue, privacy: .public) -> \(next.rawValue, privacy: .public)")
         // GOTCHA: the mutation has to happen *inside* withAnimation, on the same
         // synchronous turn as the event that caused it. Setting the state first
         // and animating afterwards gives you a jump cut.
@@ -155,7 +155,7 @@ final class NotchStateMachine: ObservableObject {
             self.settleTask = nil
             switch (self.state, next) {
             case (.expanding, .expanded), (.collapsing, .collapsed):
-                Log.state.debug("state: \(self.state.rawValue, privacy: .public) -> \(next.rawValue, privacy: .public) (settled)")
+                Log.state.notice("state: \(self.state.rawValue, privacy: .public) -> \(next.rawValue, privacy: .public) (settled)")
                 self.state = next
             default:
                 break // the machine moved on while we were asleep

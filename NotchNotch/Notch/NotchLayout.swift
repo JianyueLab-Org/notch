@@ -65,13 +65,14 @@ nonisolated struct NotchLayout: Equatable, Sendable {
                              width: windowSize.width,
                              height: windowSize.height)
 
-        // Enter region: the notch, widened a little and extended *downwards*
-        // only — there is nothing above the top of the screen to approach from.
+        // Enter region: the notch, widened and extended downwards into the
+        // display and upwards past the screen edge so touching the top of the
+        // display (where y == screen.maxY) is reliably contained within the rect.
         let m = NotchConfiguration.hoverEnterMargin
         enterRegion = CGRect(x: notch.minX - m,
                              y: notch.minY - m,
                              width: notch.width + 2 * m,
-                             height: notch.height + m)
+                             height: notch.height + m + 50)
 
         // Exit region: the visible expanded body plus a generous margin.
         collapsedBodyRect = notch
@@ -79,8 +80,10 @@ nonisolated struct NotchLayout: Equatable, Sendable {
                                   y: screen.maxY - expandedSize.height,
                                   width: expandedSize.width,
                                   height: expandedSize.height)
-        exitRegion = expandedBodyRect.insetBy(dx: -NotchConfiguration.hoverExitMargin,
-                                              dy: -NotchConfiguration.hoverExitMargin)
+        exitRegion = CGRect(x: expandedBodyRect.minX - NotchConfiguration.hoverExitMargin,
+                            y: expandedBodyRect.minY - NotchConfiguration.hoverExitMargin,
+                            width: expandedBodyRect.width + 2 * NotchConfiguration.hoverExitMargin,
+                            height: expandedBodyRect.height + NotchConfiguration.hoverExitMargin + 50)
     }
 
     /// Should the overlay window accept a click with the cursor at `point`?
@@ -102,6 +105,6 @@ nonisolated struct NotchLayout: Equatable, Sendable {
     func acceptsClick(at point: CGPoint, in state: NotchState) -> Bool {
         guard state != .collapsed else { return false }
         let body = state.isVisiblyExpanded ? expandedBodyRect : collapsedBodyRect
-        return body.contains(point)
+        return body.insetBy(dx: -4, dy: -4).contains(point)
     }
 }

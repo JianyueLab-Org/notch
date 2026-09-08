@@ -35,13 +35,14 @@ nonisolated enum NotchConfiguration {
 
     // MARK: - Hit testing
 
-    /// Extra slop around the notch so you do not have to hit it pixel-perfectly.
-    static let hoverEnterMargin: CGFloat = 5
+    /// Extra slop around the notch so the cursor triggers easily and reliably.
+    /// Extended vertically below the notch and horizontally on both sides.
+    static let hoverEnterMargin: CGFloat = 20
 
     /// Slop around the *expanded* panel. Deliberately larger than the enter
     /// margin: this is the hysteresis that stops the panel flickering when the
     /// cursor grazes the boundary.
-    static let hoverExitMargin: CGFloat = 14
+    static let hoverExitMargin: CGFloat = 24
 
     // MARK: - Timing
 
@@ -59,10 +60,9 @@ nonisolated enum NotchConfiguration {
     static let expandAnimation = Animation.spring(response: 0.34, dampingFraction: 0.78)
     static let collapseAnimation = Animation.spring(response: 0.30, dampingFraction: 0.90)
 
-    /// Safety-net polling interval for the cursor position — see
-    /// `NotchHoverMonitor` for why a global mouse-moved monitor alone is not
-    /// enough. Only runs while the panel is open, so it costs nothing at rest.
-    static let pointerPollInterval: Duration = .milliseconds(80)
+    /// High-frequency pointer polling interval (~30Hz) so mouse movements across
+    /// the notch boundary are caught immediately without lag or missed frames.
+    static let pointerPollInterval: Duration = .milliseconds(35)
 
     /// Artwork is not in the first info dictionary after a track change; this is
     /// how long we wait before asking again. See MediaRemoteNowPlayingSource.
