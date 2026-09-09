@@ -84,3 +84,11 @@ final class NotchOverlayWindow: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 }
+
+extension Notification.Name {
+    static let notchFileDragEntered = Notification.Name("co.jianyuelab.notch.fileDragEntered")
+    static let notchFileDragExited = Notification.Name("co.jianyuelab.notch.fileDragExited")
+    static let notchFileDropped = Notification.Name("co.jianyuelab.notch.fileDropped")
+}
+
+

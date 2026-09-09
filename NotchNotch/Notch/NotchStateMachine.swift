@@ -63,10 +63,10 @@ final class NotchStateMachine: ObservableObject {
         self.layout = layout
     }
 
-    func updateHasActiveEvent(_ hasActive: Bool) {
-        guard layout.hasActiveEvent != hasActive else { return }
+    func updateHasLiveActivity(_ hasLive: Bool) {
+        guard layout.hasLiveActivity != hasLive else { return }
         withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-            layout = NotchLayout(geometry: layout.geometry, hasActiveEvent: hasActive)
+            layout = NotchLayout(geometry: layout.geometry, hasLiveActivity: hasLive)
         }
     }
 

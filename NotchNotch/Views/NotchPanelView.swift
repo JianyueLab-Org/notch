@@ -23,6 +23,7 @@ struct NotchPanelView: View {
     @ObservedObject var schedule: ScheduleController
     @State private var activeTab: NotchActiveTab = .overview
     @State private var showSettings: Bool = false
+    @State private var isDraggingFile: Bool = false
 
     private var isOpen: Bool { machine.state.isVisiblyExpanded }
 
@@ -37,16 +38,61 @@ struct NotchPanelView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onReceive(machine.$state) { state in
-            if state == .collapsed || state == .expanding {
+            if state == .collapsed {
                 showSettings = false
+                isDraggingFile = false
                 activeTab = .overview
+            } else if state == .expanding {
+                showSettings = false
+                if !isDraggingFile {
+                    activeTab = .overview
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .notchFileDragEntered)) { _ in
+            isDraggingFile = true
+            withAnimation(.easeInOut(duration: 0.12)) {
+                activeTab = .shelf
+            }
+            if !machine.state.isVisiblyExpanded {
+                machine.expandImmediately()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .notchFileDragExited)) { _ in
+            isDraggingFile = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .notchFileDropped)) { notif in
+            isDraggingFile = false
+            if let urls = notif.object as? [URL], !urls.isEmpty {
+                shelf.addURLs(urls)
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    activeTab = .shelf
+                }
+            }
+        }
+        .onChange(of: isDraggingFile) { isDragging in
+            if isDragging {
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    activeTab = .shelf
+                }
+                if !machine.state.isVisiblyExpanded {
+                    machine.expandImmediately()
+                }
             }
         }
     }
 
+    private var isMusicPlaying: Bool {
+        (media.nowPlaying?.isPlaying == true) && (media.nowPlaying?.hasTrack == true)
+    }
+
+    private var hasLiveActivity: Bool {
+        isMusicPlaying || schedule.hasActiveEvent
+    }
+
     private var notchShape: NotchShape {
-        let collapsedTop = schedule.hasActiveEvent ? NotchConfiguration.collapsedTopCornerRadius : 0
-        let collapsedBottom = schedule.hasActiveEvent ? NotchConfiguration.collapsedBottomCornerRadius : 10
+        let collapsedTop = hasLiveActivity ? NotchConfiguration.collapsedTopCornerRadius : 0
+        let collapsedBottom = hasLiveActivity ? NotchConfiguration.collapsedBottomCornerRadius : 10
         return NotchShape(
             topRadius: isOpen ? NotchConfiguration.expandedTopCornerRadius : collapsedTop,
             bottomRadius: isOpen ? NotchConfiguration.expandedBottomCornerRadius : collapsedBottom
@@ -73,12 +119,16 @@ struct NotchPanelView: View {
         .clipShape(notchShape)
         .compositingGroup()
         .shadow(
-            color: .black.opacity(isOpen ? 0.45 : (schedule.hasActiveEvent ? 0.25 : 0)),
+            color: .black.opacity(isOpen ? 0.45 : (hasLiveActivity ? 0.25 : 0)),
             radius: isOpen ? 14 : 4,
             y: isOpen ? 6 : 2
         )
-        .onDrop(of: [UTType.fileURL.identifier], isTargeted: nil) { providers in
-            handleFileDrop(providers: providers)
+        .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDraggingFile) { providers in
+            isDraggingFile = true
+            withAnimation(.easeInOut(duration: 0.12)) {
+                activeTab = .shelf
+            }
+            return handleFileDrop(providers: providers)
         }
     }
 
@@ -99,6 +149,7 @@ struct NotchPanelView: View {
         }
 
         group.notify(queue: .main) {
+            self.isDraggingFile = false
             if !foundURLs.isEmpty {
                 self.shelf.addURLs(foundURLs)
                 withAnimation(.easeInOut(duration: 0.12)) {
@@ -114,42 +165,104 @@ struct NotchPanelView: View {
 
     @ViewBuilder
     private var compactContent: some View {
-        if schedule.hasActiveEvent {
+        if hasLiveActivity {
             let notchWidth = machine.layout.geometry.notchRect.width
             let earWidth = max(28, (machine.layout.collapsedSize.width - notchWidth) / 2)
 
             HStack(spacing: 0) {
-                // Left ear: Calendar icon in rounded container
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6.5, style: .continuous)
-                        .fill(Color(red: 0.22, green: 0.12, blue: 0.04))
-                        .frame(width: 22, height: 22)
-                    Image(systemName: "calendar")
-                        .font(.system(size: 12.5, weight: .bold))
-                        .foregroundStyle(Color(red: 1.0, green: 0.58, blue: 0.12))
-                }
-                .frame(width: earWidth)
+                // Left ear
+                compactLeftEar
+                    .frame(width: earWidth)
 
                 // Center: Clear notch hardware area
                 Spacer()
                     .frame(width: notchWidth)
 
-                // Right ear: Circular schedule progress ring
-                ZStack {
-                    Circle()
-                        .stroke(Color(red: 0.22, green: 0.12, blue: 0.04), lineWidth: 3.2)
-                        .frame(width: 20, height: 20)
-                    Circle()
-                        .trim(from: 0, to: max(0.04, min(1.0, schedule.progress)))
-                        .stroke(Color(red: 1.0, green: 0.58, blue: 0.12), style: StrokeStyle(lineWidth: 3.2, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                        .frame(width: 20, height: 20)
-                }
-                .frame(width: earWidth)
+                // Right ear
+                compactRightEar
+                    .frame(width: earWidth)
             }
             .frame(width: machine.layout.collapsedSize.width,
                    height: machine.layout.collapsedSize.height)
             .clipped()
+        }
+    }
+
+    @ViewBuilder
+    private var compactLeftEar: some View {
+        if isMusicPlaying {
+            if let artwork = media.nowPlaying?.artwork {
+                Image(nsImage: artwork)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 21, height: 21)
+                    .clipShape(RoundedRectangle(cornerRadius: 5.5, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 5.5, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5)
+                    )
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 5.5, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(red: 0.95, green: 0.22, blue: 0.38), Color(red: 0.85, green: 0.15, blue: 0.45)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 21, height: 21)
+                    Image(systemName: "music.note")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+            }
+        } else if schedule.hasActiveEvent {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6.5, style: .continuous)
+                    .fill(Color(red: 0.22, green: 0.12, blue: 0.04))
+                    .frame(width: 22, height: 22)
+                Image(systemName: "calendar")
+                    .font(.system(size: 12.5, weight: .bold))
+                    .foregroundStyle(Color(red: 1.0, green: 0.58, blue: 0.12))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var compactRightEar: some View {
+        if isMusicPlaying, let track = media.nowPlaying {
+            TimelineView(.periodic(from: .now, by: track.isPlaying ? 0.5 : 3600)) { timeline in
+                let progress = track.progress(at: timeline.date)
+                ZStack {
+                    Circle()
+                        .stroke(Color.white.opacity(0.18), lineWidth: 2.8)
+                        .frame(width: 19, height: 19)
+                    Circle()
+                        .trim(from: 0, to: max(0.04, min(1.0, progress)))
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color(red: 0.22, green: 0.65, blue: 1.0), Color(red: 0.50, green: 0.85, blue: 1.0)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            style: StrokeStyle(lineWidth: 2.8, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: 19, height: 19)
+                }
+            }
+        } else if schedule.hasActiveEvent {
+            ZStack {
+                Circle()
+                    .stroke(Color(red: 0.22, green: 0.12, blue: 0.04), lineWidth: 3.2)
+                    .frame(width: 20, height: 20)
+                Circle()
+                    .trim(from: 0, to: max(0.04, min(1.0, schedule.progress)))
+                    .stroke(Color(red: 1.0, green: 0.58, blue: 0.12), style: StrokeStyle(lineWidth: 3.2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 20, height: 20)
+            }
         }
     }
 
@@ -199,7 +312,7 @@ struct NotchPanelView: View {
                 )
                 circleIconButton(
                     tab: .shelf,
-                    icon: "folder.fill",
+                    icon: "tray.fill",
                     isBlueActive: false,
                     badge: shelf.items.isEmpty ? nil : "\(shelf.items.count)"
                 )

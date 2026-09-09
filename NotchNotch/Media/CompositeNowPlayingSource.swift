@@ -91,6 +91,22 @@ final class CompositeNowPlayingSource: NowPlayingSource {
             let name = winner.map { String(describing: type(of: children[$0])) } ?? "none"
             Log.media.notice("media: active backend -> \(name, privacy: .public)")
         }
-        onChange?(winner.flatMap { latest[$0] })
+        if var bestTrack = winner.flatMap({ latest[$0] }) {
+            if bestTrack.artwork == nil {
+                for other in latest where other?.title == bestTrack.title && other?.artwork != nil {
+                    bestTrack.artwork = other?.artwork
+                    break
+                }
+            }
+            if bestTrack.duration <= 0 {
+                for other in latest where other?.title == bestTrack.title && (other?.duration ?? 0) > 0 {
+                    bestTrack.duration = other?.duration ?? 0
+                    break
+                }
+            }
+            onChange?(bestTrack)
+        } else {
+            onChange?(nil)
+        }
     }
 }

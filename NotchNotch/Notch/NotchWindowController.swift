@@ -44,7 +44,7 @@ final class NotchWindowController {
         let detected = screen.map { NotchGeometry.detect(on: $0) }
             ?? NotchGeometry(notchRect: .zero, screenFrame: .zero, source: .simulated, screenName: "none")
         geometry = detected
-        stateMachine = NotchStateMachine(layout: NotchLayout(geometry: detected, hasActiveEvent: false))
+        stateMachine = NotchStateMachine(layout: NotchLayout(geometry: detected, hasLiveActivity: false))
     }
 
     // MARK: - Lifecycle
@@ -53,7 +53,7 @@ final class NotchWindowController {
         nowPlaying.start()
         buildWindowIfNeeded()
         observeState()
-        observeSchedule()
+        observeLiveActivities()
         observeScreenChanges()
 
         lastPointer = NSEvent.mouseLocation
@@ -90,19 +90,25 @@ final class NotchWindowController {
         guard let screen = NotchGeometry.preferredScreen() else { return }
         let detected = NotchGeometry.detect(on: screen)
         geometry = detected
-        let layout = NotchLayout(geometry: detected, hasActiveEvent: schedule.hasActiveEvent)
+        let isMusicPlaying = (nowPlaying.nowPlaying?.isPlaying == true) && (nowPlaying.nowPlaying?.hasTrack == true)
+        let hasLive = isMusicPlaying || schedule.hasActiveEvent
+        let layout = NotchLayout(geometry: detected, hasLiveActivity: hasLive)
         stateMachine.collapseImmediately()
         stateMachine.layout = layout
         window?.setFrame(layout.windowFrame, display: true)
         Log.lifecycle.notice("controller: reloaded onto \(detected.screenName, privacy: .public)")
     }
 
-    private func observeSchedule() {
-        schedule.$hasActiveEvent
+    private func observeLiveActivities() {
+        Publishers.CombineLatest(nowPlaying.$nowPlaying, schedule.$hasActiveEvent)
+            .map { track, hasActiveSchedule in
+                let isMusicPlaying = (track?.isPlaying == true) && (track?.hasTrack == true)
+                return isMusicPlaying || hasActiveSchedule
+            }
             .removeDuplicates()
-            .sink { [weak self] hasActive in
+            .sink { [weak self] hasLive in
                 guard let self else { return }
-                self.stateMachine.updateHasActiveEvent(hasActive)
+                self.stateMachine.updateHasLiveActivity(hasLive)
             }
             .store(in: &cancellables)
     }
@@ -131,7 +137,12 @@ final class NotchWindowController {
             shelf: shelf,
             schedule: schedule
         )
-        let hosting = NSHostingView(rootView: panelView)
+        let hosting = NotchHostingView(rootView: panelView)
+        hosting.onFileDragEntered = { [weak self] in
+            guard let self else { return }
+            self.window?.setInteractive(true)
+            self.stateMachine.expandImmediately()
+        }
         // The hosting view must not paint a background of its own, or the
         // "transparent window" is a grey rectangle.
         hosting.layer?.backgroundColor = .clear
@@ -193,3 +204,35 @@ final class NotchWindowController {
             .store(in: &cancellables)
     }
 }
+
+// MARK: - Drag Detecting Hosting View
+
+final class NotchHostingView<Content: View>: NSHostingView<Content> {
+    var onFileDragEntered: (() -> Void)?
+    var onFileDragExited: (() -> Void)?
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        let pboard = sender.draggingPasteboard
+        if pboard.canReadObject(forClasses: [NSURL.self], options: nil) {
+            onFileDragEntered?()
+            NotificationCenter.default.post(name: .notchFileDragEntered, object: nil)
+            return .copy
+        }
+        return super.draggingEntered(sender)
+    }
+
+    override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        let pboard = sender.draggingPasteboard
+        if pboard.canReadObject(forClasses: [NSURL.self], options: nil) {
+            return .copy
+        }
+        return super.draggingUpdated(sender)
+    }
+
+    override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+        super.draggingExited(sender)
+        onFileDragExited?()
+        NotificationCenter.default.post(name: .notchFileDragExited, object: nil)
+    }
+}
+

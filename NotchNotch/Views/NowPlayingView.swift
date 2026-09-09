@@ -22,7 +22,9 @@ struct NowPlayingView: View {
                     permissionView(message: message)
                 } else {
                     titles
-                    Spacer(minLength: 6)
+                    Spacer(minLength: 4)
+                    progressBar
+                    Spacer(minLength: 4)
                     transport
                 }
             }
@@ -55,6 +57,12 @@ struct NowPlayingView: View {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+                    .frame(width: 82, height: 82)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
+                    )
             } else {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -159,6 +167,51 @@ struct NowPlayingView: View {
                 .foregroundStyle(.white.opacity(0.4))
                 .lineLimit(1)
         }
+    }
+
+    private var progressBar: some View {
+        TimelineView(.periodic(from: .now, by: track.isPlaying ? 0.5 : 3600)) { timeline in
+            let elapsed = track.elapsed(at: timeline.date)
+            let progress = track.progress(at: timeline.date)
+
+            VStack(spacing: 3) {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.16))
+                            .frame(height: 3.5)
+
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.95),
+                                        Color.white.opacity(0.80)
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(width: max(3.5, geo.size.width * CGFloat(progress)), height: 3.5)
+                    }
+                    .frame(maxHeight: .infinity, alignment: .center)
+                }
+                .frame(height: 5)
+
+                HStack {
+                    Text(track.hasTrack ? elapsed.clockString : "0:00")
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.55))
+
+                    Spacer()
+
+                    Text(track.duration > 0 ? track.duration.clockString : "--:--")
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.55))
+                }
+            }
+        }
+        .frame(height: 16)
     }
 
     private var transport: some View {
