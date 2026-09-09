@@ -115,6 +115,6 @@ struct NowPlayingView: View {
                 .frame(width: 28, height: 24)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ScaleButtonStyle())
     }
 }

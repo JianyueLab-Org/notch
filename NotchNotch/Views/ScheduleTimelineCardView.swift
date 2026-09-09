@@ -74,31 +74,29 @@ struct ScheduleTimelineCardView: View {
                     )
                     .background(Capsule().fill(Color.orange.opacity(0.06)))
 
-                // Vertical tick marks
-                HStack(spacing: 0) {
-                    ForEach(0..<tickCount, id: \.self) { i in
+                // Vertical tick marks drawn via GPU Canvas
+                Canvas { context, size in
+                    let step = (size.width - 12) / CGFloat(tickCount - 1)
+                    for i in 0..<tickCount {
+                        let x = 6 + CGFloat(i) * step
                         let isPastThumb = Double(i) / Double(tickCount) < schedule.progress
                         let isNextEvent = i >= dividerIndex
 
+                        let tickHeight: CGFloat = (i == dividerIndex) ? 15 : 13
+                        let tickY = (size.height - tickHeight) / 2
+                        let tickRect = CGRect(x: x - 0.75, y: tickY, width: 1.5, height: tickHeight)
+
                         if i == dividerIndex {
-                            // Divider bar separating current event from next event
-                            Rectangle()
-                                .fill(Color.white.opacity(0.6))
-                                .frame(width: 1.5, height: 15)
-                                .frame(maxWidth: .infinity)
+                            context.fill(Path(tickRect), with: .color(Color.white.opacity(0.6)))
+                        } else if isPastThumb {
+                            context.fill(Path(tickRect), with: .color(Color(red: 1.0, green: 0.58, blue: 0.05)))
+                        } else if isNextEvent {
+                            context.fill(Path(tickRect), with: .color(Color.orange.opacity(0.6)))
                         } else {
-                            Rectangle()
-                                .fill(
-                                    isPastThumb
-                                        ? Color(red: 1.0, green: 0.58, blue: 0.05)
-                                        : (isNextEvent ? Color.orange.opacity(0.6) : Color.orange.opacity(0.32))
-                                )
-                                .frame(width: 1.5, height: 13)
-                                .frame(maxWidth: .infinity)
+                            context.fill(Path(tickRect), with: .color(Color.orange.opacity(0.32)))
                         }
                     }
                 }
-                .padding(.horizontal, 6)
 
                 // White slider thumb indicator
                 ZStack {

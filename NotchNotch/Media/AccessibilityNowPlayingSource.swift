@@ -99,45 +99,33 @@ final class AccessibilityNowPlayingSource: NowPlayingSource {
     // MARK: - Reading
 
     private func refresh() {
-        guard let controlCenter = controlCenterElement() else {
-            report(nil)
-            return
+        Task.detached(priority: .utility) { [weak self] in
+            let track = Self.fetchControlCenterTrack()
+            await self?.report(track)
         }
-
-        // One-shot structural dump the first time we get access. Control
-        // Center's hierarchy is not documented and changes between releases,
-        // so the parser below is written against what this actually prints
-        // rather than against folklore.
-        if !didDumpTree {
-            didDumpTree = true
-            dump(controlCenter, label: "ControlCenter", depth: 0, maxDepth: 4)
-        }
-
-        guard let item = findNowPlayingElement(under: controlCenter) else {
-            report(nil)
-            return
-        }
-        report(makeTrack(from: item))
     }
 
-    private func controlCenterElement() -> AXUIElement? {
+    private nonisolated static func fetchControlCenterTrack() -> NowPlaying? {
         guard let app = NSRunningApplication
             .runningApplications(withBundleIdentifier: "com.apple.controlcenter").first else {
-            Log.media.error("media: Control Center is not running")
             return nil
         }
-        return AXUIElementCreateApplication(app.processIdentifier)
+        let controlCenter = AXUIElementCreateApplication(app.processIdentifier)
+        guard let item = findNowPlayingElement(under: controlCenter) else {
+            return nil
+        }
+        return makeTrack(from: item)
     }
 
     /// Control Center exposes its menu bar modules as children of the app
     /// element. We look for the one that identifies itself as now-playing,
     /// falling back to a description match for localisations that rename it.
-    private func findNowPlayingElement(under root: AXUIElement) -> AXUIElement? {
+    private nonisolated static func findNowPlayingElement(under root: AXUIElement) -> AXUIElement? {
         var queue = [root]
-        var visited = 0
-        while let element = queue.first, visited < 400 {
-            queue.removeFirst()
-            visited += 1
+        var head = 0
+        while head < queue.count && head < 400 {
+            let element = queue[head]
+            head += 1
 
             let identifier = string(element, kAXIdentifierAttribute) ?? ""
             let description = string(element, kAXDescriptionAttribute) ?? ""
@@ -151,18 +139,11 @@ final class AccessibilityNowPlayingSource: NowPlayingSource {
         return nil
     }
 
-    private func makeTrack(from element: AXUIElement) -> NowPlaying? {
-        // The module surfaces its state as free text; grab every string we can
-        // and let the logging tell us how to split it properly.
+    private nonisolated static func makeTrack(from element: AXUIElement) -> NowPlaying? {
         let title = string(element, kAXTitleAttribute) ?? ""
         let description = string(element, kAXDescriptionAttribute) ?? ""
         let value = string(element, kAXValueAttribute) ?? ""
         let help = string(element, kAXHelpAttribute) ?? ""
-        Log.media.debug("""
-            media: AX now-playing element title=\(title, privacy: .public) \
-            description=\(description, privacy: .public) value=\(value, privacy: .public) \
-            help=\(help, privacy: .public)
-            """)
 
         let candidates = [value, description, title, help].filter { !$0.isEmpty }
         guard let text = candidates.first else { return nil }
@@ -177,9 +158,6 @@ final class AccessibilityNowPlayingSource: NowPlayingSource {
         return NowPlaying(title: trackTitle,
                           artist: artist,
                           album: "",
-                          // The AX surface does not expose transport state or
-                          // timing, so these stay neutral; the progress bar
-                          // simply does not move on this backend.
                           isPlaying: true,
                           duration: 0,
                           reportedElapsed: 0,
@@ -200,14 +178,14 @@ final class AccessibilityNowPlayingSource: NowPlayingSource {
 
     // MARK: - AX helpers
 
-    private func children(of element: AXUIElement) -> [AXUIElement] {
+    private nonisolated static func children(of element: AXUIElement) -> [AXUIElement] {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value) == .success
         else { return [] }
         return value as? [AXUIElement] ?? []
     }
 
-    private func string(_ element: AXUIElement, _ attribute: String) -> String? {
+    private nonisolated static func string(_ element: AXUIElement, _ attribute: String) -> String? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success
         else { return nil }
@@ -218,13 +196,13 @@ final class AccessibilityNowPlayingSource: NowPlayingSource {
     private func dump(_ element: AXUIElement, label: String, depth: Int, maxDepth: Int) {
         guard depth <= maxDepth else { return }
         let pad = String(repeating: "  ", count: depth)
-        let role = string(element, kAXRoleAttribute) ?? "?"
+        let role = Self.string(element, kAXRoleAttribute) ?? "?"
         let fields = [("id", kAXIdentifierAttribute), ("title", kAXTitleAttribute),
                       ("desc", kAXDescriptionAttribute), ("value", kAXValueAttribute)]
-            .compactMap { name, key in string(element, key).map { "\(name)=\($0)" } }
+            .compactMap { name, key in Self.string(element, key).map { "\(name)=\($0)" } }
             .joined(separator: " ")
         Log.media.notice("axdump: \(pad, privacy: .public)\(role, privacy: .public) \(fields, privacy: .public)")
-        for child in children(of: element) {
+        for child in Self.children(of: element) {
             dump(child, label: label, depth: depth + 1, maxDepth: maxDepth)
         }
     }

@@ -55,11 +55,9 @@ struct NotchPanelView: View {
                         .opacity(isOpen ? 0 : 1)
                         .allowsHitTesting(!isOpen)
 
-                    if machine.state.isOnScreen {
-                        expandedContent
-                            .opacity(isOpen ? 1 : 0)
-                            .allowsHitTesting(isOpen)
-                    }
+                    expandedContent
+                        .opacity(isOpen ? 1 : 0)
+                        .allowsHitTesting(isOpen)
                 }
             }
             .frame(width: bodySize.width, height: bodySize.height)
@@ -134,8 +132,6 @@ struct NotchPanelView: View {
         .frame(width: machine.layout.expandedSize.width,
                height: machine.layout.expandedSize.height)
         .foregroundStyle(.white)
-        .opacity(isOpen ? 1 : 0)
-        .allowsHitTesting(isOpen)
         .clipped()
     }
 
@@ -180,7 +176,7 @@ struct NotchPanelView: View {
                         .foregroundStyle(.white)
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(ScaleButtonStyle())
         }
         .frame(height: 34)
     }
@@ -223,7 +219,7 @@ struct NotchPanelView: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ScaleButtonStyle())
     }
 
     // MARK: - Overview Content
@@ -323,5 +319,16 @@ struct NotchPanelView: View {
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Responsive Tactile Feedback
+
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.90 : 1.0)
+            .opacity(configuration.isPressed ? 0.75 : 1.0)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }

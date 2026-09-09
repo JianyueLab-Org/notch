@@ -91,7 +91,7 @@ final class NotchHoverMonitor {
             guard let self else { return }
             let loc = NSEvent.mouseLocation
             let isDragging = (NSEvent.pressedMouseButtons & 1) != 0
-            self.onMove(loc, isDragging)
+            self.deliverLocation(loc, isDragging: isDragging)
         }
         timer.resume()
         pollTimer = timer
@@ -110,11 +110,23 @@ final class NotchHoverMonitor {
         // Continuous polling is active
     }
 
+    private var lastDeliveredLocation: CGPoint = .zero
+    private var lastDeliveredDragging: Bool = false
+
+    private func deliverLocation(_ loc: CGPoint, isDragging: Bool) {
+        if loc == lastDeliveredLocation && isDragging == lastDeliveredDragging {
+            return
+        }
+        lastDeliveredLocation = loc
+        lastDeliveredDragging = isDragging
+        onMove(loc, isDragging)
+    }
+
     /// Read the cursor from `NSEvent.mouseLocation` rather than the event's own
     /// `locationInWindow`: for a global monitor there is no window to convert
     /// from, and this is already in the screen space everything else uses.
     private func deliverCurrentLocation(isDragging: Bool) {
-        onMove(NSEvent.mouseLocation, isDragging)
+        deliverLocation(NSEvent.mouseLocation, isDragging: isDragging)
     }
 
     isolated deinit {

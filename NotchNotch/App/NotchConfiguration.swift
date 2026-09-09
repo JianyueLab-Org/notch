@@ -51,26 +51,22 @@ nonisolated enum NotchConfiguration {
     // MARK: - Timing
 
     /// Dwell delay requiring pointer to stay in trigger area before opening.
-    /// Prevents transient mouse movements or menu bar passes from opening the panel.
-    static let hoverExpandDwellDelay: Duration = .milliseconds(120)
+    /// Fast 80ms responds with zero perceived lag to intentional hovers while
+    /// safely ignoring high-speed passes across the screen top.
+    static let hoverExpandDwellDelay: Duration = .milliseconds(80)
 
     /// How long the cursor must stay outside the panel before we start closing.
-    /// Without this, a single stray mouse-moved event on the edge collapses the
-    /// panel mid-interaction.
-    static let collapseDelay: Duration = .milliseconds(220)
+    static let collapseDelay: Duration = .milliseconds(200)
 
-    /// Roughly how long the spring takes to settle. Springs have no true
-    /// duration, so these are the "close enough" values that drive the
-    /// expanding → expanded and collapsing → collapsed transitions.
-    static let expandSettleDuration: Duration = .milliseconds(360)
-    static let collapseSettleDuration: Duration = .milliseconds(320)
+    /// Roughly how long the spring takes to settle.
+    static let expandSettleDuration: Duration = .milliseconds(320)
+    static let collapseSettleDuration: Duration = .milliseconds(280)
 
-    static let expandAnimation = Animation.spring(response: 0.34, dampingFraction: 0.78)
-    static let collapseAnimation = Animation.spring(response: 0.30, dampingFraction: 0.90)
+    static let expandAnimation = Animation.spring(response: 0.32, dampingFraction: 0.82)
+    static let collapseAnimation = Animation.spring(response: 0.28, dampingFraction: 0.88)
 
-    /// High-frequency pointer polling interval (~30Hz) so mouse movements across
-    /// the notch boundary are caught immediately without lag or missed frames.
-    static let pointerPollInterval: Duration = .milliseconds(35)
+    /// High-frequency pointer polling interval (~40Hz) for ultra-fluid boundary catching.
+    static let pointerPollInterval: Duration = .milliseconds(25)
 
     /// Artwork is not in the first info dictionary after a track change; this is
     /// how long we wait before asking again. See MediaRemoteNowPlayingSource.

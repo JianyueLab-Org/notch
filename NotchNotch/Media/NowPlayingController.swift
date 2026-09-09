@@ -25,10 +25,13 @@ final class NowPlayingController: ObservableObject {
     func start() {
         source.onChange = { [weak self] track in
             guard let self else { return }
-            self.nowPlaying = track
-            // The source re-evaluates permission on every tick, so mirroring it
-            // here keeps the UI current without another callback channel.
-            self.authorization = self.source.authorization
+            if self.nowPlaying != track {
+                self.nowPlaying = track
+            }
+            let nextAuth = self.source.authorization
+            if self.authorization != nextAuth {
+                self.authorization = nextAuth
+            }
         }
         source.start()
         authorization = source.authorization
