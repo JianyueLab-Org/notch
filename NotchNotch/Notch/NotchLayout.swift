@@ -41,7 +41,8 @@ nonisolated struct NotchLayout: Equatable, Sendable {
         let notch = geometry.notchRect
         let screen = geometry.screenFrame
 
-        collapsedSize = notch.size
+        collapsedSize = CGSize(width: notch.width + NotchConfiguration.compactWidthExtension,
+                               height: notch.height)
         expandedSize = CGSize(width: max(NotchConfiguration.expandedSize.width, notch.width + 160),
                               height: NotchConfiguration.expandedSize.height)
 
@@ -65,10 +66,10 @@ nonisolated struct NotchLayout: Equatable, Sendable {
                              width: windowSize.width,
                              height: windowSize.height)
 
-        // Enter region: the notch, widened horizontally (40pt) and extended downwards
+        // Enter region: the notch, widened horizontally and extended downwards
         // into the display (60pt below notch, covering the natural hover zone below the bezel)
         // and upwards past the screen edge (+50pt) so touching the top edge is contained.
-        let hm = NotchConfiguration.hoverEnterHorizontalMargin
+        let hm = max(NotchConfiguration.hoverEnterHorizontalMargin, NotchConfiguration.compactWidthExtension / 2 + 10)
         let vm = NotchConfiguration.hoverEnterVerticalMargin
         enterRegion = CGRect(x: notch.minX - hm,
                              y: notch.minY - vm,
@@ -76,7 +77,10 @@ nonisolated struct NotchLayout: Equatable, Sendable {
                              height: notch.height + vm + 50)
 
         // Exit region: the visible expanded body plus a generous margin.
-        collapsedBodyRect = notch
+        collapsedBodyRect = CGRect(x: notch.midX - collapsedSize.width / 2,
+                                   y: notch.minY,
+                                   width: collapsedSize.width,
+                                   height: collapsedSize.height)
         expandedBodyRect = CGRect(x: notch.midX - expandedSize.width / 2,
                                   y: screen.maxY - expandedSize.height,
                                   width: expandedSize.width,

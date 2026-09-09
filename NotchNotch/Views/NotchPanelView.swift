@@ -44,10 +44,60 @@ struct NotchPanelView: View {
                                         : NotchConfiguration.collapsedBottomCornerRadius)
             .fill(Color.black)
             .overlay(alignment: .top) {
-                if machine.state.isOnScreen { expandedContent }
+                ZStack(alignment: .top) {
+                    compactContent
+                        .opacity(isOpen ? 0 : 1)
+                        .allowsHitTesting(!isOpen)
+
+                    if machine.state.isOnScreen {
+                        expandedContent
+                            .opacity(isOpen ? 1 : 0)
+                            .allowsHitTesting(isOpen)
+                    }
+                }
             }
             .frame(width: bodySize.width, height: bodySize.height)
-            .shadow(color: .black.opacity(isOpen ? 0.45 : 0), radius: 14, y: 6)
+            .shadow(color: .black.opacity(isOpen ? 0.45 : 0.25), radius: isOpen ? 14 : 4, y: isOpen ? 6 : 2)
+    }
+
+    // MARK: - Compact Content (Collapsed State)
+
+    private var compactContent: some View {
+        let notchWidth = machine.layout.geometry.notchRect.width
+        let earWidth = max(24, (machine.layout.collapsedSize.width - notchWidth) / 2)
+
+        return HStack(spacing: 0) {
+            // Left ear: Calendar icon in rounded container
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.orange.opacity(0.18))
+                    .frame(width: 22, height: 22)
+                Image(systemName: "calendar")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.orange)
+            }
+            .frame(width: earWidth)
+
+            // Center: Clear notch hardware area
+            Spacer()
+                .frame(width: notchWidth)
+
+            // Right ear: Circular schedule progress ring
+            ZStack {
+                Circle()
+                    .stroke(Color.orange.opacity(0.2), lineWidth: 3.5)
+                    .frame(width: 20, height: 20)
+                Circle()
+                    .trim(from: 0, to: max(0.04, min(1.0, schedule.progress)))
+                    .stroke(Color.orange, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 20, height: 20)
+            }
+            .frame(width: earWidth)
+        }
+        .frame(width: machine.layout.collapsedSize.width,
+               height: machine.layout.collapsedSize.height)
+        .clipped()
     }
 
     @ViewBuilder
