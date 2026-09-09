@@ -125,11 +125,17 @@ final class SpotifyScriptingSource: NowPlayingSource {
     /// coerced with `as text`, which is not reliable across Spotify builds.
     private static let readScript = """
     tell application id "\(bundleIdentifier)"
+        set ps to "stopped"
+        try
+            set ps to (player state as string)
+        end try
         set playbackStatus to "stopped"
-        if player state is playing then
+        if ps is "playing" or player state is playing then
             set playbackStatus to "playing"
-        else if player state is paused then
+        else if ps is "paused" or player state is paused then
             set playbackStatus to "paused"
+        else if ps is not "" then
+            set playbackStatus to ps
         end if
         set pos to 0
         try
@@ -218,10 +224,12 @@ final class SpotifyScriptingSource: NowPlayingSource {
             Log.media.notice("media: Spotify raw duration=\(rawDuration, privacy: .public) position=\(position, privacy: .public)")
         }
 
-        let isPlaying = state == "playing"
+        let isPlaying = state.lowercased().contains("play") || state.contains("kPSP")
         let duration = Self.normalisedDuration(rawDuration, position: position)
 
         if !artworkURL.isEmpty { fetchArtworkIfNeeded(artworkURL) }
+
+        Log.media.notice("media: Spotify parsed '\(title, privacy: .public)' isPlaying=\(isPlaying, privacy: .public) state='\(state, privacy: .public)' hasArtwork=\(self.artworkCache?.url == artworkURL, privacy: .public)")
 
         return NowPlaying(
             title: title,
@@ -256,15 +264,21 @@ final class SpotifyScriptingSource: NowPlayingSource {
         guard artworkCache?.url != urlString, let url = URL(string: urlString) else { return }
         artworkTask?.cancel()
         artworkTask = Task { [weak self] in
-            // URLSession does the work off the main actor for us; no @concurrent
-            // needed, and no reason to hand-roll a queue.
-            guard let (data, _) = try? await URLSession.shared.data(from: url),
-                  let image = NSImage(data: data),
-                  !Task.isCancelled,
-                  let self else { return }
-            self.artworkCache = (urlString, image)
-            // Re-emit so the panel picks the artwork up now that it exists.
-            await self.tick()
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                guard let image = NSImage(data: data),
+                      !Task.isCancelled,
+                      let self else {
+                    Log.media.error("media: Spotify failed to decode artwork image from \(urlString, privacy: .public)")
+                    return
+                }
+                Log.media.notice("media: Spotify successfully fetched artwork (\(data.count, privacy: .public) bytes)")
+                self.artworkCache = (urlString, image)
+                // Re-emit so the panel picks the artwork up now that it exists.
+                await self.tick()
+            } catch {
+                Log.media.error("media: Spotify artwork download failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 

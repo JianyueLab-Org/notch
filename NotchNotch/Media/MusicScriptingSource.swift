@@ -107,11 +107,17 @@ final class MusicScriptingSource: NowPlayingSource {
 
     private static let readScript = """
     tell application id "\(bundleIdentifier)"
+        set ps to "stopped"
+        try
+            set ps to (player state as string)
+        end try
         set playbackStatus to "stopped"
-        if player state is playing then
+        if ps is "playing" or player state is playing then
             set playbackStatus to "playing"
-        else if player state is paused then
+        else if ps is "paused" or player state is paused then
             set playbackStatus to "paused"
+        else if ps is not "" then
+            set playbackStatus to ps
         end if
         set pos to 0
         try
@@ -200,7 +206,7 @@ final class MusicScriptingSource: NowPlayingSource {
 
         guard !title.isEmpty || !artist.isEmpty else { return nil }
 
-        let isPlaying = state == "playing"
+        let isPlaying = state.lowercased().contains("play") || state.contains("kPSP")
 
         if !trackId.isEmpty {
             fetchArtworkIfNeeded(trackId: trackId)
