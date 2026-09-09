@@ -15,13 +15,13 @@ struct ClipboardCardView: View {
     @State private var copied: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "doc.on.doc.fill")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 11.5, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
                 Text("Clipboard")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(.system(size: 12.5, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                 Spacer()
                 if !clipboardText.isEmpty {
@@ -30,7 +30,7 @@ struct ClipboardCardView: View {
                         clipboardText = ""
                     } label: {
                         Text("Clear")
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
                             .foregroundStyle(.white.opacity(0.5))
                     }
                     .buttonStyle(.plain)
@@ -38,26 +38,26 @@ struct ClipboardCardView: View {
             }
 
             if clipboardText.isEmpty {
-                VStack(spacing: 6) {
+                VStack(spacing: 5) {
                     Spacer()
                     Image(systemName: "doc.on.clipboard")
-                        .font(.system(size: 24))
+                        .font(.system(size: 20))
                         .foregroundStyle(.white.opacity(0.3))
                     Text("Clipboard is empty")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.5))
                     Spacer()
                 }
                 .frame(maxWidth: .infinity)
             } else {
                 Text(clipboardText)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.system(size: 10.5, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.85))
                     .lineLimit(4)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .padding(10)
+                    .padding(8)
                     .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
                             .fill(Color.white.opacity(0.04))
                     )
 
@@ -75,23 +75,23 @@ struct ClipboardCardView: View {
                             Image(systemName: copied ? "checkmark" : "doc.on.doc")
                             Text(copied ? "Copied" : "Copy Again")
                         }
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
                         .background(Capsule().fill(Color.white.opacity(0.14)))
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
-        .padding(12)
+        .padding(10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
                 .fill(Color(white: 0.11))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
                         .strokeBorder(
                             LinearGradient(
                                 colors: [Color.white.opacity(0.15), Color.white.opacity(0.04)],

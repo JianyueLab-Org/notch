@@ -277,7 +277,7 @@ struct NotchPanelView: View {
 
     @ViewBuilder
     private var expandedContent: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             topBar
 
             ZStack {
@@ -299,9 +299,9 @@ struct NotchPanelView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 10)
-        .padding(.bottom, 16)
+        .padding(.horizontal, 14)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
         .frame(width: machine.layout.expandedSize.width,
                height: machine.layout.expandedSize.height)
         .foregroundStyle(.white)
@@ -313,7 +313,7 @@ struct NotchPanelView: View {
     private var topBar: some View {
         HStack(alignment: .center) {
             // Left circular icon buttons
-            HStack(spacing: 8) {
+            HStack(spacing: 7) {
                 circleIconButton(
                     tab: .overview,
                     icon: "square.grid.2x2.fill",
@@ -343,15 +343,15 @@ struct NotchPanelView: View {
                 ZStack {
                     Circle()
                         .fill(showSettings ? Color.white.opacity(0.28) : Color.white.opacity(0.14))
-                        .frame(width: 32, height: 32)
+                        .frame(width: 28, height: 28)
                     Image(systemName: "gearshape.fill")
-                        .font(.system(size: 13.5, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white)
                 }
             }
             .buttonStyle(TabButtonStyle())
         }
-        .frame(height: 34)
+        .frame(height: 28)
     }
 
     private func circleIconButton(
@@ -374,21 +374,21 @@ struct NotchPanelView: View {
                             ? (isBlueActive ? Color(red: 0.05, green: 0.52, blue: 1.0) : Color.white.opacity(0.25))
                             : Color.white.opacity(0.14)
                     )
-                    .frame(width: 32, height: 32)
+                    .frame(width: 28, height: 28)
 
                 Image(systemName: icon)
-                    .font(.system(size: 13.5, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.8))
-                    .frame(width: 32, height: 32)
+                    .frame(width: 28, height: 28)
 
                 if let badge {
                     Text(badge)
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
+                        .padding(.horizontal, 3.5)
+                        .padding(.vertical, 0.5)
                         .background(Capsule().fill(Color.accentColor))
-                        .offset(x: 4, y: -2)
+                        .offset(x: 3, y: -2)
                 }
             }
         }
@@ -398,7 +398,7 @@ struct NotchPanelView: View {
     // MARK: - Overview Content
 
     private var overviewContent: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             // Left: Media Card
             let track = media.nowPlaying ?? NowPlaying(
                 title: "", artist: "", album: "", isPlaying: false,
@@ -421,25 +421,25 @@ struct NotchPanelView: View {
     // MARK: - Settings View
 
     private var settingsContent: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text("NotchNotch Quick Settings")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(.system(size: 12.5, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
 
                 Text("Custom status panel for Apple Silicon notch")
-                    .font(.system(size: 11, weight: .regular, design: .rounded))
+                    .font(.system(size: 10, weight: .regular, design: .rounded))
                     .foregroundStyle(.white.opacity(0.5))
 
                 Spacer()
             }
-            .padding(12)
+            .padding(10)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
                     .fill(Color(white: 0.11))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        RoundedRectangle(cornerRadius: 13, style: .continuous)
                             .strokeBorder(
                                 LinearGradient(
                                     colors: [Color.white.opacity(0.15), Color.white.opacity(0.04)],
@@ -451,18 +451,18 @@ struct NotchPanelView: View {
                     )
             )
 
-            VStack(spacing: 8) {
+            VStack(spacing: 6) {
                 Button("Re-detect Notch Display") {
                     // Triggers screen re-detect via notification
                     NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
                 }
                 .buttonStyle(.plain)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundStyle(.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
                 .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.12)))
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.12)))
 
                 Button("Close Settings") {
                     withAnimation(.easeInOut(duration: 0.12)) {
@@ -470,20 +470,20 @@ struct NotchPanelView: View {
                     }
                 }
                 .buttonStyle(TabButtonStyle())
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.6))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
                 .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.06)))
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.06)))
             }
-            .padding(12)
+            .padding(10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
                     .fill(Color(white: 0.11))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        RoundedRectangle(cornerRadius: 13, style: .continuous)
                             .strokeBorder(
                                 LinearGradient(
                                     colors: [Color.white.opacity(0.15), Color.white.opacity(0.04)],

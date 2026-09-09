@@ -12,21 +12,21 @@ struct ScheduleTimelineCardView: View {
     @ObservedObject var schedule: ScheduleController
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 3) {
             header
-            Spacer(minLength: 4)
+            Spacer(minLength: 2)
             rulerGauge
             timeMarkers
-            Spacer(minLength: 4)
+            Spacer(minLength: 2)
             footer
         }
-        .padding(12)
+        .padding(10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
                 .fill(Color(white: 0.11))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
                         .strokeBorder(
                             LinearGradient(
                                 colors: [Color.white.opacity(0.15), Color.white.opacity(0.04)],
@@ -42,13 +42,13 @@ struct ScheduleTimelineCardView: View {
     // MARK: - Components
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 1.5) {
             Text(schedule.currentEventTitle)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
                 .lineLimit(1)
             Text(schedule.currentEventStatus)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.65))
                 .lineLimit(1)
         }
@@ -58,7 +58,7 @@ struct ScheduleTimelineCardView: View {
         GeometryReader { geo in
             let width = geo.size.width
             let tickCount = 33 // 4 blocks of 8 subdivisions (indices 0, 8, 16, 24, 32)
-            let thumbX = 6 + (width - 12) * schedule.progress
+            let thumbX = 5 + (width - 10) * schedule.progress
 
             ZStack(alignment: .leading) {
                 // Outer orange capsule boundary
@@ -69,32 +69,32 @@ struct ScheduleTimelineCardView: View {
                             startPoint: .top,
                             endPoint: .bottom
                         ),
-                        lineWidth: 1.2
+                        lineWidth: 1.1
                     )
                     .background(Capsule().fill(Color.orange.opacity(0.06)))
 
                 // Consolidated single-pass GPU Canvas: background block dividers + ticks
                 Canvas { context, size in
-                    let w = size.width - 12
+                    let w = size.width - 10
                     let h = size.height
 
                     // 1. Subtle 15-minute block divider lines (at 25%, 50%, 75%)
                     let blockFractions: [CGFloat] = [0.25, 0.50, 0.75]
                     for frac in blockFractions {
-                        let x = 6 + frac * w
-                        let dividerPath = Path(CGRect(x: x - 0.5, y: 3.5, width: 1, height: h - 7))
+                        let x = 5 + frac * w
+                        let dividerPath = Path(CGRect(x: x - 0.5, y: 3.0, width: 1, height: h - 6))
                         context.fill(dividerPath, with: .color(Color.white.opacity(0.10)))
                     }
 
                     // 2. Vertical tick marks (33 ticks: 4 blocks of 8 subdivisions)
                     let step = w / CGFloat(tickCount - 1)
                     for i in 0..<tickCount {
-                        let x = 6 + CGFloat(i) * step
+                        let x = 5 + CGFloat(i) * step
                         let isBlockBoundary = (i % 8 == 0)
                         let isDivider = (schedule.dividerIndex != nil && i == schedule.dividerIndex)
 
-                        let tickHeight: CGFloat = isBlockBoundary ? 16 : 10
-                        let tickWidth: CGFloat = isBlockBoundary ? 1.6 : 1.2
+                        let tickHeight: CGFloat = isBlockBoundary ? 13 : 8
+                        let tickWidth: CGFloat = isBlockBoundary ? 1.4 : 1.0
                         let tickY = (h - tickHeight) / 2
                         let tickRect = CGRect(x: x - tickWidth / 2, y: tickY, width: tickWidth, height: tickHeight)
 
@@ -124,58 +124,58 @@ struct ScheduleTimelineCardView: View {
                 ZStack {
                     Capsule()
                         .fill(Color.white.opacity(0.35))
-                        .overlay(Capsule().stroke(Color.white, lineWidth: 1.2))
-                        .frame(width: 10, height: 22)
+                        .overlay(Capsule().stroke(Color.white, lineWidth: 1.1))
+                        .frame(width: 8, height: 18)
                     Rectangle()
                         .fill(Color.white)
-                        .frame(width: 1.5, height: 13)
+                        .frame(width: 1.2, height: 10)
                 }
-                .offset(x: thumbX - 5)
+                .offset(x: thumbX - 4)
             }
         }
-        .frame(height: 24)
+        .frame(height: 20)
     }
 
     private var timeMarkers: some View {
         HStack {
             Text("-15")
-                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                .font(.system(size: 8.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(Color.white.opacity(0.48))
             Spacer()
             Text("0")
-                .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                .font(.system(size: 8.5, weight: .bold, design: .rounded))
                 .foregroundStyle(Color(red: 1.0, green: 0.65, blue: 0.15))
             Spacer()
             Text("15")
-                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                .font(.system(size: 8.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(Color.white.opacity(0.48))
             Spacer()
             Text("30")
-                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                .font(.system(size: 8.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(Color.white.opacity(0.48))
             Spacer()
             Text("45")
-                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                .font(.system(size: 8.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(Color.white.opacity(0.48))
         }
         .padding(.horizontal, 4)
-        .frame(height: 14)
+        .frame(height: 11)
     }
 
     private var footer: some View {
         HStack {
-            HStack(spacing: 5) {
-                RoundedRectangle(cornerRadius: 2.5)
-                    .stroke(Color(red: 1.0, green: 0.58, blue: 0.05), style: StrokeStyle(lineWidth: 1.2, dash: [2, 1.5]))
-                    .frame(width: 9, height: 9)
+            HStack(spacing: 4.5) {
+                RoundedRectangle(cornerRadius: 2)
+                    .stroke(Color(red: 1.0, green: 0.58, blue: 0.05), style: StrokeStyle(lineWidth: 1.1, dash: [2, 1.5]))
+                    .frame(width: 7.5, height: 7.5)
                 Text("Next · \(schedule.nextEventTitle)")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(.white)
                     .lineLimit(1)
             }
             Spacer()
             Text(schedule.nextEventTime)
-                .font(.system(size: 11, weight: .regular, design: .rounded))
+                .font(.system(size: 10, weight: .regular, design: .rounded))
                 .foregroundStyle(.white.opacity(0.5))
         }
     }
