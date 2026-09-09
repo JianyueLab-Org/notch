@@ -10,6 +10,37 @@ import Combine
 import EventKit
 import SwiftUI
 
+struct EventSnapshot: Sendable {
+    let title: String?
+    let startDate: Date
+    let endDate: Date
+}
+
+actor CalendarReader {
+    private let eventStore = EKEventStore()
+
+    func fetchEvents(start: Date, end: Date) -> [EventSnapshot] {
+        let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: nil)
+        return eventStore.events(matching: predicate)
+            .filter { !$0.isAllDay && $0.status != .canceled }
+            .sorted { $0.startDate < $1.startDate }
+            .map { EventSnapshot(title: $0.title, startDate: $0.startDate, endDate: $0.endDate) }
+    }
+
+    func requestFullAccess() async -> Bool {
+        #if compiler(>=5.9)
+        if #available(macOS 14.0, *) {
+            return (try? await eventStore.requestFullAccessToEvents()) ?? false
+        }
+        #endif
+        return await withCheckedContinuation { continuation in
+            eventStore.requestAccess(to: .event) { granted, _ in
+                continuation.resume(returning: granted)
+            }
+        }
+    }
+}
+
 @MainActor
 final class ScheduleController: ObservableObject {
 
@@ -27,7 +58,7 @@ final class ScheduleController: ObservableObject {
     private var nextEventStartDate: Date?
     private var nextEventEndDate: Date?
 
-    private let eventStore = EKEventStore()
+    private let reader = CalendarReader()
     private var cancellables: Set<AnyCancellable> = []
 
     init() {
@@ -38,7 +69,7 @@ final class ScheduleController: ObservableObject {
         checkPermissionAndFetch()
 
         // Listen for EventKit calendar database changes (Calendar.app, iCloud, Google, etc.)
-        NotificationCenter.default.publisher(for: .EKEventStoreChanged, object: eventStore)
+        NotificationCenter.default.publisher(for: .EKEventStoreChanged)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.fetchEvents()
@@ -90,30 +121,13 @@ final class ScheduleController: ObservableObject {
     }
 
     private func requestPermission() {
-        #if compiler(>=5.9)
-        if #available(macOS 14.0, *) {
-            eventStore.requestFullAccessToEvents { [weak self] granted, _ in
-                Task { @MainActor in
-                    if granted {
-                        self?.isAuthorized = true
-                        self?.fetchEvents()
-                    } else {
-                        self?.handlePermissionDenied()
-                    }
-                }
-            }
-            return
-        }
-        #endif
-
-        eventStore.requestAccess(to: .event) { [weak self] granted, _ in
-            Task { @MainActor in
-                if granted {
-                    self?.isAuthorized = true
-                    self?.fetchEvents()
-                } else {
-                    self?.handlePermissionDenied()
-                }
+        Task {
+            let granted = await reader.requestFullAccess()
+            if granted {
+                self.isAuthorized = true
+                self.fetchEvents()
+            } else {
+                self.handlePermissionDenied()
             }
         }
     }
@@ -143,16 +157,20 @@ final class ScheduleController: ObservableObject {
         let startOfDay = calendar.startOfDay(for: now)
         guard let endOfTomorrow = calendar.date(byAdding: .day, value: 2, to: startOfDay) else { return }
 
-        let predicate = eventStore.predicateForEvents(withStart: startOfDay, end: endOfTomorrow, calendars: nil)
-        let rawEvents = eventStore.events(matching: predicate)
-            .filter { !$0.isAllDay && $0.status != .canceled }
-            .sorted { $0.startDate < $1.startDate }
+        // Offload database query to background CalendarReader actor so main thread 120fps animations are never hitched
+        Task { [weak self] in
+            guard let self else { return }
+            let snapshots = await self.reader.fetchEvents(start: startOfDay, end: endOfTomorrow)
+            self.processEvents(snapshots, now: now)
+        }
+    }
+
+    private func processEvents(_ rawEvents: [EventSnapshot], now: Date) {
+        // 0 on our ruler represents "Now", which is at 15min / 60min = 25%
+        progress = 0.25
 
         let current = rawEvents.first(where: { $0.startDate <= now && $0.endDate > now })
         let next = rawEvents.first(where: { $0.startDate > now })
-
-        // 0 on our ruler represents "Now", which is at 15min / 60min = 25%
-        progress = 0.25
 
         if let current {
             currentEventTitle = current.title ?? "Untitled Event"

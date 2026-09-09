@@ -72,26 +72,40 @@ final class NotchHoverMonitor {
         Log.hover.notice("hover: monitors removed")
     }
 
+    private let pollQueue = DispatchQueue(label: "co.jianyuelab.NotchNotch.hoverPolling", qos: .userInteractive)
+    nonisolated private final class PollerState: @unchecked Sendable {
+        var lastLoc: CGPoint = .zero
+        var lastDragging: Bool = false
+    }
+    private let pollerState = PollerState()
+
     private func startPolling() {
         guard pollTimer == nil else { return }
         let ms = Int(Double(NotchConfiguration.pointerPollInterval.components.seconds) * 1000
             + Double(NotchConfiguration.pointerPollInterval.components.attoseconds) / 1e15)
         let intervalMs = max(20, ms)
-        print("[NotchNotch] ⏱️ Hover DispatchSourceTimer started (interval: \(intervalMs)ms, ~\(1000/intervalMs) Hz)")
+        print("[NotchNotch] ⏱️ Hover DispatchSourceTimer started on background queue (interval: \(intervalMs)ms, ~\(1000/intervalMs) Hz)")
         fflush(stdout)
 
         activityToken = ProcessInfo.processInfo.beginActivity(
-            options: [.userInitiatedAllowingIdleSystemSleep, .latencyCritical],
+            options: [.userInitiatedAllowingIdleSystemSleep],
             reason: "Continuous notch hover tracking"
         )
 
-        let timer = DispatchSource.makeTimerSource(flags: .strict, queue: .main)
+        let timer = DispatchSource.makeTimerSource(flags: .strict, queue: pollQueue)
         timer.schedule(deadline: .now(), repeating: .milliseconds(intervalMs), leeway: .milliseconds(2))
-        timer.setEventHandler { [weak self] in
-            guard let self else { return }
+        timer.setEventHandler { @Sendable [weak self, pollerState] in
             let loc = NSEvent.mouseLocation
             let isDragging = (NSEvent.pressedMouseButtons & 1) != 0
-            self.deliverLocation(loc, isDragging: isDragging)
+            if abs(loc.x - pollerState.lastLoc.x) < 0.5 && abs(loc.y - pollerState.lastLoc.y) < 0.5 && isDragging == pollerState.lastDragging {
+                return
+            }
+            pollerState.lastLoc = loc
+            pollerState.lastDragging = isDragging
+
+            Task { @MainActor [weak self] in
+                self?.deliverLocation(loc, isDragging: isDragging)
+            }
         }
         timer.resume()
         pollTimer = timer

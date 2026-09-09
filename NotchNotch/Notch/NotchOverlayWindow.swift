@@ -72,9 +72,10 @@ final class NotchOverlayWindow: NSPanel {
     /// only while the pointer is actually over the painted body.
     /// See `NotchLayout.acceptsClick(at:in:)`.
     func setInteractive(_ interactive: Bool) {
-        guard ignoresMouseEvents == interactive else { return }
-        ignoresMouseEvents = !interactive
-        Log.window.debug("window: ignoresMouseEvents = \(!interactive, privacy: .public)")
+        let shouldIgnore = !interactive
+        guard ignoresMouseEvents != shouldIgnore else { return }
+        ignoresMouseEvents = shouldIgnore
+        Log.window.debug("window: ignoresMouseEvents = \(shouldIgnore, privacy: .public)")
     }
 
     /// A borderless panel refuses key status unless we say otherwise. We allow

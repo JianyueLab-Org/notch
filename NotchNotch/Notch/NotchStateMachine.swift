@@ -101,8 +101,10 @@ final class NotchStateMachine: ObservableObject {
     private func pointerIsInside() {
         // Any re-entry cancels a pending close, whether it is still in the
         // debounce window or already animating shut.
-        collapseDelayTask?.cancel()
-        collapseDelayTask = nil
+        if collapseDelayTask != nil {
+            collapseDelayTask?.cancel()
+            collapseDelayTask = nil
+        }
 
         switch state {
         case .collapsed, .collapsing:
@@ -117,14 +119,18 @@ final class NotchStateMachine: ObservableObject {
                 self.settle(to: .expanded, after: NotchConfiguration.expandSettleDuration)
             }
         case .expanding, .expanded:
-            expandDwellTask?.cancel()
-            expandDwellTask = nil
+            if expandDwellTask != nil {
+                expandDwellTask?.cancel()
+                expandDwellTask = nil
+            }
         }
     }
 
     private func pointerIsOutside() {
-        expandDwellTask?.cancel()
-        expandDwellTask = nil
+        if expandDwellTask != nil {
+            expandDwellTask?.cancel()
+            expandDwellTask = nil
+        }
 
         switch state {
         case .collapsed, .collapsing:

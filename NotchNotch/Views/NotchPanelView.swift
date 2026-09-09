@@ -58,17 +58,19 @@ struct NotchPanelView: View {
 
             compactContent
                 .opacity(isOpen ? 0 : 1)
-                .animation(.easeOut(duration: 0.12), value: isOpen)
+                .animation(isOpen ? .easeOut(duration: 0.08) : .easeIn(duration: 0.14).delay(0.08), value: isOpen)
                 .allowsHitTesting(!isOpen)
 
             expandedContent
                 .opacity(isOpen ? 1 : 0)
-                .scaleEffect(isOpen ? 1.0 : 0.95, anchor: .top)
-                .animation(.spring(response: 0.28, dampingFraction: 0.84), value: isOpen)
+                .scaleEffect(isOpen ? 1.0 : 0.96, anchor: .top)
+                .animation(isOpen ? NotchConfiguration.expandAnimation : .easeOut(duration: 0.12), value: isOpen)
+                .compositingGroup()
                 .allowsHitTesting(isOpen)
         }
         .frame(width: bodySize.width, height: bodySize.height)
         .clipShape(notchShape)
+        .compositingGroup()
         .shadow(color: .black.opacity(isOpen ? 0.45 : 0.25), radius: isOpen ? 14 : 4, y: isOpen ? 6 : 2)
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: nil) { providers in
             handleFileDrop(providers: providers)
@@ -370,8 +372,8 @@ struct NotchPanelView: View {
 struct ScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.90 : 1.0)
-            .opacity(configuration.isPressed ? 0.75 : 1.0)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
+            .opacity(configuration.isPressed ? 0.82 : 1.0)
+            .animation(.spring(response: 0.15, dampingFraction: 0.8), value: configuration.isPressed)
     }
 }

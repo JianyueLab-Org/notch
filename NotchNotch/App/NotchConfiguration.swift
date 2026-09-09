@@ -59,11 +59,11 @@ nonisolated enum NotchConfiguration {
     static let collapseDelay: Duration = .milliseconds(180)
 
     /// Roughly how long the spring takes to settle.
-    static let expandSettleDuration: Duration = .milliseconds(280)
-    static let collapseSettleDuration: Duration = .milliseconds(240)
+    static let expandSettleDuration: Duration = .milliseconds(290)
+    static let collapseSettleDuration: Duration = .milliseconds(220)
 
-    static let expandAnimation = Animation.spring(response: 0.28, dampingFraction: 0.84)
-    static let collapseAnimation = Animation.spring(response: 0.24, dampingFraction: 0.88)
+    static let expandAnimation = Animation.spring(response: 0.29, dampingFraction: 0.86)
+    static let collapseAnimation = Animation.spring(response: 0.22, dampingFraction: 0.92)
 
     /// High-frequency pointer polling interval (~40Hz) for ultra-fluid boundary catching.
     static let pointerPollInterval: Duration = .milliseconds(25)
