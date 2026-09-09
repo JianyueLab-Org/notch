@@ -41,7 +41,10 @@ final class MusicScriptingSource: NowPlayingSource {
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.tick()
-                try? await Task.sleep(for: NotchConfiguration.spotifyPollInterval)
+                let interval = self.authorization.isBlocked
+                    ? NotchConfiguration.accessibilityAuthorizationPollInterval
+                    : NotchConfiguration.spotifyPollInterval
+                try? await Task.sleep(for: interval)
             }
         }
         Log.media.notice("media: Music scripting source started (running=\(Self.isMusicRunning, privacy: .public))")
@@ -75,9 +78,7 @@ final class MusicScriptingSource: NowPlayingSource {
             return
         }
         Task { [weak self] in
-            guard let self else { return }
-            _ = await self.permissionStatus(askUserIfNeeded: true)
-            await self.tick()
+            await self?.tick()
         }
     }
 
@@ -89,37 +90,8 @@ final class MusicScriptingSource: NowPlayingSource {
             return
         }
 
-        switch await permissionStatus(askUserIfNeeded: false) {
-        case noErr:
-            if authorization != .granted {
-                authorization = .granted
-                Log.media.notice("media: Music automation permitted")
-            }
-        case OSStatus(errAEEventWouldRequireUserConsent):
-            setNeedsPermission("NotchNotch needs permission to control Apple Music.")
-            return
-        case OSStatus(errAEEventNotPermitted):
-            setNeedsPermission("Allow NotchNotch to control Music in System Settings › Privacy & Security › Automation.")
-            return
-        case OSStatus(procNotFound):
-            report(nil)
-            return
-        default:
-            break
-        }
-
         guard let descriptor = run(Self.readScript) else { return }
         report(makeTrack(from: descriptor))
-    }
-
-    private func permissionStatus(askUserIfNeeded: Bool) async -> OSStatus {
-        await Task.detached(priority: .userInitiated) {
-            let target = NSAppleEventDescriptor(bundleIdentifier: Self.bundleIdentifier)
-            guard let aeDesc = target.aeDesc else { return OSStatus(procNotFound) }
-            return withUnsafePointer(to: aeDesc.pointee) { pointer in
-                AEDeterminePermissionToAutomateTarget(pointer, typeWildCard, typeWildCard, askUserIfNeeded)
-            }
-        }.value
     }
 
     private func setNeedsPermission(_ message: String) {
@@ -133,11 +105,11 @@ final class MusicScriptingSource: NowPlayingSource {
 
     private static let readScript = """
     tell application id "\(bundleIdentifier)"
-        set st to "stopped"
+        set playbackStatus to "stopped"
         if player state is playing then
-            set st to "playing"
+            set playbackStatus to "playing"
         else if player state is paused then
-            set st to "paused"
+            set playbackStatus to "paused"
         end if
         set pos to 0
         try
@@ -150,9 +122,9 @@ final class MusicScriptingSource: NowPlayingSource {
             set trAlbum to album of t
             set trDur to duration of t
             set trId to (id of t) as text
-            return {trName, trArtist, trAlbum, trDur as text, pos as text, st, trId}
+            return {trName, trArtist, trAlbum, trDur as text, pos as text, playbackStatus, trId}
         on error
-            return {"", "", "", "0", "0", st, ""}
+            return {"", "", "", "0", "0", playbackStatus, ""}
         end try
     end tell
     """

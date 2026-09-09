@@ -10,15 +10,20 @@ import SwiftUI
 struct NowPlayingView: View {
 
     let track: NowPlaying
+    var authorization: NowPlayingAuthorization = .notRequired
     let send: (MediaCommand) -> Void
 
     var body: some View {
         HStack(spacing: 12) {
             artwork
             VStack(alignment: .leading, spacing: 2) {
-                titles
-                Spacer(minLength: 6)
-                transport
+                if !track.hasTrack, case .needsPermission(let message) = authorization {
+                    permissionView(message: message)
+                } else {
+                    titles
+                    Spacer(minLength: 6)
+                    transport
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -64,11 +69,13 @@ struct NowPlayingView: View {
                                 .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
                         )
 
-                    Image(systemName: "music.note")
+                    Image(systemName: !track.hasTrack && authorization.isBlocked ? "lock.shield.fill" : "music.note")
                         .font(.system(size: 28, weight: .medium))
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [Color.white.opacity(0.5), Color.white.opacity(0.25)],
+                                colors: !track.hasTrack && authorization.isBlocked
+                                    ? [Color.orange.opacity(0.8), Color.orange.opacity(0.4)]
+                                    : [Color.white.opacity(0.5), Color.white.opacity(0.25)],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
@@ -79,6 +86,43 @@ struct NowPlayingView: View {
         .frame(width: 82, height: 82)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .shadow(color: .black.opacity(0.35), radius: 6, y: 3)
+    }
+
+    private func permissionView(message: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.orange)
+                Text("Permission Needed")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+            Text("Allow Spotify in Automation")
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.65))
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            Button {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+                    NSWorkspace.shared.open(url)
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text("Open Settings")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    Image(systemName: "arrow.up.forward.app")
+                        .font(.system(size: 9))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    Capsule().fill(Color.white.opacity(0.16))
+                )
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private var titles: some View {

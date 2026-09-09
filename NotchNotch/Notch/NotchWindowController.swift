@@ -22,12 +22,10 @@ final class NotchWindowController {
     private let stateMachine: NotchStateMachine
 
     /// The one place that picks backends, in priority order.
-    ///
-    /// `MediaRemoteNowPlayingSource` is deliberately absent: it is the richest
-    /// option but was verified to return an empty dictionary for anything not
-    /// signed by Apple on macOS 27. It stays in the tree for the day this app
-    /// has the entitlement to use it.
+    /// MediaRemote is primary (instant, rich metadata & artwork across all macOS audio players without permissions).
+    /// AppleScript scripting sources (Spotify, Music) and Accessibility act as fallbacks.
     private let nowPlaying = NowPlayingController(source: CompositeNowPlayingSource(children: [
+        MediaRemoteNowPlayingSource(),
         SpotifyScriptingSource(),
         MusicScriptingSource(),
         AccessibilityNowPlayingSource(),

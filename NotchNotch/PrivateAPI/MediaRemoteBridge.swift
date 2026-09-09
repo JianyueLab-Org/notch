@@ -42,12 +42,12 @@ nonisolated enum MediaRemoteBridge {
     private typealias RegisterFn = @convention(c) (DispatchQueue) -> Void
     private typealias SendCommandFn = @convention(c) (Int32, CFDictionary?) -> Bool
 
-    nonisolated(unsafe) private static let getInfo = symbol("MRMediaRemoteGetNowPlayingInfo", as: GetInfoFn.self)
-    nonisolated(unsafe) private static let getIsPlaying = symbol("MRMediaRemoteGetNowPlayingApplicationIsPlaying", as: IsPlayingFn.self)
-    nonisolated(unsafe) private static let getClient = symbol("MRMediaRemoteGetNowPlayingClient", as: GetClientFn.self)
-    nonisolated(unsafe) private static let clientBundleID = symbol("MRNowPlayingClientGetBundleIdentifier", as: BundleIDFn.self)
-    nonisolated(unsafe) private static let registerNotifications = symbol("MRMediaRemoteRegisterForNowPlayingNotifications", as: RegisterFn.self)
-    nonisolated(unsafe) private static let sendCommand = symbol("MRMediaRemoteSendCommand", as: SendCommandFn.self)
+    private static let getInfo = symbol("MRMediaRemoteGetNowPlayingInfo", as: GetInfoFn.self)
+    private static let getIsPlaying = symbol("MRMediaRemoteGetNowPlayingApplicationIsPlaying", as: IsPlayingFn.self)
+    private static let getClient = symbol("MRMediaRemoteGetNowPlayingClient", as: GetClientFn.self)
+    private static let clientBundleID = symbol("MRNowPlayingClientGetBundleIdentifier", as: BundleIDFn.self)
+    private static let registerNotifications = symbol("MRMediaRemoteRegisterForNowPlayingNotifications", as: RegisterFn.self)
+    private static let sendCommand = symbol("MRMediaRemoteSendCommand", as: SendCommandFn.self)
 
     static var isAvailable: Bool { getInfo != nil && sendCommand != nil }
 
@@ -95,15 +95,24 @@ nonisolated enum MediaRemoteBridge {
 
         init() {}
 
+        private static func toDouble(_ value: Any?) -> Double? {
+            switch value {
+            case let d as Double: return d
+            case let n as NSNumber: return n.doubleValue
+            case let s as String: return Double(s)
+            default: return nil
+            }
+        }
+
         init(dictionary info: [String: Any]) {
             isEmpty = info.isEmpty
             title = info[Key.title] as? String
             artist = info[Key.artist] as? String
             album = info[Key.album] as? String
-            duration = info[Key.duration] as? Double
-            elapsed = info[Key.elapsed] as? Double
+            duration = Self.toDouble(info[Key.duration])
+            elapsed = Self.toDouble(info[Key.elapsed])
             timestamp = info[Key.timestamp] as? Date
-            playbackRate = info[Key.playbackRate] as? Double
+            playbackRate = Self.toDouble(info[Key.playbackRate])
             artworkData = info[Key.artworkData] as? Data
             // The identifier is a string on some players and a number on
             // others, so normalise it here rather than at every use site.

@@ -238,7 +238,7 @@ struct NotchPanelView: View {
                 title: "", artist: "", album: "", isPlaying: false,
                 duration: 0, reportedElapsed: 0, reportedAt: .now, playbackRate: 0
             )
-            NowPlayingView(track: track) { media.send($0) }
+            NowPlayingView(track: track, authorization: media.authorization) { media.send($0) }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             // Right: Schedule Timeline Card

@@ -130,8 +130,10 @@ final class AccessibilityNowPlayingSource: NowPlayingSource {
             let identifier = string(element, kAXIdentifierAttribute) ?? ""
             let description = string(element, kAXDescriptionAttribute) ?? ""
             let title = string(element, kAXTitleAttribute) ?? ""
-            let haystack = "\(identifier) \(description) \(title)".lowercased()
-            if haystack.contains("nowplaying") || haystack.contains("now playing") {
+            let value = string(element, kAXValueAttribute) ?? ""
+            let haystack = "\(identifier) \(description) \(title) \(value)".lowercased()
+            if haystack.contains("nowplaying") || haystack.contains("now playing") || haystack.contains("播放") || haystack.contains("再生") {
+                Log.media.notice("media: AX matched element: \(identifier, privacy: .public)")
                 return element
             }
             queue.append(contentsOf: children(of: element))
@@ -148,8 +150,16 @@ final class AccessibilityNowPlayingSource: NowPlayingSource {
         let candidates = [value, description, title, help].filter { !$0.isEmpty }
         guard let text = candidates.first else { return nil }
 
-        // Control Center writes "Title — Artist" (em dash) in most locales.
-        let parts = text.components(separatedBy: " — ")
+        // Control Center writes "Title — Artist" (em dash) in most locales,
+        // or "Title - Artist" (hyphen) in others.
+        let parts: [String]
+        if text.contains(" — ") {
+            parts = text.components(separatedBy: " — ")
+        } else if text.contains(" - ") {
+            parts = text.components(separatedBy: " - ")
+        } else {
+            parts = [text]
+        }
         let trackTitle = parts.first?.trimmingCharacters(in: .whitespaces) ?? text
         let artist = parts.count > 1
             ? parts.dropFirst().joined(separator: " — ").trimmingCharacters(in: .whitespaces)
