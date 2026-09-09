@@ -24,13 +24,13 @@ final class NowPlayingController: ObservableObject {
 
     func start() {
         source.onChange = { [weak self] track in
-            guard let self else { return }
-            if self.nowPlaying != track {
+            DispatchQueue.main.async {
+                guard let self else { return }
                 self.nowPlaying = track
-            }
-            let nextAuth = self.source.authorization
-            if self.authorization != nextAuth {
-                self.authorization = nextAuth
+                let nextAuth = self.source.authorization
+                if self.authorization != nextAuth {
+                    self.authorization = nextAuth
+                }
             }
         }
         source.start()

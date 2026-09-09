@@ -27,8 +27,13 @@ struct NotchPanelView: View {
 
     private var isOpen: Bool { machine.state.isVisiblyExpanded }
 
+    private var collapsedWidth: CGFloat {
+        let notchWidth = machine.layout.geometry.notchRect.width
+        return hasLiveActivity ? notchWidth + NotchConfiguration.compactWidthExtension : notchWidth
+    }
+
     private var bodySize: CGSize {
-        isOpen ? machine.layout.expandedSize : machine.layout.collapsedSize
+        isOpen ? machine.layout.expandedSize : CGSize(width: collapsedWidth, height: machine.layout.collapsedSize.height)
     }
 
     var body: some View {
@@ -117,6 +122,8 @@ struct NotchPanelView: View {
         }
         .frame(width: bodySize.width, height: bodySize.height)
         .clipShape(notchShape)
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: bodySize.width)
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: hasLiveActivity)
         .compositingGroup()
         .shadow(
             color: .black.opacity(isOpen ? 0.45 : (hasLiveActivity ? 0.25 : 0)),
@@ -167,24 +174,23 @@ struct NotchPanelView: View {
     private var compactContent: some View {
         if hasLiveActivity {
             let notchWidth = machine.layout.geometry.notchRect.width
-            let earWidth = max(28, (machine.layout.collapsedSize.width - notchWidth) / 2)
+            let earWidth = NotchConfiguration.compactWidthExtension / 2
 
             HStack(spacing: 0) {
                 // Left ear
                 compactLeftEar
                     .frame(width: earWidth)
 
-                // Center: Clear notch hardware area
-                Spacer()
-                    .frame(width: notchWidth)
+                // Center: Clear notch hardware area (fixed rigid cutout)
+                Color.clear
+                    .frame(width: notchWidth, height: machine.layout.collapsedSize.height)
 
                 // Right ear
                 compactRightEar
                     .frame(width: earWidth)
             }
-            .frame(width: machine.layout.collapsedSize.width,
+            .frame(width: collapsedWidth,
                    height: machine.layout.collapsedSize.height)
-            .clipped()
         }
     }
 

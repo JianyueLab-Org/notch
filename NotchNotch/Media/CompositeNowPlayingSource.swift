@@ -85,7 +85,12 @@ final class CompositeNowPlayingSource: NowPlayingSource {
 
     private func update(index: Int, track: NowPlaying?) {
         latest[index] = track
-        let winner = latest.indices.first { latest[$0]?.hasTrack == true }
+        // Priority 1: Backend that is actively playing audio
+        let playingWinner = latest.indices.first { latest[$0]?.isPlaying == true && latest[$0]?.hasTrack == true }
+        // Priority 2: Backend that has any track info
+        let trackWinner = latest.indices.first { latest[$0]?.hasTrack == true }
+
+        let winner = playingWinner ?? trackWinner
         if winner != activeIndex {
             activeIndex = winner
             let name = winner.map { String(describing: type(of: children[$0])) } ?? "none"

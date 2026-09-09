@@ -101,6 +101,7 @@ final class NotchWindowController {
 
     private func observeLiveActivities() {
         Publishers.CombineLatest(nowPlaying.$nowPlaying, schedule.$hasActiveEvent)
+            .receive(on: DispatchQueue.main)
             .map { track, hasActiveSchedule in
                 let isMusicPlaying = (track?.isPlaying == true) && (track?.hasTrack == true)
                 return isMusicPlaying || hasActiveSchedule
