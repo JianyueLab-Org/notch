@@ -24,7 +24,18 @@ struct ScheduleTimelineCardView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.08))
+                .fill(Color(white: 0.11))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.15), Color.white.opacity(0.04)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.5
+                        )
+                )
         )
     }
 
@@ -38,7 +49,7 @@ struct ScheduleTimelineCardView: View {
                 .lineLimit(1)
             Text(schedule.currentEventStatus)
                 .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(.white.opacity(0.65))
                 .lineLimit(1)
         }
     }
@@ -53,8 +64,15 @@ struct ScheduleTimelineCardView: View {
             ZStack(alignment: .leading) {
                 // Outer orange capsule boundary
                 Capsule()
-                    .stroke(Color.orange.opacity(0.85), lineWidth: 1.4)
-                    .background(Capsule().fill(Color.black.opacity(0.2)))
+                    .stroke(
+                        LinearGradient(
+                            colors: [Color(red: 1.0, green: 0.60, blue: 0.05), Color(red: 1.0, green: 0.50, blue: 0.0)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 1.2
+                    )
+                    .background(Capsule().fill(Color.orange.opacity(0.06)))
 
                 // Vertical tick marks
                 HStack(spacing: 0) {
@@ -66,14 +84,14 @@ struct ScheduleTimelineCardView: View {
                             // Divider bar separating current event from next event
                             Rectangle()
                                 .fill(Color.white.opacity(0.6))
-                                .frame(width: 1.5, height: 16)
+                                .frame(width: 1.5, height: 15)
                                 .frame(maxWidth: .infinity)
                         } else {
                             Rectangle()
                                 .fill(
                                     isPastThumb
-                                        ? Color.orange
-                                        : (isNextEvent ? Color.orange.opacity(0.65) : Color.orange.opacity(0.35))
+                                        ? Color(red: 1.0, green: 0.58, blue: 0.05)
+                                        : (isNextEvent ? Color.orange.opacity(0.6) : Color.orange.opacity(0.32))
                                 )
                                 .frame(width: 1.5, height: 13)
                                 .frame(maxWidth: .infinity)
@@ -85,12 +103,12 @@ struct ScheduleTimelineCardView: View {
                 // White slider thumb indicator
                 ZStack {
                     Capsule()
-                        .fill(Color.white.opacity(0.28))
-                        .overlay(Capsule().stroke(Color.white, lineWidth: 1.4))
+                        .fill(Color.white.opacity(0.32))
+                        .overlay(Capsule().stroke(Color.white, lineWidth: 1.2))
                         .frame(width: 10, height: 22)
                     Rectangle()
                         .fill(Color.white)
-                        .frame(width: 1.5, height: 14)
+                        .frame(width: 1.5, height: 13)
                 }
                 .offset(x: thumbX - 5)
             }
@@ -106,8 +124,8 @@ struct ScheduleTimelineCardView: View {
             Spacer()
             Text("+45m")
         }
-        .font(.system(size: 10, weight: .medium, design: .rounded))
-        .foregroundStyle(.white.opacity(0.4))
+        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+        .foregroundStyle(.white.opacity(0.42))
         .padding(.horizontal, 6)
     }
 
@@ -115,7 +133,7 @@ struct ScheduleTimelineCardView: View {
         HStack {
             HStack(spacing: 5) {
                 RoundedRectangle(cornerRadius: 2.5)
-                    .stroke(Color.orange, style: StrokeStyle(lineWidth: 1.2, dash: [2, 1.5]))
+                    .stroke(Color(red: 1.0, green: 0.58, blue: 0.05), style: StrokeStyle(lineWidth: 1.2, dash: [2, 1.5]))
                     .frame(width: 9, height: 9)
                 Text("Next · \(schedule.nextEventTitle)")
                     .font(.system(size: 11, weight: .medium, design: .rounded))

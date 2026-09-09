@@ -26,7 +26,18 @@ struct NowPlayingView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.08))
+                .fill(Color(white: 0.11))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.15), Color.white.opacity(0.04)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.5
+                        )
+                )
         )
     }
 
@@ -40,16 +51,34 @@ struct NowPlayingView: View {
                     .aspectRatio(contentMode: .fill)
             } else {
                 ZStack {
-                    Color.white.opacity(0.06)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.09), Color.white.opacity(0.03)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                        )
+
                     Image(systemName: "music.note")
-                        .font(.system(size: 26))
-                        .foregroundStyle(.white.opacity(0.35))
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.5), Color.white.opacity(0.25)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
                 }
             }
         }
         .frame(width: 82, height: 82)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .shadow(color: .black.opacity(0.4), radius: 5, y: 2)
+        .shadow(color: .black.opacity(0.35), radius: 6, y: 3)
     }
 
     private var titles: some View {
@@ -70,10 +99,10 @@ struct NowPlayingView: View {
     }
 
     private var transport: some View {
-        HStack(spacing: 20) {
-            button("backward.fill", size: 12) { send(.previousTrack) }
-            button(track.isPlaying ? "pause.fill" : "play.fill", size: 16) { send(.togglePlayPause) }
-            button("forward.fill", size: 12) { send(.nextTrack) }
+        HStack(spacing: 22) {
+            button("backward.fill", size: 12.5) { send(.previousTrack) }
+            button(track.isPlaying ? "pause.fill" : "play.fill", size: 17) { send(.togglePlayPause) }
+            button("forward.fill", size: 12.5) { send(.nextTrack) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
