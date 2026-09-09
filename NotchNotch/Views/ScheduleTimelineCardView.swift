@@ -22,21 +22,7 @@ struct ScheduleTimelineCardView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .fill(Color(white: 0.11))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.15), Color.white.opacity(0.04)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: 0.5
-                        )
-                )
-        )
+        .jylCard()
     }
 
     // MARK: - Components
@@ -45,11 +31,11 @@ struct ScheduleTimelineCardView: View {
         VStack(alignment: .leading, spacing: 1.5) {
             Text(schedule.currentEventTitle)
                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(JYLTheme.textPrimary)
                 .lineLimit(1)
             Text(schedule.currentEventStatus)
                 .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.65))
+                .foregroundStyle(JYLTheme.textSecondary)
                 .lineLimit(1)
         }
     }
@@ -61,17 +47,17 @@ struct ScheduleTimelineCardView: View {
             let thumbX = 5 + (width - 10) * schedule.progress
 
             ZStack(alignment: .leading) {
-                // Outer orange capsule boundary
+                // Outer JYL primary capsule boundary
                 Capsule()
                     .stroke(
                         LinearGradient(
-                            colors: [Color(red: 1.0, green: 0.60, blue: 0.05), Color(red: 1.0, green: 0.50, blue: 0.0)],
+                            colors: [JYLTheme.primary, JYLTheme.primaryHover],
                             startPoint: .top,
                             endPoint: .bottom
                         ),
                         lineWidth: 1.1
                     )
-                    .background(Capsule().fill(Color.orange.opacity(0.06)))
+                    .background(Capsule().fill(JYLTheme.primaryMuted))
 
                 // Consolidated single-pass GPU Canvas: background block dividers + ticks
                 Canvas { context, size in
@@ -83,7 +69,7 @@ struct ScheduleTimelineCardView: View {
                     for frac in blockFractions {
                         let x = 5 + frac * w
                         let dividerPath = Path(CGRect(x: x - 0.5, y: 3.0, width: 1, height: h - 6))
-                        context.fill(dividerPath, with: .color(Color.white.opacity(0.10)))
+                        context.fill(dividerPath, with: .color(JYLTheme.borderStrong.opacity(0.4)))
                     }
 
                     // 2. Vertical tick marks (33 ticks: 4 blocks of 8 subdivisions)
@@ -99,35 +85,35 @@ struct ScheduleTimelineCardView: View {
                         let tickRect = CGRect(x: x - tickWidth / 2, y: tickY, width: tickWidth, height: tickHeight)
 
                         if isDivider {
-                            context.fill(Path(tickRect), with: .color(Color.white.opacity(0.90)))
+                            context.fill(Path(tickRect), with: .color(JYLTheme.textPrimary))
                         } else {
                             let category = schedule.tickCategory(at: i)
                             let color: Color
                             switch category {
                             case .past:
-                                color = Color(red: 1.0, green: 0.58, blue: 0.05)
+                                color = JYLTheme.primary
                             case .currentEvent:
-                                color = isBlockBoundary ? Color(red: 1.0, green: 0.65, blue: 0.12) : Color.orange.opacity(0.60)
+                                color = isBlockBoundary ? JYLTheme.primaryLight : JYLTheme.primary
                             case .nextEvent:
-                                color = Color.orange.opacity(0.32)
+                                color = JYLTheme.primary.opacity(0.35)
                             case .pastEmpty:
-                                color = Color.white.opacity(0.18)
+                                color = JYLTheme.neutral700
                             case .freeTime:
-                                color = Color.white.opacity(0.20)
+                                color = JYLTheme.neutral600
                             }
                             context.fill(Path(tickRect), with: .color(color))
                         }
                     }
                 }
 
-                // White slider thumb indicator
+                // Slider thumb indicator
                 ZStack {
                     Capsule()
-                        .fill(Color.white.opacity(0.35))
-                        .overlay(Capsule().stroke(Color.white, lineWidth: 1.1))
+                        .fill(JYLTheme.neutral800.opacity(0.7))
+                        .overlay(Capsule().stroke(JYLTheme.textPrimary, lineWidth: 1.1))
                         .frame(width: 8, height: 18)
                     Rectangle()
-                        .fill(Color.white)
+                        .fill(JYLTheme.textPrimary)
                         .frame(width: 1.2, height: 10)
                 }
                 .offset(x: thumbX - 4)
@@ -140,23 +126,23 @@ struct ScheduleTimelineCardView: View {
         HStack {
             Text("-15")
                 .font(.system(size: 8.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(Color.white.opacity(0.48))
+                .foregroundStyle(JYLTheme.textMuted)
             Spacer()
             Text("0")
                 .font(.system(size: 8.5, weight: .bold, design: .rounded))
-                .foregroundStyle(Color(red: 1.0, green: 0.65, blue: 0.15))
+                .foregroundStyle(JYLTheme.primaryLight)
             Spacer()
             Text("15")
                 .font(.system(size: 8.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(Color.white.opacity(0.48))
+                .foregroundStyle(JYLTheme.textMuted)
             Spacer()
             Text("30")
                 .font(.system(size: 8.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(Color.white.opacity(0.48))
+                .foregroundStyle(JYLTheme.textMuted)
             Spacer()
             Text("45")
                 .font(.system(size: 8.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(Color.white.opacity(0.48))
+                .foregroundStyle(JYLTheme.textMuted)
         }
         .padding(.horizontal, 4)
         .frame(height: 11)
@@ -166,17 +152,17 @@ struct ScheduleTimelineCardView: View {
         HStack {
             HStack(spacing: 4.5) {
                 RoundedRectangle(cornerRadius: 2)
-                    .stroke(Color(red: 1.0, green: 0.58, blue: 0.05), style: StrokeStyle(lineWidth: 1.1, dash: [2, 1.5]))
+                    .stroke(JYLTheme.primary, style: StrokeStyle(lineWidth: 1.1, dash: [2, 1.5]))
                     .frame(width: 7.5, height: 7.5)
                 Text("Next · \(schedule.nextEventTitle)")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(JYLTheme.textPrimary)
                     .lineLimit(1)
             }
             Spacer()
             Text(schedule.nextEventTime)
                 .font(.system(size: 10, weight: .regular, design: .rounded))
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(JYLTheme.textMuted)
         }
     }
 }

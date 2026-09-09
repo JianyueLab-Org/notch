@@ -32,21 +32,7 @@ struct NowPlayingView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .fill(Color(white: 0.11))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.15), Color.white.opacity(0.04)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: 0.5
-                        )
-                )
-        )
+        .jylCard()
     }
 
     // MARK: - Components
@@ -61,21 +47,21 @@ struct NowPlayingView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
+                            .strokeBorder(JYLTheme.borderStrong, lineWidth: 0.5)
                     )
             } else {
                 ZStack {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
                         .fill(
                             LinearGradient(
-                                colors: [Color.white.opacity(0.09), Color.white.opacity(0.03)],
+                                colors: [JYLTheme.neutral800, JYLTheme.neutral900],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                                .strokeBorder(JYLTheme.border, lineWidth: 0.5)
                         )
 
                     Image(systemName: !track.hasTrack && authorization.isBlocked ? "lock.shield.fill" : "music.note")
@@ -83,8 +69,8 @@ struct NowPlayingView: View {
                         .foregroundStyle(
                             LinearGradient(
                                 colors: !track.hasTrack && authorization.isBlocked
-                                    ? [Color.orange.opacity(0.8), Color.orange.opacity(0.4)]
-                                    : [Color.white.opacity(0.5), Color.white.opacity(0.25)],
+                                    ? [JYLTheme.warning, JYLTheme.warning.opacity(0.6)]
+                                    : [JYLTheme.textSecondary, JYLTheme.textMuted],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
@@ -102,14 +88,14 @@ struct NowPlayingView: View {
             HStack(spacing: 4) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(JYLTheme.warning)
                 Text("Permission Needed")
                     .font(.system(size: 11.5, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(JYLTheme.textPrimary)
             }
             Text(message.contains("Music") ? "Allow Music in Automation" : "Allow Spotify in Automation")
                 .font(.system(size: 9.5, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.65))
+                .foregroundStyle(JYLTheme.textSecondary)
                 .lineLimit(1)
             Spacer(minLength: 2)
             HStack(spacing: 6) {
@@ -119,11 +105,11 @@ struct NowPlayingView: View {
                     } label: {
                         Text("Grant")
                             .font(.system(size: 9, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(JYLTheme.textPrimary)
                             .padding(.horizontal, 7)
                             .padding(.vertical, 2.5)
                             .background(
-                                Capsule().fill(Color.accentColor)
+                                Capsule().fill(JYLTheme.primary)
                             )
                     }
                     .buttonStyle(.plain)
@@ -140,11 +126,11 @@ struct NowPlayingView: View {
                         Image(systemName: "arrow.up.forward.app")
                             .font(.system(size: 7.5))
                     }
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(JYLTheme.textSecondary)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 2.5)
                     .background(
-                        Capsule().fill(Color.white.opacity(0.16))
+                        Capsule().fill(JYLTheme.neutral800)
                     )
                 }
                 .buttonStyle(.plain)
@@ -156,15 +142,15 @@ struct NowPlayingView: View {
         VStack(alignment: .leading, spacing: 1.5) {
             Text(track.title.isEmpty ? "Nothing Playing" : track.title)
                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(JYLTheme.textPrimary)
                 .lineLimit(1)
             Text(track.artist.isEmpty ? "Music / Spotify" : track.artist)
                 .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.65))
+                .foregroundStyle(JYLTheme.textSecondary)
                 .lineLimit(1)
             Text(track.album.isEmpty ? (track.title.isEmpty ? "Ready to play" : track.artist) : track.album)
                 .font(.system(size: 10, weight: .regular, design: .rounded))
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(JYLTheme.textMuted)
                 .lineLimit(1)
         }
     }
@@ -178,15 +164,15 @@ struct NowPlayingView: View {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule()
-                            .fill(Color.white.opacity(0.16))
+                            .fill(JYLTheme.neutral800)
                             .frame(height: 3)
 
                         Capsule()
                             .fill(
                                 LinearGradient(
                                     colors: [
-                                        Color.white.opacity(0.95),
-                                        Color.white.opacity(0.80)
+                                        JYLTheme.primary,
+                                        JYLTheme.primaryLight
                                     ],
                                     startPoint: .leading,
                                     endPoint: .trailing
@@ -201,13 +187,13 @@ struct NowPlayingView: View {
                 HStack {
                     Text(track.hasTrack ? elapsed.clockString : "0:00")
                         .font(.system(size: 8.5, weight: .medium, design: .rounded))
-                        .foregroundStyle(Color.white.opacity(0.55))
+                        .foregroundStyle(JYLTheme.textMuted)
 
                     Spacer()
 
                     Text(track.duration > 0 ? track.duration.clockString : "--:--")
                         .font(.system(size: 8.5, weight: .medium, design: .rounded))
-                        .foregroundStyle(Color.white.opacity(0.55))
+                        .foregroundStyle(JYLTheme.textMuted)
                 }
             }
         }
@@ -227,7 +213,7 @@ struct NowPlayingView: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(JYLTheme.textPrimary)
                 .frame(width: 24, height: 20)
                 .contentShape(Rectangle())
         }

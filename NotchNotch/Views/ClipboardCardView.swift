@@ -19,10 +19,10 @@ struct ClipboardCardView: View {
             HStack {
                 Image(systemName: "doc.on.doc.fill")
                     .font(.system(size: 11.5, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(JYLTheme.primary)
                 Text("Clipboard")
                     .font(.system(size: 12.5, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(JYLTheme.textPrimary)
                 Spacer()
                 if !clipboardText.isEmpty {
                     Button {
@@ -31,7 +31,7 @@ struct ClipboardCardView: View {
                     } label: {
                         Text("Clear")
                             .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(JYLTheme.textMuted)
                     }
                     .buttonStyle(.plain)
                 }
@@ -42,23 +42,27 @@ struct ClipboardCardView: View {
                     Spacer()
                     Image(systemName: "doc.on.clipboard")
                         .font(.system(size: 20))
-                        .foregroundStyle(.white.opacity(0.3))
+                        .foregroundStyle(JYLTheme.neutral600)
                     Text("Clipboard is empty")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(JYLTheme.textMuted)
                     Spacer()
                 }
                 .frame(maxWidth: .infinity)
             } else {
                 Text(clipboardText)
                     .font(.system(size: 10.5, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(JYLTheme.textPrimary.opacity(0.92))
                     .lineLimit(4)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                     .padding(8)
                     .background(
                         RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .fill(Color.white.opacity(0.04))
+                            .fill(JYLTheme.surface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                    .strokeBorder(JYLTheme.border, lineWidth: 0.5)
+                            )
                     )
 
                 HStack {
@@ -76,10 +80,10 @@ struct ClipboardCardView: View {
                             Text(copied ? "Copied" : "Copy Again")
                         }
                         .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(copied ? JYLTheme.success : JYLTheme.textPrimary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(Capsule().fill(Color.white.opacity(0.14)))
+                        .background(Capsule().fill(copied ? JYLTheme.successMuted : JYLTheme.neutral800))
                     }
                     .buttonStyle(.plain)
                 }
@@ -87,21 +91,7 @@ struct ClipboardCardView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .fill(Color(white: 0.11))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.15), Color.white.opacity(0.04)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: 0.5
-                        )
-                )
-        )
+        .jylCard()
         .onAppear {
             readPasteboard()
         }

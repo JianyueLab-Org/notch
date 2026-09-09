@@ -22,26 +22,13 @@ struct DropShelfView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .fill(Color(white: 0.11))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .strokeBorder(
-                            shelf.isTargeted
-                                ? LinearGradient(
-                                    colors: [Color.accentColor, Color.accentColor.opacity(0.6)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                                : LinearGradient(
-                                    colors: [Color.white.opacity(0.15), Color.white.opacity(0.04)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ),
-                            lineWidth: shelf.isTargeted ? 1.5 : 0.5
-                        )
-                )
+        .jylCard(
+            isHighlighted: shelf.isTargeted,
+            highlightGradient: LinearGradient(
+                colors: [JYLTheme.primary, JYLTheme.primaryLight],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         )
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $shelf.isTargeted) { providers in
             handleDrop(providers: providers)
@@ -54,12 +41,12 @@ struct DropShelfView: View {
         VStack(spacing: 8) {
             ZStack {
                 Circle()
-                    .fill(shelf.isTargeted ? Color.accentColor.opacity(0.22) : Color.white.opacity(0.06))
+                    .fill(shelf.isTargeted ? JYLTheme.primaryMuted : JYLTheme.neutral800)
                     .frame(width: 36, height: 36)
 
                 Image(systemName: shelf.isTargeted ? "arrow.down.doc.fill" : "tray.and.arrow.down")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(shelf.isTargeted ? Color.accentColor : Color.white.opacity(0.65))
+                    .foregroundStyle(shelf.isTargeted ? JYLTheme.primary : JYLTheme.textSecondary)
             }
             .scaleEffect(shelf.isTargeted ? 1.08 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: shelf.isTargeted)
@@ -67,11 +54,11 @@ struct DropShelfView: View {
             VStack(spacing: 2.5) {
                 Text(shelf.isTargeted ? "Release to stage files" : "Drop files here to hold")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(shelf.isTargeted ? 1.0 : 0.88))
+                    .foregroundStyle(shelf.isTargeted ? JYLTheme.primary : JYLTheme.textPrimary)
 
                 Text("Drag out anytime to transfer across apps")
                     .font(.system(size: 10, weight: .regular, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.45))
+                    .foregroundStyle(JYLTheme.textMuted)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -84,11 +71,11 @@ struct DropShelfView: View {
                 HStack(spacing: 5) {
                     Image(systemName: "tray.fill")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(JYLTheme.primary)
 
                     Text("\(shelf.items.count) item\(shelf.items.count == 1 ? "" : "s") staged")
                         .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(JYLTheme.textSecondary)
                 }
 
                 Spacer()
@@ -100,10 +87,10 @@ struct DropShelfView: View {
                 }
                 .buttonStyle(.plain)
                 .font(.system(size: 9.5, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(JYLTheme.textSecondary)
                 .padding(.horizontal, 7)
                 .padding(.vertical, 2.5)
-                .background(Capsule().fill(Color.white.opacity(0.12)))
+                .background(Capsule().fill(JYLTheme.neutral800))
             }
             .padding(.horizontal, 12)
             .padding(.top, 8)
@@ -137,7 +124,7 @@ struct DropShelfView: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 11.5))
-                        .foregroundStyle(.white.opacity(0.75), .black.opacity(0.6))
+                        .foregroundStyle(JYLTheme.textSecondary, JYLTheme.neutral900)
                 }
                 .buttonStyle(.plain)
                 .offset(x: 3, y: -3)
@@ -145,22 +132,22 @@ struct DropShelfView: View {
 
             Text(item.name)
                 .font(.system(size: 9.5, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(JYLTheme.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(width: 64)
 
             Text(item.formattedSize)
                 .font(.system(size: 8, weight: .regular, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(JYLTheme.textMuted)
         }
         .padding(7)
         .background(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Color.white.opacity(0.08))
+                .fill(JYLTheme.surface)
                 .overlay(
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+                        .strokeBorder(JYLTheme.border, lineWidth: 0.5)
                 )
         )
         .contentShape(Rectangle())

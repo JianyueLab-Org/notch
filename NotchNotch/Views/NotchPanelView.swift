@@ -213,27 +213,21 @@ struct NotchPanelView: View {
             } else {
                 ZStack {
                     RoundedRectangle(cornerRadius: 5.5, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(red: 0.95, green: 0.22, blue: 0.38), Color(red: 0.85, green: 0.15, blue: 0.45)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .fill(JYLTheme.brandGradientDiagonal)
                         .frame(width: 21, height: 21)
                     Image(systemName: "music.note")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(JYLTheme.textPrimary)
                 }
             }
         } else if schedule.hasActiveEvent {
             ZStack {
                 RoundedRectangle(cornerRadius: 6.5, style: .continuous)
-                    .fill(Color(red: 0.22, green: 0.12, blue: 0.04))
+                    .fill(JYLTheme.primaryMuted)
                     .frame(width: 22, height: 22)
                 Image(systemName: "calendar")
                     .font(.system(size: 12.5, weight: .bold))
-                    .foregroundStyle(Color(red: 1.0, green: 0.58, blue: 0.12))
+                    .foregroundStyle(JYLTheme.primary)
             }
         }
     }
@@ -245,13 +239,13 @@ struct NotchPanelView: View {
                 let progress = track.progress(at: timeline.date)
                 ZStack {
                     Circle()
-                        .stroke(Color.white.opacity(0.18), lineWidth: 2.8)
+                        .stroke(JYLTheme.borderStrong, lineWidth: 2.8)
                         .frame(width: 19, height: 19)
                     Circle()
                         .trim(from: 0, to: max(0.04, min(1.0, progress)))
                         .stroke(
                             LinearGradient(
-                                colors: [Color(red: 0.22, green: 0.65, blue: 1.0), Color(red: 0.50, green: 0.85, blue: 1.0)],
+                                colors: [JYLTheme.chart2, JYLTheme.info],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             ),
@@ -264,11 +258,11 @@ struct NotchPanelView: View {
         } else if schedule.hasActiveEvent {
             ZStack {
                 Circle()
-                    .stroke(Color(red: 0.22, green: 0.12, blue: 0.04), lineWidth: 3.2)
+                    .stroke(JYLTheme.primaryMuted, lineWidth: 3.2)
                     .frame(width: 20, height: 20)
                 Circle()
                     .trim(from: 0, to: max(0.04, min(1.0, schedule.progress)))
-                    .stroke(Color(red: 1.0, green: 0.58, blue: 0.12), style: StrokeStyle(lineWidth: 3.2, lineCap: .round))
+                    .stroke(JYLTheme.primary, style: StrokeStyle(lineWidth: 3.2, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .frame(width: 20, height: 20)
             }
@@ -342,11 +336,11 @@ struct NotchPanelView: View {
             } label: {
                 ZStack {
                     Circle()
-                        .fill(showSettings ? Color.white.opacity(0.28) : Color.white.opacity(0.14))
+                        .fill(showSettings ? JYLTheme.neutral700 : JYLTheme.neutral800)
                         .frame(width: 28, height: 28)
                     Image(systemName: "gearshape.fill")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(showSettings ? JYLTheme.textPrimary : JYLTheme.textSecondary)
                 }
             }
             .buttonStyle(TabButtonStyle())
@@ -371,23 +365,23 @@ struct NotchPanelView: View {
                 Circle()
                     .fill(
                         isSelected
-                            ? (isBlueActive ? Color(red: 0.05, green: 0.52, blue: 1.0) : Color.white.opacity(0.25))
-                            : Color.white.opacity(0.14)
+                            ? (isBlueActive ? JYLTheme.info : JYLTheme.neutral700)
+                            : JYLTheme.neutral800
                     )
                     .frame(width: 28, height: 28)
 
                 Image(systemName: icon)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.8))
+                    .foregroundStyle(isSelected ? JYLTheme.textPrimary : JYLTheme.textSecondary)
                     .frame(width: 28, height: 28)
 
                 if let badge {
                     Text(badge)
                         .font(.system(size: 8, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(JYLTheme.textPrimary)
                         .padding(.horizontal, 3.5)
                         .padding(.vertical, 0.5)
-                        .background(Capsule().fill(Color.accentColor))
+                        .background(Capsule().fill(JYLTheme.primary))
                         .offset(x: 3, y: -2)
                 }
             }
@@ -425,36 +419,22 @@ struct NotchPanelView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("NotchNotch Quick Settings")
                     .font(.system(size: 12.5, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(JYLTheme.textPrimary)
 
                 Text("Custom status panel for Apple Silicon notch")
                     .font(.system(size: 10, weight: .regular, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(JYLTheme.textSecondary)
 
                 Spacer()
 
                 let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
                 Text("Version \(version)")
                     .font(.system(size: 8.5, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.35))
+                    .foregroundStyle(JYLTheme.textMuted)
             }
             .padding(10)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .fill(Color(white: 0.11))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 13, style: .continuous)
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [Color.white.opacity(0.15), Color.white.opacity(0.04)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ),
-                                lineWidth: 0.5
-                            )
-                    )
-            )
+            .jylCard()
 
             VStack(spacing: 5) {
                 Button {
@@ -467,11 +447,11 @@ struct NotchPanelView: View {
                         Text("Re-detect Notch Display")
                     }
                     .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(JYLTheme.textPrimary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.12)))
+                    .background(RoundedRectangle(cornerRadius: 7).fill(JYLTheme.neutral800))
                 }
                 .buttonStyle(TabButtonStyle())
 
@@ -486,11 +466,11 @@ struct NotchPanelView: View {
                         Text("Close Settings")
                     }
                     .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(JYLTheme.textSecondary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.06)))
+                    .background(RoundedRectangle(cornerRadius: 7).fill(JYLTheme.neutral900))
                 }
                 .buttonStyle(TabButtonStyle())
 
@@ -503,31 +483,17 @@ struct NotchPanelView: View {
                         Text("Quit Application")
                     }
                     .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color(red: 1.0, green: 0.40, blue: 0.40))
+                    .foregroundStyle(JYLTheme.error)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 7).fill(Color(red: 0.95, green: 0.22, blue: 0.22).opacity(0.14)))
+                    .background(RoundedRectangle(cornerRadius: 7).fill(JYLTheme.errorMuted))
                 }
                 .buttonStyle(TabButtonStyle())
             }
             .padding(10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .fill(Color(white: 0.11))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 13, style: .continuous)
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [Color.white.opacity(0.15), Color.white.opacity(0.04)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ),
-                                lineWidth: 0.5
-                            )
-                    )
-            )
+            .jylCard()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
