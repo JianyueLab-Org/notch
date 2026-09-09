@@ -36,13 +36,14 @@ nonisolated enum NotchConfiguration {
     // MARK: - Hit testing
 
     /// Extra slop around the notch so the cursor triggers easily and reliably.
-    /// Extended vertically below the notch and horizontally on both sides.
-    static let hoverEnterMargin: CGFloat = 20
+    /// Extended horizontally by 40pt on each side, and downwards by 60pt below the notch.
+    static let hoverEnterHorizontalMargin: CGFloat = 40
+    static let hoverEnterVerticalMargin: CGFloat = 60
 
     /// Slop around the *expanded* panel. Deliberately larger than the enter
     /// margin: this is the hysteresis that stops the panel flickering when the
     /// cursor grazes the boundary.
-    static let hoverExitMargin: CGFloat = 24
+    static let hoverExitMargin: CGFloat = 30
 
     // MARK: - Timing
 

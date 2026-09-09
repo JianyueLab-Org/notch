@@ -14,7 +14,7 @@ import OSLog
 @MainActor
 final class MusicScriptingSource: NowPlayingSource {
 
-    static let bundleIdentifier = "com.apple.Music"
+    nonisolated static let bundleIdentifier = "com.apple.Music"
 
     var onChange: ((NowPlaying?) -> Void)?
 
@@ -40,7 +40,7 @@ final class MusicScriptingSource: NowPlayingSource {
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                self.tick()
+                await self.tick()
                 try? await Task.sleep(for: NotchConfiguration.spotifyPollInterval)
             }
         }
@@ -65,7 +65,7 @@ final class MusicScriptingSource: NowPlayingSource {
         _ = run("tell application id \"\(Self.bundleIdentifier)\" to \(verb)")
         Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(250))
-            self?.tick()
+            await self?.tick()
         }
     }
 
@@ -74,19 +74,22 @@ final class MusicScriptingSource: NowPlayingSource {
             Log.media.notice("media: cannot request Music automation — Music is not running")
             return
         }
-        _ = permissionStatus(askUserIfNeeded: true)
-        tick()
+        Task { [weak self] in
+            guard let self else { return }
+            _ = await self.permissionStatus(askUserIfNeeded: true)
+            await self.tick()
+        }
     }
 
     // MARK: - Polling
 
-    private func tick() {
+    private func tick() async {
         guard Self.isMusicRunning else {
             report(nil)
             return
         }
 
-        switch permissionStatus(askUserIfNeeded: false) {
+        switch await permissionStatus(askUserIfNeeded: false) {
         case noErr:
             if authorization != .granted {
                 authorization = .granted
@@ -109,11 +112,14 @@ final class MusicScriptingSource: NowPlayingSource {
         report(makeTrack(from: descriptor))
     }
 
-    private func permissionStatus(askUserIfNeeded: Bool) -> OSStatus {
-        let target = NSAppleEventDescriptor(bundleIdentifier: Self.bundleIdentifier)
-        return withUnsafePointer(to: target.aeDesc!.pointee) { pointer in
-            AEDeterminePermissionToAutomateTarget(pointer, typeWildCard, typeWildCard, askUserIfNeeded)
-        }
+    private func permissionStatus(askUserIfNeeded: Bool) async -> OSStatus {
+        await Task.detached(priority: .userInitiated) {
+            let target = NSAppleEventDescriptor(bundleIdentifier: Self.bundleIdentifier)
+            guard let aeDesc = target.aeDesc else { return OSStatus(procNotFound) }
+            return withUnsafePointer(to: aeDesc.pointee) { pointer in
+                AEDeterminePermissionToAutomateTarget(pointer, typeWildCard, typeWildCard, askUserIfNeeded)
+            }
+        }.value
     }
 
     private func setNeedsPermission(_ message: String) {
@@ -251,7 +257,7 @@ final class MusicScriptingSource: NowPlayingSource {
             guard !data.isEmpty, let image = NSImage(data: data) else { return }
             guard !Task.isCancelled else { return }
             self.artworkCache = (trackId, image)
-            self.tick()
+            await self.tick()
         }
     }
 

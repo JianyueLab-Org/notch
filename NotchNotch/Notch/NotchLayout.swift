@@ -65,14 +65,15 @@ nonisolated struct NotchLayout: Equatable, Sendable {
                              width: windowSize.width,
                              height: windowSize.height)
 
-        // Enter region: the notch, widened and extended downwards into the
-        // display and upwards past the screen edge so touching the top of the
-        // display (where y == screen.maxY) is reliably contained within the rect.
-        let m = NotchConfiguration.hoverEnterMargin
-        enterRegion = CGRect(x: notch.minX - m,
-                             y: notch.minY - m,
-                             width: notch.width + 2 * m,
-                             height: notch.height + m + 50)
+        // Enter region: the notch, widened horizontally (40pt) and extended downwards
+        // into the display (60pt below notch, covering the natural hover zone below the bezel)
+        // and upwards past the screen edge (+50pt) so touching the top edge is contained.
+        let hm = NotchConfiguration.hoverEnterHorizontalMargin
+        let vm = NotchConfiguration.hoverEnterVerticalMargin
+        enterRegion = CGRect(x: notch.minX - hm,
+                             y: notch.minY - vm,
+                             width: notch.width + 2 * hm,
+                             height: notch.height + vm + 50)
 
         // Exit region: the visible expanded body plus a generous margin.
         collapsedBodyRect = notch

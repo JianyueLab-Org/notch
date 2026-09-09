@@ -14,7 +14,8 @@ final class NotchHoverMonitor {
 
     private var globalMonitor: Any?
     private var localMonitor: Any?
-    private var pollTimer: Timer?
+    private var pollTimer: DispatchSourceTimer?
+    private var activityToken: NSObjectProtocol?
 
     private let onMove: (CGPoint, Bool) -> Void
 
@@ -73,21 +74,36 @@ final class NotchHoverMonitor {
 
     private func startPolling() {
         guard pollTimer == nil else { return }
-        let interval = Double(NotchConfiguration.pointerPollInterval.components.seconds)
-            + Double(NotchConfiguration.pointerPollInterval.components.attoseconds) / 1e18
-        print("[NotchNotch] ⏱️ Hover polling timer started (interval: \(interval)s, ~\(Int(1.0/interval)) Hz)")
-        let timer = Timer(timeInterval: max(0.02, interval), repeats: true) { [weak self] _ in
+        let ms = Int(Double(NotchConfiguration.pointerPollInterval.components.seconds) * 1000
+            + Double(NotchConfiguration.pointerPollInterval.components.attoseconds) / 1e15)
+        let intervalMs = max(20, ms)
+        print("[NotchNotch] ⏱️ Hover DispatchSourceTimer started (interval: \(intervalMs)ms, ~\(1000/intervalMs) Hz)")
+        fflush(stdout)
+
+        activityToken = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiatedAllowingIdleSystemSleep, .latencyCritical],
+            reason: "Continuous notch hover tracking"
+        )
+
+        let timer = DispatchSource.makeTimerSource(flags: .strict, queue: .main)
+        timer.schedule(deadline: .now(), repeating: .milliseconds(intervalMs), leeway: .milliseconds(2))
+        timer.setEventHandler { [weak self] in
             guard let self else { return }
+            let loc = NSEvent.mouseLocation
             let isDragging = (NSEvent.pressedMouseButtons & 1) != 0
-            self.onMove(NSEvent.mouseLocation, isDragging)
+            self.onMove(loc, isDragging)
         }
-        RunLoop.main.add(timer, forMode: .common)
+        timer.resume()
         pollTimer = timer
     }
 
     private func stopPolling() {
-        pollTimer?.invalidate()
+        pollTimer?.cancel()
         pollTimer = nil
+        if let activityToken {
+            ProcessInfo.processInfo.endActivity(activityToken)
+            self.activityToken = nil
+        }
     }
 
     func setPollingEnabled(_ enabled: Bool) {
@@ -102,6 +118,9 @@ final class NotchHoverMonitor {
     }
 
     isolated deinit {
-        pollTimer?.invalidate()
+        pollTimer?.cancel()
+        if let activityToken {
+            ProcessInfo.processInfo.endActivity(activityToken)
+        }
     }
 }

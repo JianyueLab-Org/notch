@@ -22,7 +22,7 @@ import OSLog
 @MainActor
 final class SpotifyScriptingSource: NowPlayingSource {
 
-    static let bundleIdentifier = "com.spotify.client"
+    nonisolated static let bundleIdentifier = "com.spotify.client"
 
     var onChange: ((NowPlaying?) -> Void)?
 
@@ -50,7 +50,7 @@ final class SpotifyScriptingSource: NowPlayingSource {
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                self.tick()
+                await self.tick()
                 try? await Task.sleep(for: NotchConfiguration.spotifyPollInterval)
             }
         }
@@ -74,7 +74,7 @@ final class SpotifyScriptingSource: NowPlayingSource {
         // Spotify updates its state a beat after the command lands.
         Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(250))
-            self?.tick()
+            await self?.tick()
         }
     }
 
@@ -86,13 +86,16 @@ final class SpotifyScriptingSource: NowPlayingSource {
             Log.media.notice("media: cannot request Spotify automation — Spotify is not running")
             return
         }
-        _ = permissionStatus(askUserIfNeeded: true)
-        tick()
+        Task { [weak self] in
+            guard let self else { return }
+            _ = await self.permissionStatus(askUserIfNeeded: true)
+            await self.tick()
+        }
     }
 
     // MARK: - Polling
 
-    private func tick() {
+    private func tick() async {
         guard Self.isSpotifyRunning else {
             report(nil)
             return
@@ -102,7 +105,7 @@ final class SpotifyScriptingSource: NowPlayingSource {
         // and NSAppleScript must run on the main thread, so a naive poll would
         // freeze the whole overlay until the user answered. Ask TCC what the
         // answer already is, without prompting, and only script when allowed.
-        switch permissionStatus(askUserIfNeeded: false) {
+        switch await permissionStatus(askUserIfNeeded: false) {
         case noErr:
             if authorization != .granted {
                 authorization = .granted
@@ -126,12 +129,15 @@ final class SpotifyScriptingSource: NowPlayingSource {
     }
 
     /// Queries — and optionally raises — the Automation consent for Spotify.
-    /// `askUserIfNeeded: false` never blocks and never prompts.
-    private func permissionStatus(askUserIfNeeded: Bool) -> OSStatus {
-        let target = NSAppleEventDescriptor(bundleIdentifier: Self.bundleIdentifier)
-        return withUnsafePointer(to: target.aeDesc!.pointee) { pointer in
-            AEDeterminePermissionToAutomateTarget(pointer, typeWildCard, typeWildCard, askUserIfNeeded)
-        }
+    /// Runs off the main actor to avoid freezing the UI thread if TCCD blocks.
+    private func permissionStatus(askUserIfNeeded: Bool) async -> OSStatus {
+        await Task.detached(priority: .userInitiated) {
+            let target = NSAppleEventDescriptor(bundleIdentifier: Self.bundleIdentifier)
+            guard let aeDesc = target.aeDesc else { return OSStatus(procNotFound) }
+            return withUnsafePointer(to: aeDesc.pointee) { pointer in
+                AEDeterminePermissionToAutomateTarget(pointer, typeWildCard, typeWildCard, askUserIfNeeded)
+            }
+        }.value
     }
 
     private func setNeedsPermission(_ message: String) {
@@ -289,7 +295,7 @@ final class SpotifyScriptingSource: NowPlayingSource {
                   let self else { return }
             self.artworkCache = (urlString, image)
             // Re-emit so the panel picks the artwork up now that it exists.
-            self.tick()
+            await self.tick()
         }
     }
 
