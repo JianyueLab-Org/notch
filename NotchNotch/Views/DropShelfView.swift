@@ -14,7 +14,7 @@ struct DropShelfView: View {
     @ObservedObject var shelf: ShelfController
 
     var body: some View {
-        VStack(spacing: 8) {
+        ZStack {
             if shelf.items.isEmpty {
                 emptyDropTarget
             } else {
@@ -22,6 +22,27 @@ struct DropShelfView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(white: 0.11))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(
+                            shelf.isTargeted
+                                ? LinearGradient(
+                                    colors: [Color.accentColor, Color.accentColor.opacity(0.6)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                                : LinearGradient(
+                                    colors: [Color.white.opacity(0.15), Color.white.opacity(0.04)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                            lineWidth: shelf.isTargeted ? 1.5 : 0.5
+                        )
+                )
+        )
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $shelf.isTargeted) { providers in
             handleDrop(providers: providers)
         }
@@ -30,64 +51,74 @@ struct DropShelfView: View {
     // MARK: - Subviews
 
     private var emptyDropTarget: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(
-                    shelf.isTargeted ? Color.accentColor : Color.white.opacity(0.18),
-                    style: StrokeStyle(lineWidth: shelf.isTargeted ? 2 : 1.5, dash: shelf.isTargeted ? [] : [6, 4])
-                )
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(shelf.isTargeted ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.04))
-                )
+        VStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(shelf.isTargeted ? Color.accentColor.opacity(0.22) : Color.white.opacity(0.06))
+                    .frame(width: 44, height: 44)
 
-            VStack(spacing: 6) {
                 Image(systemName: shelf.isTargeted ? "arrow.down.doc.fill" : "tray.and.arrow.down")
-                    .font(.system(size: 24))
-                    .foregroundStyle(shelf.isTargeted ? Color.accentColor : .white.opacity(0.4))
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(shelf.isTargeted ? Color.accentColor : Color.white.opacity(0.65))
+            }
+            .scaleEffect(shelf.isTargeted ? 1.08 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: shelf.isTargeted)
+
+            VStack(spacing: 3) {
                 Text(shelf.isTargeted ? "Release to stage files" : "Drop files here to hold")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(shelf.isTargeted ? 0.95 : 0.6))
+                    .font(.system(size: 13.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(shelf.isTargeted ? 1.0 : 0.88))
+
                 Text("Drag out anytime to transfer across apps")
-                    .font(.system(size: 10, weight: .regular, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.35))
+                    .font(.system(size: 11, weight: .regular, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.45))
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(14)
     }
 
     private var itemsContent: some View {
         VStack(spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(shelf.items) { item in
-                        itemCard(item)
-                    }
-                }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-            }
-
             HStack {
-                Text("\(shelf.items.count) item\(shelf.items.count == 1 ? "" : "s") staged")
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.45))
+                HStack(spacing: 6) {
+                    Image(systemName: "tray.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+
+                    Text("\(shelf.items.count) item\(shelf.items.count == 1 ? "" : "s") staged")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+
                 Spacer()
+
                 Button("Clear All") {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         shelf.clearAll()
                     }
                 }
                 .buttonStyle(.plain)
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .font(.system(size: 10.5, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.6))
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 9)
                 .padding(.vertical, 3)
-                .background(Capsule().fill(.white.opacity(0.12)))
+                .background(Capsule().fill(Color.white.opacity(0.12)))
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(shelf.items) { item in
+                        itemCard(item)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 10)
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func itemCard(_ item: ShelfItem) -> some View {
@@ -96,7 +127,7 @@ struct DropShelfView: View {
                 Image(nsImage: item.icon)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 42, height: 42)
                     .shadow(color: .black.opacity(0.4), radius: 3, y: 2)
 
                 Button {
@@ -120,13 +151,17 @@ struct DropShelfView: View {
                 .frame(width: 72)
 
             Text(item.formattedSize)
-                .font(.system(size: 8, weight: .regular, design: .monospaced))
+                .font(.system(size: 8.5, weight: .regular, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.4))
         }
         .padding(8)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.white.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+                )
         )
         .contentShape(Rectangle())
         .onDrag {

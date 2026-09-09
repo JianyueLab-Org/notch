@@ -14,7 +14,7 @@ nonisolated enum NotchConfiguration {
     // MARK: - Sizing
 
     /// Size of the expanded panel's *visible* black body.
-    static let expandedSize = CGSize(width: 610, height: 185)
+    static let expandedSize = CGSize(width: 620, height: 206)
 
     /// Additional width in compact (collapsed) state to reveal dynamic indicators flanking the notch.
     static let compactWidthExtension: CGFloat = 64

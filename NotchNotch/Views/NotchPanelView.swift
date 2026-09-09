@@ -102,7 +102,7 @@ struct NotchPanelView: View {
 
     @ViewBuilder
     private var expandedContent: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             topBar
 
             Group {
@@ -122,9 +122,9 @@ struct NotchPanelView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .transition(.opacity.combined(with: .scale(scale: 0.98)))
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 6)
-        .padding(.bottom, 12)
+        .padding(.horizontal, 18)
+        .padding(.top, 10)
+        .padding(.bottom, 16)
         .frame(width: machine.layout.expandedSize.width,
                height: machine.layout.expandedSize.height)
         .foregroundStyle(.white)
@@ -254,7 +254,7 @@ struct NotchPanelView: View {
 
                 Spacer()
             }
-            .padding(14)
+            .padding(12)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -298,7 +298,7 @@ struct NotchPanelView: View {
                 .frame(maxWidth: .infinity)
                 .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.06)))
             }
-            .padding(14)
+            .padding(12)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
