@@ -35,6 +35,12 @@ struct NotchPanelView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onReceive(machine.$state) { state in
+            if state == .collapsed {
+                showSettings = false
+                activeTab = .overview
+            }
+        }
     }
 
     private var panel: some View {

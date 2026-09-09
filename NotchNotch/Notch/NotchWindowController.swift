@@ -62,7 +62,7 @@ final class NotchWindowController {
         let monitor = NotchHoverMonitor { [weak self] location, isDragging in
             guard let self else { return }
             self.lastPointer = location
-            if isDragging && self.stateMachine.state == .collapsed {
+            if isDragging && self.isFileDragInProgress && self.stateMachine.state == .collapsed {
                 self.activeTab = .shelf
             }
             self.stateMachine.pointerMoved(to: location)
@@ -106,9 +106,16 @@ final class NotchWindowController {
     func toggle() {
         if stateMachine.state.isOnScreen {
             stateMachine.collapseImmediately()
+            activeTab = .overview
         } else {
+            activeTab = .overview
             stateMachine.expandImmediately()
         }
+    }
+
+    private var isFileDragInProgress: Bool {
+        guard let types = NSPasteboard(name: .drag).types else { return false }
+        return types.contains(.fileURL) || types.contains(NSPasteboard.PasteboardType("NSFilenamesPboardType"))
     }
 
     // MARK: - Window
@@ -161,6 +168,9 @@ final class NotchWindowController {
                 // argument, never re-read the property.
                 self.updateInteractivity(for: state)
                 self.hoverMonitor?.setPollingEnabled(state != .collapsed)
+                if state == .collapsed {
+                    self.activeTab = .overview
+                }
             }
             .store(in: &cancellables)
     }
