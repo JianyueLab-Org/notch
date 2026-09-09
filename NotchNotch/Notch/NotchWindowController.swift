@@ -44,7 +44,7 @@ final class NotchWindowController {
         let detected = screen.map { NotchGeometry.detect(on: $0) }
             ?? NotchGeometry(notchRect: .zero, screenFrame: .zero, source: .simulated, screenName: "none")
         geometry = detected
-        stateMachine = NotchStateMachine(layout: NotchLayout(geometry: detected))
+        stateMachine = NotchStateMachine(layout: NotchLayout(geometry: detected, hasActiveEvent: false))
     }
 
     // MARK: - Lifecycle
@@ -53,6 +53,7 @@ final class NotchWindowController {
         nowPlaying.start()
         buildWindowIfNeeded()
         observeState()
+        observeSchedule()
         observeScreenChanges()
 
         lastPointer = NSEvent.mouseLocation
@@ -89,11 +90,21 @@ final class NotchWindowController {
         guard let screen = NotchGeometry.preferredScreen() else { return }
         let detected = NotchGeometry.detect(on: screen)
         geometry = detected
-        let layout = NotchLayout(geometry: detected)
+        let layout = NotchLayout(geometry: detected, hasActiveEvent: schedule.hasActiveEvent)
         stateMachine.collapseImmediately()
         stateMachine.layout = layout
         window?.setFrame(layout.windowFrame, display: true)
         Log.lifecycle.notice("controller: reloaded onto \(detected.screenName, privacy: .public)")
+    }
+
+    private func observeSchedule() {
+        schedule.$hasActiveEvent
+            .removeDuplicates()
+            .sink { [weak self] hasActive in
+                guard let self else { return }
+                self.stateMachine.updateHasActiveEvent(hasActive)
+            }
+            .store(in: &cancellables)
     }
 
     /// Toggles between expanded and collapsed states.

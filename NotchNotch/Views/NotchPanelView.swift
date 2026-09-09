@@ -45,9 +45,11 @@ struct NotchPanelView: View {
     }
 
     private var notchShape: NotchShape {
-        NotchShape(
-            topRadius: isOpen ? NotchConfiguration.expandedTopCornerRadius : NotchConfiguration.collapsedTopCornerRadius,
-            bottomRadius: isOpen ? NotchConfiguration.expandedBottomCornerRadius : NotchConfiguration.collapsedBottomCornerRadius
+        let collapsedTop = schedule.hasActiveEvent ? NotchConfiguration.collapsedTopCornerRadius : 0
+        let collapsedBottom = schedule.hasActiveEvent ? NotchConfiguration.collapsedBottomCornerRadius : 10
+        return NotchShape(
+            topRadius: isOpen ? NotchConfiguration.expandedTopCornerRadius : collapsedTop,
+            bottomRadius: isOpen ? NotchConfiguration.expandedBottomCornerRadius : collapsedBottom
         )
     }
 
@@ -70,7 +72,11 @@ struct NotchPanelView: View {
         .frame(width: bodySize.width, height: bodySize.height)
         .clipShape(notchShape)
         .compositingGroup()
-        .shadow(color: .black.opacity(isOpen ? 0.45 : 0.25), radius: isOpen ? 14 : 4, y: isOpen ? 6 : 2)
+        .shadow(
+            color: .black.opacity(isOpen ? 0.45 : (schedule.hasActiveEvent ? 0.25 : 0)),
+            radius: isOpen ? 14 : 4,
+            y: isOpen ? 6 : 2
+        )
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: nil) { providers in
             handleFileDrop(providers: providers)
         }
@@ -106,42 +112,45 @@ struct NotchPanelView: View {
 
     // MARK: - Compact Content (Collapsed State)
 
+    @ViewBuilder
     private var compactContent: some View {
-        let notchWidth = machine.layout.geometry.notchRect.width
-        let earWidth = max(28, (machine.layout.collapsedSize.width - notchWidth) / 2)
+        if schedule.hasActiveEvent {
+            let notchWidth = machine.layout.geometry.notchRect.width
+            let earWidth = max(28, (machine.layout.collapsedSize.width - notchWidth) / 2)
 
-        return HStack(spacing: 0) {
-            // Left ear: Calendar icon in rounded container
-            ZStack {
-                RoundedRectangle(cornerRadius: 6.5, style: .continuous)
-                    .fill(Color(red: 0.22, green: 0.12, blue: 0.04))
-                    .frame(width: 22, height: 22)
-                Image(systemName: "calendar")
-                    .font(.system(size: 12.5, weight: .bold))
-                    .foregroundStyle(Color(red: 1.0, green: 0.58, blue: 0.12))
+            HStack(spacing: 0) {
+                // Left ear: Calendar icon in rounded container
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6.5, style: .continuous)
+                        .fill(Color(red: 0.22, green: 0.12, blue: 0.04))
+                        .frame(width: 22, height: 22)
+                    Image(systemName: "calendar")
+                        .font(.system(size: 12.5, weight: .bold))
+                        .foregroundStyle(Color(red: 1.0, green: 0.58, blue: 0.12))
+                }
+                .frame(width: earWidth)
+
+                // Center: Clear notch hardware area
+                Spacer()
+                    .frame(width: notchWidth)
+
+                // Right ear: Circular schedule progress ring
+                ZStack {
+                    Circle()
+                        .stroke(Color(red: 0.22, green: 0.12, blue: 0.04), lineWidth: 3.2)
+                        .frame(width: 20, height: 20)
+                    Circle()
+                        .trim(from: 0, to: max(0.04, min(1.0, schedule.progress)))
+                        .stroke(Color(red: 1.0, green: 0.58, blue: 0.12), style: StrokeStyle(lineWidth: 3.2, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: 20, height: 20)
+                }
+                .frame(width: earWidth)
             }
-            .frame(width: earWidth)
-
-            // Center: Clear notch hardware area
-            Spacer()
-                .frame(width: notchWidth)
-
-            // Right ear: Circular schedule progress ring
-            ZStack {
-                Circle()
-                    .stroke(Color(red: 0.22, green: 0.12, blue: 0.04), lineWidth: 3.2)
-                    .frame(width: 20, height: 20)
-                Circle()
-                    .trim(from: 0, to: max(0.04, min(1.0, schedule.progress)))
-                    .stroke(Color(red: 1.0, green: 0.58, blue: 0.12), style: StrokeStyle(lineWidth: 3.2, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: 20, height: 20)
-            }
-            .frame(width: earWidth)
+            .frame(width: machine.layout.collapsedSize.width,
+                   height: machine.layout.collapsedSize.height)
+            .clipped()
         }
-        .frame(width: machine.layout.collapsedSize.width,
-               height: machine.layout.collapsedSize.height)
-        .clipped()
     }
 
     @ViewBuilder

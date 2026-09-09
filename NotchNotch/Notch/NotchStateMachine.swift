@@ -63,6 +63,13 @@ final class NotchStateMachine: ObservableObject {
         self.layout = layout
     }
 
+    func updateHasActiveEvent(_ hasActive: Bool) {
+        guard layout.hasActiveEvent != hasActive else { return }
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+            layout = NotchLayout(geometry: layout.geometry, hasActiveEvent: hasActive)
+        }
+    }
+
     // MARK: - Input
 
     /// Feed every cursor position here. Cheap enough to call at event rate.

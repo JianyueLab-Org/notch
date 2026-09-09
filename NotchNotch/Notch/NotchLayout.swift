@@ -34,14 +34,17 @@ nonisolated struct NotchLayout: Equatable, Sendable {
     /// what decide whether a click belongs to us — see `acceptsClick(at:in:)`.
     var collapsedBodyRect: CGRect
     var expandedBodyRect: CGRect
+    var hasActiveEvent: Bool
 
-    init(geometry: NotchGeometry) {
+    init(geometry: NotchGeometry, hasActiveEvent: Bool = false) {
         self.geometry = geometry
+        self.hasActiveEvent = hasActiveEvent
 
         let notch = geometry.notchRect
         let screen = geometry.screenFrame
 
-        collapsedSize = CGSize(width: notch.width + NotchConfiguration.compactWidthExtension,
+        let widthExtension = hasActiveEvent ? NotchConfiguration.compactWidthExtension : 0
+        collapsedSize = CGSize(width: notch.width + widthExtension,
                                height: notch.height)
         expandedSize = CGSize(width: max(NotchConfiguration.expandedSize.width, notch.width + 160),
                               height: NotchConfiguration.expandedSize.height)

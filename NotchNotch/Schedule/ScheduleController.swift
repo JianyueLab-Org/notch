@@ -44,13 +44,14 @@ actor CalendarReader {
 @MainActor
 final class ScheduleController: ObservableObject {
 
-    @Published var currentEventTitle: String = "Business Management"
-    @Published var currentEventStatus: String = "In progress · 30min left"
-    @Published var progress: Double = 0.25
-    @Published var nextEventTitle: String = "Japanese"
-    @Published var nextEventTime: String = "in 30min"
+    @Published var currentEventTitle: String = "No Scheduled Events"
+    @Published var currentEventStatus: String = "Calendar is clear"
+    @Published var progress: Double = 0.0
+    @Published var nextEventTitle: String = "All Clear"
+    @Published var nextEventTime: String = "today"
     @Published var isAuthorized: Bool = false
-    @Published var dividerIndex: Int? = 24 // 30min mark by default
+    @Published var dividerIndex: Int? = nil
+    @Published var hasActiveEvent: Bool = false
 
     // Cached event interval data for timeline rendering:
     private var currentEventStartDate: Date?
@@ -134,6 +135,7 @@ final class ScheduleController: ObservableObject {
 
     private func handlePermissionDenied() {
         isAuthorized = false
+        hasActiveEvent = false
         currentEventTitle = "Calendar Access Required"
         currentEventStatus = "Enable in System Settings > Privacy"
         nextEventTitle = "Calendar"
@@ -166,16 +168,18 @@ final class ScheduleController: ObservableObject {
     }
 
     private func processEvents(_ rawEvents: [EventSnapshot], now: Date) {
-        // 0 on our ruler represents "Now", which is at 15min / 60min = 25%
-        progress = 0.25
-
         let current = rawEvents.first(where: { $0.startDate <= now && $0.endDate > now })
         let next = rawEvents.first(where: { $0.startDate > now })
 
         if let current {
+            hasActiveEvent = true
             currentEventTitle = current.title ?? "Untitled Event"
             currentEventStartDate = current.startDate
             currentEventEndDate = current.endDate
+
+            let total = current.endDate.timeIntervalSince(current.startDate)
+            let elapsed = now.timeIntervalSince(current.startDate)
+            progress = total > 0 ? min(1.0, max(0.04, elapsed / total)) : 0.25
 
             let remaining = max(0, current.endDate.timeIntervalSince(now))
             currentEventStatus = "In progress · \(formatDuration(remaining)) left"
@@ -202,6 +206,8 @@ final class ScheduleController: ObservableObject {
                 nextEventEndDate = nil
             }
         } else if let next {
+            hasActiveEvent = false
+            progress = 0.0
             currentEventTitle = next.title ?? "Untitled Event"
             currentEventStartDate = next.startDate
             currentEventEndDate = next.endDate
@@ -232,6 +238,8 @@ final class ScheduleController: ObservableObject {
                 nextEventEndDate = nil
             }
         } else {
+            hasActiveEvent = false
+            progress = 0.0
             currentEventTitle = "No Scheduled Events"
             currentEventStatus = "Calendar is clear"
             nextEventTitle = "All Clear"
