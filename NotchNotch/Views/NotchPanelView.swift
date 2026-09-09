@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import OSLog
 
 enum NotchActiveTab: String, CaseIterable, Identifiable {
     case overview = "Overview"
@@ -114,13 +115,15 @@ struct NotchPanelView: View {
                 .animation(isOpen ? .easeOut(duration: 0.08) : .easeIn(duration: 0.14).delay(0.08), value: isOpen)
                 .allowsHitTesting(!isOpen)
 
-            expandedContent
-                .opacity(isOpen ? 1 : 0)
-                .scaleEffect(isOpen ? 1.0 : 0.96, anchor: .top)
-                .animation(isOpen ? NotchConfiguration.expandAnimation : .easeOut(duration: 0.12), value: isOpen)
-                .allowsHitTesting(isOpen)
+            if machine.state.isOnScreen {
+                expandedContent
+                    .opacity(isOpen ? 1 : 0)
+                    .scaleEffect(isOpen ? 1.0 : 0.96, anchor: .top)
+                    .animation(isOpen ? NotchConfiguration.expandAnimation : .easeOut(duration: 0.12), value: isOpen)
+                    .allowsHitTesting(isOpen)
+            }
         }
-        .frame(width: bodySize.width, height: bodySize.height)
+        .frame(width: bodySize.width, height: bodySize.height, alignment: .top)
         .clipShape(notchShape)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: bodySize.width)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: hasLiveActivity)
@@ -197,7 +200,7 @@ struct NotchPanelView: View {
     @ViewBuilder
     private var compactLeftEar: some View {
         if isMusicPlaying {
-            if let artwork = media.nowPlaying?.artwork {
+            if let artwork = media.nowPlaying?.artwork, artwork.isValid, artwork.size.width > 0 {
                 Image(nsImage: artwork)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
