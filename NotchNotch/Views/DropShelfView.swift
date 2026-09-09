@@ -43,6 +43,7 @@ struct DropShelfView: View {
                         )
                 )
         )
+        .compositingGroup()
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $shelf.isTargeted) { providers in
             handleDrop(providers: providers)
         }

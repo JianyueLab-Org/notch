@@ -150,22 +150,30 @@ struct NotchPanelView: View {
         VStack(spacing: 10) {
             topBar
 
-            Group {
-                if showSettings {
-                    settingsContent
-                } else {
-                    switch activeTab {
-                    case .overview:
-                        overviewContent
-                    case .shelf:
-                        DropShelfView(shelf: shelf)
-                    case .clipboard:
-                        ClipboardCardView()
-                    }
-                }
+            ZStack {
+                overviewContent
+                    .opacity(activeTab == .overview && !showSettings ? 1 : 0)
+                    .scaleEffect(activeTab == .overview && !showSettings ? 1.0 : 0.98)
+                    .allowsHitTesting(activeTab == .overview && !showSettings)
+
+                DropShelfView(shelf: shelf)
+                    .opacity(activeTab == .shelf && !showSettings ? 1 : 0)
+                    .scaleEffect(activeTab == .shelf && !showSettings ? 1.0 : 0.98)
+                    .allowsHitTesting(activeTab == .shelf && !showSettings)
+
+                ClipboardCardView(isActive: activeTab == .clipboard && !showSettings)
+                    .opacity(activeTab == .clipboard && !showSettings ? 1 : 0)
+                    .scaleEffect(activeTab == .clipboard && !showSettings ? 1.0 : 0.98)
+                    .allowsHitTesting(activeTab == .clipboard && !showSettings)
+
+                settingsContent
+                    .opacity(showSettings ? 1 : 0)
+                    .scaleEffect(showSettings ? 1.0 : 0.98)
+                    .allowsHitTesting(showSettings)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            .animation(.spring(response: 0.22, dampingFraction: 0.88), value: activeTab)
+            .animation(.spring(response: 0.22, dampingFraction: 0.88), value: showSettings)
         }
         .padding(.horizontal, 18)
         .padding(.top, 10)
@@ -204,7 +212,7 @@ struct NotchPanelView: View {
 
             // Right settings gear button
             Button {
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.88)) {
                     showSettings.toggle()
                 }
             } label: {
@@ -230,7 +238,7 @@ struct NotchPanelView: View {
     ) -> some View {
         let isSelected = activeTab == tab && !showSettings
         return Button {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.88)) {
                 showSettings = false
                 activeTab = tab
             }
@@ -284,6 +292,7 @@ struct NotchPanelView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .compositingGroup()
     }
 
     // MARK: - Settings View
@@ -313,7 +322,7 @@ struct NotchPanelView: View {
                                     colors: [Color.white.opacity(0.15), Color.white.opacity(0.04)],
                                     startPoint: .top,
                                     endPoint: .bottom
-                               ),
+                                ),
                                 lineWidth: 0.5
                             )
                     )
@@ -333,7 +342,7 @@ struct NotchPanelView: View {
                 .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.12)))
 
                 Button("Close Settings") {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                    withAnimation(.spring(response: 0.22, dampingFraction: 0.88)) {
                         showSettings = false
                     }
                 }
@@ -364,6 +373,7 @@ struct NotchPanelView: View {
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .compositingGroup()
     }
 }
 

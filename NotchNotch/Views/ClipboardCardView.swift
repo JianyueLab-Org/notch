@@ -10,6 +10,7 @@ import AppKit
 
 struct ClipboardCardView: View {
 
+    var isActive: Bool = false
     @State private var clipboardText: String = ""
     @State private var copied: Bool = false
 
@@ -101,12 +102,25 @@ struct ClipboardCardView: View {
                         )
                 )
         )
+        .compositingGroup()
         .onAppear {
             readPasteboard()
+        }
+        .onChange(of: isActive) { active in
+            if active {
+                readPasteboard()
+            }
         }
     }
 
     private func readPasteboard() {
-        clipboardText = NSPasteboard.general.string(forType: .string) ?? ""
+        Task.detached(priority: .userInitiated) {
+            let text = NSPasteboard.general.string(forType: .string) ?? ""
+            await MainActor.run {
+                if self.clipboardText != text {
+                    self.clipboardText = text
+                }
+            }
+        }
     }
 }

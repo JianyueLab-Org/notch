@@ -37,6 +37,7 @@ struct ScheduleTimelineCardView: View {
                         )
                 )
         )
+        .compositingGroup()
     }
 
     // MARK: - Components
