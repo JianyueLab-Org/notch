@@ -14,10 +14,10 @@ import SwiftUI
 final class ScheduleController: ObservableObject {
 
     @Published var currentEventTitle: String = "Business Management"
-    @Published var currentEventStatus: String = "In progress · 1hr 40m"
+    @Published var currentEventStatus: String = "In progress · 1hr 40min"
     @Published var progress: Double = 0.42
     @Published var nextEventTitle: String = "Japanese"
-    @Published var nextEventTime: String = "in 1hr 17m"
+    @Published var nextEventTime: String = "in 1hr 17min"
 
     private let eventStore = EKEventStore()
     private var timerCancellable: AnyCancellable?
@@ -91,11 +91,11 @@ final class ScheduleController: ObservableObject {
     private func formatDuration(_ interval: TimeInterval) -> String {
         let minutes = max(1, Int(interval) / 60)
         if minutes < 60 {
-            return "\(minutes)m"
+            return "\(minutes)min"
         } else {
             let hours = minutes / 60
             let remMin = minutes % 60
-            return remMin == 0 ? "\(hours)hr" : "\(hours)hr \(remMin)m"
+            return remMin == 0 ? "\(hours)hr" : "\(hours)hr \(remMin)min"
         }
     }
 }

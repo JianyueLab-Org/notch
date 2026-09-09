@@ -116,11 +116,11 @@ struct ScheduleTimelineCardView: View {
 
     private var timeMarkers: some View {
         HStack {
-            Text("-15m")
+            Text("-15min")
             Spacer()
-            Text("+15m")
+            Text("+15min")
             Spacer()
-            Text("+45m")
+            Text("+45min")
         }
         .font(.system(size: 9.5, weight: .semibold, design: .rounded))
         .foregroundStyle(.white.opacity(0.42))
