@@ -77,6 +77,8 @@ final class MusicScriptingSource: NowPlayingSource {
             Log.media.notice("media: cannot request Music automation — Music is not running")
             return
         }
+        NSApp.activate(ignoringOtherApps: true)
+        authorization = .notRequired
         Task { [weak self] in
             await self?.tick()
         }

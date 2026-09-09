@@ -89,6 +89,8 @@ final class SpotifyScriptingSource: NowPlayingSource {
             Log.media.notice("media: cannot request Spotify automation — Spotify is not running")
             return
         }
+        NSApp.activate(ignoringOtherApps: true)
+        authorization = .notRequired
         Task { [weak self] in
             await self?.tick()
         }

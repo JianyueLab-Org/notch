@@ -11,6 +11,7 @@ struct NowPlayingView: View {
 
     let track: NowPlaying
     var authorization: NowPlayingAuthorization = .notRequired
+    var onRequestAuthorization: (() -> Void)? = nil
     let send: (MediaCommand) -> Void
 
     var body: some View {
@@ -98,30 +99,48 @@ struct NowPlayingView: View {
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
             }
-            Text("Allow Spotify in Automation")
+            Text(message.contains("Music") ? "Allow Music in Automation" : "Allow Spotify in Automation")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.65))
                 .lineLimit(1)
             Spacer(minLength: 4)
-            Button {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
-                    NSWorkspace.shared.open(url)
+            HStack(spacing: 6) {
+                if let onRequestAuthorization {
+                    Button {
+                        onRequestAuthorization()
+                    } label: {
+                        Text("Grant")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule().fill(Color.accentColor)
+                            )
+                    }
+                    .buttonStyle(.plain)
                 }
-            } label: {
-                HStack(spacing: 4) {
-                    Text("Open Settings")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    Image(systemName: "arrow.up.forward.app")
-                        .font(.system(size: 9))
+
+                Button {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+                        NSWorkspace.shared.open(url)
+                    }
+                } label: {
+                    HStack(spacing: 3) {
+                        Text("Settings")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        Image(systemName: "arrow.up.forward.app")
+                            .font(.system(size: 8))
+                    }
+                    .foregroundStyle(.white.opacity(0.85))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(
+                        Capsule().fill(Color.white.opacity(0.16))
+                    )
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(
-                    Capsule().fill(Color.white.opacity(0.16))
-                )
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
     }
 
