@@ -51,19 +51,19 @@ nonisolated enum NotchConfiguration {
     // MARK: - Timing
 
     /// Dwell delay requiring pointer to stay in trigger area before opening.
-    /// Fast 80ms responds with zero perceived lag to intentional hovers while
-    /// safely ignoring high-speed passes across the screen top.
-    static let hoverExpandDwellDelay: Duration = .milliseconds(80)
+    /// 35ms provides instantaneous responsiveness to intentional hovers while
+    /// filtering out high-speed cursor passes across the screen top.
+    static let hoverExpandDwellDelay: Duration = .milliseconds(35)
 
     /// How long the cursor must stay outside the panel before we start closing.
-    static let collapseDelay: Duration = .milliseconds(200)
+    static let collapseDelay: Duration = .milliseconds(180)
 
     /// Roughly how long the spring takes to settle.
-    static let expandSettleDuration: Duration = .milliseconds(320)
-    static let collapseSettleDuration: Duration = .milliseconds(280)
+    static let expandSettleDuration: Duration = .milliseconds(280)
+    static let collapseSettleDuration: Duration = .milliseconds(240)
 
-    static let expandAnimation = Animation.spring(response: 0.32, dampingFraction: 0.82)
-    static let collapseAnimation = Animation.spring(response: 0.28, dampingFraction: 0.88)
+    static let expandAnimation = Animation.spring(response: 0.28, dampingFraction: 0.84)
+    static let collapseAnimation = Animation.spring(response: 0.24, dampingFraction: 0.88)
 
     /// High-frequency pointer polling interval (~40Hz) for ultra-fluid boundary catching.
     static let pointerPollInterval: Duration = .milliseconds(25)

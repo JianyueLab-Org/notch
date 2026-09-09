@@ -58,7 +58,6 @@ struct ScheduleTimelineCardView: View {
         GeometryReader { geo in
             let width = geo.size.width
             let tickCount = 33 // 4 blocks of 8 subdivisions (indices 0, 8, 16, 24, 32)
-            let dividerIndex = 24 // 30min mark boundary between current and next event
             let thumbX = 6 + (width - 12) * schedule.progress
 
             ZStack(alignment: .leading) {
@@ -74,43 +73,49 @@ struct ScheduleTimelineCardView: View {
                     )
                     .background(Capsule().fill(Color.orange.opacity(0.06)))
 
-                // Subtle 15-minute block divider lines in background (at 25%, 50%, 75%)
+                // Consolidated single-pass GPU Canvas: background block dividers + ticks
                 Canvas { context, size in
                     let w = size.width - 12
                     let h = size.height
+
+                    // 1. Subtle 15-minute block divider lines (at 25%, 50%, 75%)
                     let blockFractions: [CGFloat] = [0.25, 0.50, 0.75]
                     for frac in blockFractions {
                         let x = 6 + frac * w
                         let dividerPath = Path(CGRect(x: x - 0.5, y: 3.5, width: 1, height: h - 7))
-                        context.fill(dividerPath, with: .color(Color.white.opacity(0.12)))
+                        context.fill(dividerPath, with: .color(Color.white.opacity(0.10)))
                     }
-                }
 
-                // Vertical tick marks drawn via GPU Canvas
-                Canvas { context, size in
-                    let step = (size.width - 12) / CGFloat(tickCount - 1)
+                    // 2. Vertical tick marks (33 ticks: 4 blocks of 8 subdivisions)
+                    let step = w / CGFloat(tickCount - 1)
                     for i in 0..<tickCount {
                         let x = 6 + CGFloat(i) * step
-                        let isPastThumb = Double(i) / Double(tickCount - 1) < schedule.progress
-                        let isNextEvent = i >= dividerIndex
                         let isBlockBoundary = (i % 8 == 0)
+                        let isDivider = (schedule.dividerIndex != nil && i == schedule.dividerIndex)
 
                         let tickHeight: CGFloat = isBlockBoundary ? 16 : 10
                         let tickWidth: CGFloat = isBlockBoundary ? 1.6 : 1.2
-                        let tickY = (size.height - tickHeight) / 2
+                        let tickY = (h - tickHeight) / 2
                         let tickRect = CGRect(x: x - tickWidth / 2, y: tickY, width: tickWidth, height: tickHeight)
 
-                        if i == dividerIndex {
-                            context.fill(Path(tickRect), with: .color(Color.white.opacity(0.85)))
-                        } else if isPastThumb {
-                            context.fill(Path(tickRect), with: .color(Color(red: 1.0, green: 0.58, blue: 0.05)))
-                        } else if isNextEvent {
-                            context.fill(Path(tickRect), with: .color(Color.orange.opacity(0.30)))
+                        if isDivider {
+                            context.fill(Path(tickRect), with: .color(Color.white.opacity(0.90)))
                         } else {
-                            context.fill(
-                                Path(tickRect),
-                                with: .color(isBlockBoundary ? Color(red: 1.0, green: 0.65, blue: 0.12) : Color.orange.opacity(0.55))
-                            )
+                            let category = schedule.tickCategory(at: i)
+                            let color: Color
+                            switch category {
+                            case .past:
+                                color = Color(red: 1.0, green: 0.58, blue: 0.05)
+                            case .currentEvent:
+                                color = isBlockBoundary ? Color(red: 1.0, green: 0.65, blue: 0.12) : Color.orange.opacity(0.60)
+                            case .nextEvent:
+                                color = Color.orange.opacity(0.32)
+                            case .pastEmpty:
+                                color = Color.white.opacity(0.18)
+                            case .freeTime:
+                                color = Color.white.opacity(0.20)
+                            }
+                            context.fill(Path(tickRect), with: .color(color))
                         }
                     }
                 }

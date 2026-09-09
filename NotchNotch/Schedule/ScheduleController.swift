@@ -14,13 +14,21 @@ import SwiftUI
 final class ScheduleController: ObservableObject {
 
     @Published var currentEventTitle: String = "Business Management"
-    @Published var currentEventStatus: String = "In progress · 1hr 40min"
+    @Published var currentEventStatus: String = "In progress · 30min left"
     @Published var progress: Double = 0.25
     @Published var nextEventTitle: String = "Japanese"
-    @Published var nextEventTime: String = "in 1hr 17min"
+    @Published var nextEventTime: String = "in 30min"
+    @Published var isAuthorized: Bool = false
+    @Published var dividerIndex: Int? = 24 // 30min mark by default
+
+    // Cached event interval data for timeline rendering:
+    private var currentEventStartDate: Date?
+    private var currentEventEndDate: Date?
+    private var nextEventStartDate: Date?
+    private var nextEventEndDate: Date?
 
     private let eventStore = EKEventStore()
-    private var timerCancellable: AnyCancellable?
+    private var cancellables: Set<AnyCancellable> = []
 
     init() {
         start()
@@ -28,64 +36,233 @@ final class ScheduleController: ObservableObject {
 
     func start() {
         checkPermissionAndFetch()
-        // Periodically refresh every minute
-        timerCancellable = Timer.publish(every: 60, on: .main, in: .common)
+
+        // Listen for EventKit calendar database changes (Calendar.app, iCloud, Google, etc.)
+        NotificationCenter.default.publisher(for: .EKEventStoreChanged, object: eventStore)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.fetchEvents()
+            }
+            .store(in: &cancellables)
+
+        // Refresh every 15 seconds to keep relative minutes and progress up to date
+        Timer.publish(every: 15, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
-                self?.checkPermissionAndFetch()
+                self?.fetchEvents()
             }
+            .store(in: &cancellables)
     }
 
     func checkPermissionAndFetch() {
         let status = EKEventStore.authorizationStatus(for: .event)
         #if compiler(>=5.9)
         if #available(macOS 14.0, *) {
-            if status == .fullAccess {
+            switch status {
+            case .fullAccess:
+                isAuthorized = true
                 fetchEvents()
-                return
+            case .notDetermined:
+                requestPermission()
+            case .authorized:
+                isAuthorized = true
+                fetchEvents()
+            case .restricted, .denied:
+                handlePermissionDenied()
+            @unknown default:
+                break
             }
+            return
         }
         #endif
-        if status == .authorized {
+
+        switch status {
+        case .authorized:
+            isAuthorized = true
             fetchEvents()
+        case .notDetermined:
+            requestPermission()
+        case .restricted, .denied:
+            handlePermissionDenied()
+        @unknown default:
+            break
         }
     }
 
+    private func requestPermission() {
+        #if compiler(>=5.9)
+        if #available(macOS 14.0, *) {
+            eventStore.requestFullAccessToEvents { [weak self] granted, _ in
+                Task { @MainActor in
+                    if granted {
+                        self?.isAuthorized = true
+                        self?.fetchEvents()
+                    } else {
+                        self?.handlePermissionDenied()
+                    }
+                }
+            }
+            return
+        }
+        #endif
+
+        eventStore.requestAccess(to: .event) { [weak self] granted, _ in
+            Task { @MainActor in
+                if granted {
+                    self?.isAuthorized = true
+                    self?.fetchEvents()
+                } else {
+                    self?.handlePermissionDenied()
+                }
+            }
+        }
+    }
+
+    private func handlePermissionDenied() {
+        isAuthorized = false
+        currentEventTitle = "Calendar Access Required"
+        currentEventStatus = "Enable in System Settings > Privacy"
+        nextEventTitle = "Calendar"
+        nextEventTime = "not authorized"
+    }
+
     private func fetchEvents() {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        #if compiler(>=5.9)
+        if #available(macOS 14.0, *) {
+            guard status == .fullAccess || status == .authorized else { return }
+        } else {
+            guard status == .authorized else { return }
+        }
+        #else
+        guard status == .authorized else { return }
+        #endif
+
         let now = Date()
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: now)
-        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else { return }
+        guard let endOfTomorrow = calendar.date(byAdding: .day, value: 2, to: startOfDay) else { return }
 
-        let predicate = eventStore.predicateForEvents(withStart: startOfDay, end: endOfDay, calendars: nil)
-        let events = eventStore.events(matching: predicate).sorted { $0.startDate < $1.startDate }
+        let predicate = eventStore.predicateForEvents(withStart: startOfDay, end: endOfTomorrow, calendars: nil)
+        let rawEvents = eventStore.events(matching: predicate)
+            .filter { !$0.isAllDay && $0.status != .canceled }
+            .sorted { $0.startDate < $1.startDate }
 
-        if let current = events.first(where: { $0.startDate <= now && $0.endDate > now }) {
-            currentEventTitle = current.title
-            let elapsed = now.timeIntervalSince(current.startDate)
-            let total = current.endDate.timeIntervalSince(current.startDate)
-            progress = max(0.05, min(0.95, elapsed / max(1, total)))
-            let remaining = current.endDate.timeIntervalSince(now)
-            currentEventStatus = "In progress · \(formatDuration(remaining))"
+        let current = rawEvents.first(where: { $0.startDate <= now && $0.endDate > now })
+        let next = rawEvents.first(where: { $0.startDate > now })
 
-            if let next = events.first(where: { $0.startDate >= current.endDate }) {
-                nextEventTitle = next.title
-                let until = next.startDate.timeIntervalSince(now)
-                nextEventTime = "in \(formatDuration(until))"
+        // 0 on our ruler represents "Now", which is at 15min / 60min = 25%
+        progress = 0.25
+
+        if let current {
+            currentEventTitle = current.title ?? "Untitled Event"
+            currentEventStartDate = current.startDate
+            currentEventEndDate = current.endDate
+
+            let remaining = max(0, current.endDate.timeIntervalSince(now))
+            currentEventStatus = "In progress · \(formatDuration(remaining)) left"
+
+            // Compute divider tick if current event ends within the [-15min, +45min] window
+            let endMinutes = current.endDate.timeIntervalSince(now) / 60.0
+            if endMinutes <= 45.0 {
+                let fraction = (endMinutes + 15.0) / 60.0
+                dividerIndex = Int(round(fraction * 32.0))
+            } else {
+                dividerIndex = nil
             }
-        } else if let next = events.first(where: { $0.startDate > now }) {
-            currentEventTitle = next.title
-            let until = next.startDate.timeIntervalSince(now)
-            currentEventStatus = "Starts in \(formatDuration(until))"
-            progress = 0.1
 
-            let afterNext = events.first(where: { $0.startDate > next.startDate })
+            if let nextEvent = rawEvents.first(where: { $0.startDate >= current.endDate }) {
+                nextEventTitle = nextEvent.title ?? "Untitled Event"
+                nextEventStartDate = nextEvent.startDate
+                nextEventEndDate = nextEvent.endDate
+                let until = max(0, nextEvent.startDate.timeIntervalSince(now))
+                nextEventTime = "in \(formatDuration(until))"
+            } else {
+                nextEventTitle = "No more events"
+                nextEventTime = "today"
+                nextEventStartDate = nil
+                nextEventEndDate = nil
+            }
+        } else if let next {
+            currentEventTitle = next.title ?? "Untitled Event"
+            currentEventStartDate = next.startDate
+            currentEventEndDate = next.endDate
+
+            let until = max(0, next.startDate.timeIntervalSince(now))
+            currentEventStatus = "Starts in \(formatDuration(until)) · \(formatClock(next.startDate))"
+
+            // Compute divider tick if next event starts within the window
+            let startMinutes = next.startDate.timeIntervalSince(now) / 60.0
+            if startMinutes <= 45.0 {
+                let fraction = (startMinutes + 15.0) / 60.0
+                dividerIndex = Int(round(fraction * 32.0))
+            } else {
+                dividerIndex = nil
+            }
+
+            let afterNext = rawEvents.first(where: { $0.startDate >= next.endDate })
             if let after = afterNext {
-                nextEventTitle = after.title
-                let afterUntil = after.startDate.timeIntervalSince(now)
+                nextEventTitle = after.title ?? "Untitled Event"
+                nextEventStartDate = after.startDate
+                nextEventEndDate = after.endDate
+                let afterUntil = max(0, after.startDate.timeIntervalSince(now))
                 nextEventTime = "in \(formatDuration(afterUntil))"
+            } else {
+                nextEventTitle = "No more events"
+                nextEventTime = "today"
+                nextEventStartDate = nil
+                nextEventEndDate = nil
+            }
+        } else {
+            currentEventTitle = "No Scheduled Events"
+            currentEventStatus = "Calendar is clear"
+            nextEventTitle = "All Clear"
+            nextEventTime = "today"
+            dividerIndex = nil
+            currentEventStartDate = nil
+            currentEventEndDate = nil
+            nextEventStartDate = nil
+            nextEventEndDate = nil
+        }
+    }
+
+    /// Evaluates which visual category a tick mark at index (0...32) belongs to.
+    func tickCategory(at index: Int) -> TickCategory {
+        let frac = Double(index) / 32.0
+        let tickMinutes = -15.0 + frac * 60.0
+        let isPast = tickMinutes < 0 // To the left of Now (0)
+
+        // If not authorized or in initial demo state, use polished preview ticks
+        guard isAuthorized else {
+            if isPast {
+                return .past
+            } else if index < 24 {
+                return .currentEvent
+            } else {
+                return .nextEvent
             }
         }
+
+        let now = Date()
+        let tickDate = now.addingTimeInterval(tickMinutes * 60.0)
+
+        if let start = currentEventStartDate, let end = currentEventEndDate, tickDate >= start && tickDate <= end {
+            return isPast ? .past : .currentEvent
+        }
+
+        if let start = nextEventStartDate, let end = nextEventEndDate, tickDate >= start && tickDate <= end {
+            return .nextEvent
+        }
+
+        return isPast ? .pastEmpty : .freeTime
+    }
+
+    enum TickCategory {
+        case past           // Past time within active event
+        case pastEmpty      // Past time without event
+        case currentEvent   // Remaining time of current event
+        case nextEvent      // Upcoming event time
+        case freeTime       // Unscheduled time
     }
 
     private func formatDuration(_ interval: TimeInterval) -> String {
@@ -97,5 +274,11 @@ final class ScheduleController: ObservableObject {
             let remMin = minutes % 60
             return remMin == 0 ? "\(hours)hr" : "\(hours)hr \(remMin)min"
         }
+    }
+
+    private func formatClock(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
     }
 }

@@ -250,6 +250,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "NotchNotch reads what Spotify or Apple Music is playing so it can show it in the notch, and sends play/pause and skip commands.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "NotchNotch displays your upcoming calendar events and schedule timeline in the notch.";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "NotchNotch displays your upcoming calendar events and schedule timeline in the notch.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -281,6 +283,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "NotchNotch reads what Spotify or Apple Music is playing so it can show it in the notch, and sends play/pause and skip commands.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "NotchNotch displays your upcoming calendar events and schedule timeline in the notch.";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "NotchNotch displays your upcoming calendar events and schedule timeline in the notch.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

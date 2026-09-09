@@ -43,25 +43,32 @@ struct NotchPanelView: View {
         }
     }
 
-    private var panel: some View {
-        NotchShape(topRadius: isOpen ? NotchConfiguration.expandedTopCornerRadius
-                                     : NotchConfiguration.collapsedTopCornerRadius,
-                   bottomRadius: isOpen ? NotchConfiguration.expandedBottomCornerRadius
-                                        : NotchConfiguration.collapsedBottomCornerRadius)
-            .fill(Color.black)
-            .overlay(alignment: .top) {
-                ZStack(alignment: .top) {
-                    compactContent
-                        .opacity(isOpen ? 0 : 1)
-                        .allowsHitTesting(!isOpen)
+    private var notchShape: NotchShape {
+        NotchShape(
+            topRadius: isOpen ? NotchConfiguration.expandedTopCornerRadius : NotchConfiguration.collapsedTopCornerRadius,
+            bottomRadius: isOpen ? NotchConfiguration.expandedBottomCornerRadius : NotchConfiguration.collapsedBottomCornerRadius
+        )
+    }
 
-                    expandedContent
-                        .opacity(isOpen ? 1 : 0)
-                        .allowsHitTesting(isOpen)
-                }
-            }
-            .frame(width: bodySize.width, height: bodySize.height)
-            .shadow(color: .black.opacity(isOpen ? 0.45 : 0.25), radius: isOpen ? 14 : 4, y: isOpen ? 6 : 2)
+    private var panel: some View {
+        ZStack(alignment: .top) {
+            notchShape
+                .fill(Color.black)
+
+            compactContent
+                .opacity(isOpen ? 0 : 1)
+                .animation(.easeOut(duration: 0.12), value: isOpen)
+                .allowsHitTesting(!isOpen)
+
+            expandedContent
+                .opacity(isOpen ? 1 : 0)
+                .scaleEffect(isOpen ? 1.0 : 0.95, anchor: .top)
+                .animation(.spring(response: 0.28, dampingFraction: 0.84), value: isOpen)
+                .allowsHitTesting(isOpen)
+        }
+        .frame(width: bodySize.width, height: bodySize.height)
+        .clipShape(notchShape)
+        .shadow(color: .black.opacity(isOpen ? 0.45 : 0.25), radius: isOpen ? 14 : 4, y: isOpen ? 6 : 2)
     }
 
     // MARK: - Compact Content (Collapsed State)

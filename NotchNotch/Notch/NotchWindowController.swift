@@ -62,13 +62,13 @@ final class NotchWindowController {
         let monitor = NotchHoverMonitor { [weak self] location, isDragging in
             guard let self else { return }
             self.lastPointer = location
-            if isDragging && self.isFileDragInProgress && self.stateMachine.state == .collapsed {
+            if isDragging && self.stateMachine.state == .collapsed && self.checkFileDrag() {
                 self.activeTab = .shelf
             }
             self.stateMachine.pointerMoved(to: location)
-            // Read the state *after* the mutation has landed — see the note in
-            // `observeState()` about @Published firing on willSet.
-            self.updateInteractivity(for: self.stateMachine.state)
+            if self.stateMachine.state != .collapsed {
+                self.updateInteractivity(for: self.stateMachine.state)
+            }
         }
         monitor.start()
         hoverMonitor = monitor
@@ -113,9 +113,17 @@ final class NotchWindowController {
         }
     }
 
-    private var isFileDragInProgress: Bool {
-        guard let types = NSPasteboard(name: .drag).types else { return false }
-        return types.contains(.fileURL) || types.contains(NSPasteboard.PasteboardType("NSFilenamesPboardType"))
+    private var lastDragCheckTime: TimeInterval = 0
+    private var cachedIsFileDrag: Bool = false
+
+    private func checkFileDrag() -> Bool {
+        let now = CACurrentMediaTime()
+        if now - lastDragCheckTime > 0.25 {
+            lastDragCheckTime = now
+            let types = NSPasteboard(name: .drag).types ?? []
+            cachedIsFileDrag = types.contains(.fileURL) || types.contains(NSPasteboard.PasteboardType("NSFilenamesPboardType"))
+        }
+        return cachedIsFileDrag
     }
 
     // MARK: - Window
@@ -181,7 +189,11 @@ final class NotchWindowController {
     /// open. `NotchLayout.acceptsClick(at:in:)` documents why this cannot be
     /// solved with a `hitTest(_:)` override.
     private func updateInteractivity(for state: NotchState) {
-        window?.setInteractive(stateMachine.layout.acceptsClick(at: lastPointer, in: state))
+        if state == .collapsed {
+            window?.setInteractive(false)
+        } else {
+            window?.setInteractive(stateMachine.layout.acceptsClick(at: lastPointer, in: state))
+        }
     }
 
     private func observeScreenChanges() {
