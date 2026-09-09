@@ -157,19 +157,26 @@ final class ScheduleController: ObservableObject {
         let now = Date()
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: now)
-        guard let endOfTomorrow = calendar.date(byAdding: .day, value: 2, to: startOfDay) else { return }
+        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else { return }
 
         // Offload database query to background CalendarReader actor so main thread 120fps animations are never hitched
         Task { [weak self] in
             guard let self else { return }
-            let snapshots = await self.reader.fetchEvents(start: startOfDay, end: endOfTomorrow)
-            self.processEvents(snapshots, now: now)
+            let snapshots = await self.reader.fetchEvents(start: startOfDay, end: endOfDay)
+            self.processEvents(snapshots, now: now, endOfDay: endOfDay)
         }
     }
 
-    private func processEvents(_ rawEvents: [EventSnapshot], now: Date) {
-        let current = rawEvents.first(where: { $0.startDate <= now && $0.endDate > now })
-        let next = rawEvents.first(where: { $0.startDate > now })
+    func processEvents(_ rawEvents: [EventSnapshot], now: Date, endOfDay: Date? = nil) {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: now)
+        let resolvedEndOfDay = endOfDay ?? (calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay.addingTimeInterval(86400))
+
+        // Strictly filter to events belonging to today (startDate strictly before tomorrow / endOfDay)
+        let todayEvents = rawEvents.filter { $0.startDate < resolvedEndOfDay }
+
+        let current = todayEvents.first(where: { $0.startDate <= now && $0.endDate > now })
+        let next = todayEvents.first(where: { $0.startDate > now })
 
         if let current {
             hasActiveEvent = true
@@ -193,7 +200,7 @@ final class ScheduleController: ObservableObject {
                 dividerIndex = nil
             }
 
-            if let nextEvent = rawEvents.first(where: { $0.startDate >= current.endDate }) {
+            if let nextEvent = todayEvents.first(where: { $0.startDate >= current.endDate }) {
                 nextEventTitle = nextEvent.title ?? "Untitled Event"
                 nextEventStartDate = nextEvent.startDate
                 nextEventEndDate = nextEvent.endDate
@@ -224,7 +231,7 @@ final class ScheduleController: ObservableObject {
                 dividerIndex = nil
             }
 
-            let afterNext = rawEvents.first(where: { $0.startDate >= next.endDate })
+            let afterNext = todayEvents.first(where: { $0.startDate >= next.endDate })
             if let after = afterNext {
                 nextEventTitle = after.title ?? "Untitled Event"
                 nextEventStartDate = after.startDate
@@ -241,7 +248,7 @@ final class ScheduleController: ObservableObject {
             hasActiveEvent = false
             progress = 0.0
             currentEventTitle = "No Scheduled Events"
-            currentEventStatus = "Calendar is clear"
+            currentEventStatus = todayEvents.isEmpty ? "Calendar is clear" : "No more events today"
             nextEventTitle = "All Clear"
             nextEventTime = "today"
             dividerIndex = nil
