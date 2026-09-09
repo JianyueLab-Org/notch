@@ -56,6 +56,8 @@ final class NotchStateMachine: ObservableObject {
     private var settleTask: Task<Void, Never>?
     /// Debounce before a close actually starts.
     private var collapseDelayTask: Task<Void, Never>?
+    /// Dwell confirmation before an expand actually starts.
+    private var expandDwellTask: Task<Void, Never>?
 
     init(layout: NotchLayout) {
         self.layout = layout
@@ -104,16 +106,26 @@ final class NotchStateMachine: ObservableObject {
 
         switch state {
         case .collapsed, .collapsing:
-            print("[NotchNotch] 🎯 Pointer entered notch region! Expanding... (\(state.rawValue) -> expanding)")
-            fflush(stdout)
-            transition(to: .expanding, animation: NotchConfiguration.expandAnimation)
-            settle(to: .expanded, after: NotchConfiguration.expandSettleDuration)
+            guard expandDwellTask == nil else { return }
+            expandDwellTask = Task { [weak self] in
+                try? await Task.sleep(for: NotchConfiguration.hoverExpandDwellDelay)
+                guard !Task.isCancelled, let self else { return }
+                self.expandDwellTask = nil
+                print("[NotchNotch] 🎯 Pointer dwelled in notch region! Expanding... (\(self.state.rawValue) -> expanding)")
+                fflush(stdout)
+                self.transition(to: .expanding, animation: NotchConfiguration.expandAnimation)
+                self.settle(to: .expanded, after: NotchConfiguration.expandSettleDuration)
+            }
         case .expanding, .expanded:
-            break
+            expandDwellTask?.cancel()
+            expandDwellTask = nil
         }
     }
 
     private func pointerIsOutside() {
+        expandDwellTask?.cancel()
+        expandDwellTask = nil
+
         switch state {
         case .collapsed, .collapsing:
             break
@@ -173,10 +185,13 @@ final class NotchStateMachine: ObservableObject {
         settleTask = nil
         collapseDelayTask?.cancel()
         collapseDelayTask = nil
+        expandDwellTask?.cancel()
+        expandDwellTask = nil
     }
 
     deinit {
         settleTask?.cancel()
         collapseDelayTask?.cancel()
+        expandDwellTask?.cancel()
     }
 }

@@ -64,17 +64,17 @@ struct NotchPanelView: View {
 
     private var compactContent: some View {
         let notchWidth = machine.layout.geometry.notchRect.width
-        let earWidth = max(24, (machine.layout.collapsedSize.width - notchWidth) / 2)
+        let earWidth = max(28, (machine.layout.collapsedSize.width - notchWidth) / 2)
 
         return HStack(spacing: 0) {
             // Left ear: Calendar icon in rounded container
             ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.orange.opacity(0.18))
+                RoundedRectangle(cornerRadius: 6.5, style: .continuous)
+                    .fill(Color(red: 0.22, green: 0.12, blue: 0.04))
                     .frame(width: 22, height: 22)
                 Image(systemName: "calendar")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.orange)
+                    .font(.system(size: 12.5, weight: .bold))
+                    .foregroundStyle(Color(red: 1.0, green: 0.58, blue: 0.12))
             }
             .frame(width: earWidth)
 
@@ -85,11 +85,11 @@ struct NotchPanelView: View {
             // Right ear: Circular schedule progress ring
             ZStack {
                 Circle()
-                    .stroke(Color.orange.opacity(0.2), lineWidth: 3.5)
+                    .stroke(Color(red: 0.22, green: 0.12, blue: 0.04), lineWidth: 3.2)
                     .frame(width: 20, height: 20)
                 Circle()
                     .trim(from: 0, to: max(0.04, min(1.0, schedule.progress)))
-                    .stroke(Color.orange, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                    .stroke(Color(red: 1.0, green: 0.58, blue: 0.12), style: StrokeStyle(lineWidth: 3.2, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .frame(width: 20, height: 20)
             }
@@ -167,16 +167,16 @@ struct NotchPanelView: View {
             } label: {
                 ZStack {
                     Circle()
-                        .fill(showSettings ? Color.white.opacity(0.28) : Color.white.opacity(0.12))
-                        .frame(width: 34, height: 34)
+                        .fill(showSettings ? Color.white.opacity(0.28) : Color.white.opacity(0.14))
+                        .frame(width: 32, height: 32)
                     Image(systemName: "gearshape.fill")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 13.5, weight: .semibold))
                         .foregroundStyle(.white)
                 }
             }
             .buttonStyle(.plain)
         }
-        .frame(height: 36)
+        .frame(height: 34)
     }
 
     private func circleIconButton(
@@ -196,15 +196,15 @@ struct NotchPanelView: View {
                 Circle()
                     .fill(
                         isSelected
-                            ? (isBlueActive ? Color(red: 0.0, green: 0.52, blue: 1.0) : Color.white.opacity(0.25))
-                            : Color.white.opacity(0.12)
+                            ? (isBlueActive ? Color(red: 0.05, green: 0.52, blue: 1.0) : Color.white.opacity(0.25))
+                            : Color.white.opacity(0.14)
                     )
-                    .frame(width: 34, height: 34)
+                    .frame(width: 32, height: 32)
 
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.75))
-                    .frame(width: 34, height: 34)
+                    .font(.system(size: 13.5, weight: .semibold))
+                    .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.8))
+                    .frame(width: 32, height: 32)
 
                 if let badge {
                     Text(badge)

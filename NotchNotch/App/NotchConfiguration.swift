@@ -38,17 +38,21 @@ nonisolated enum NotchConfiguration {
 
     // MARK: - Hit testing
 
-    /// Extra slop around the notch so the cursor triggers easily and reliably.
-    /// Extended horizontally by 40pt on each side, and downwards by 60pt below the notch.
-    static let hoverEnterHorizontalMargin: CGFloat = 40
-    static let hoverEnterVerticalMargin: CGFloat = 60
+    /// Extra slop around the notch for intentional hover triggering.
+    /// Snug 16pt horizontally and 12pt downwards to prevent accidental triggers.
+    static let hoverEnterHorizontalMargin: CGFloat = 16
+    static let hoverEnterVerticalMargin: CGFloat = 12
 
     /// Slop around the *expanded* panel. Deliberately larger than the enter
     /// margin: this is the hysteresis that stops the panel flickering when the
     /// cursor grazes the boundary.
-    static let hoverExitMargin: CGFloat = 30
+    static let hoverExitMargin: CGFloat = 24
 
     // MARK: - Timing
+
+    /// Dwell delay requiring pointer to stay in trigger area before opening.
+    /// Prevents transient mouse movements or menu bar passes from opening the panel.
+    static let hoverExpandDwellDelay: Duration = .milliseconds(120)
 
     /// How long the cursor must stay outside the panel before we start closing.
     /// Without this, a single stray mouse-moved event on the edge collapses the
