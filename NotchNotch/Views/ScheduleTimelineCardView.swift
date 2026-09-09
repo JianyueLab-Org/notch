@@ -57,9 +57,9 @@ struct ScheduleTimelineCardView: View {
     private var rulerGauge: some View {
         GeometryReader { geo in
             let width = geo.size.width
-            let tickCount = 36
-            let dividerIndex = Int(Double(tickCount) * 0.82)
-            let thumbX = min(max(width * schedule.progress, 14), width - 14)
+            let tickCount = 33 // 4 blocks of 8 subdivisions (indices 0, 8, 16, 24, 32)
+            let dividerIndex = 24 // 30min mark boundary between current and next event
+            let thumbX = 6 + (width - 12) * schedule.progress
 
             ZStack(alignment: .leading) {
                 // Outer orange capsule boundary
@@ -74,26 +74,43 @@ struct ScheduleTimelineCardView: View {
                     )
                     .background(Capsule().fill(Color.orange.opacity(0.06)))
 
+                // Subtle 15-minute block divider lines in background (at 25%, 50%, 75%)
+                Canvas { context, size in
+                    let w = size.width - 12
+                    let h = size.height
+                    let blockFractions: [CGFloat] = [0.25, 0.50, 0.75]
+                    for frac in blockFractions {
+                        let x = 6 + frac * w
+                        let dividerPath = Path(CGRect(x: x - 0.5, y: 3.5, width: 1, height: h - 7))
+                        context.fill(dividerPath, with: .color(Color.white.opacity(0.12)))
+                    }
+                }
+
                 // Vertical tick marks drawn via GPU Canvas
                 Canvas { context, size in
                     let step = (size.width - 12) / CGFloat(tickCount - 1)
                     for i in 0..<tickCount {
                         let x = 6 + CGFloat(i) * step
-                        let isPastThumb = Double(i) / Double(tickCount) < schedule.progress
+                        let isPastThumb = Double(i) / Double(tickCount - 1) < schedule.progress
                         let isNextEvent = i >= dividerIndex
+                        let isBlockBoundary = (i % 8 == 0)
 
-                        let tickHeight: CGFloat = (i == dividerIndex) ? 15 : 13
+                        let tickHeight: CGFloat = isBlockBoundary ? 16 : 10
+                        let tickWidth: CGFloat = isBlockBoundary ? 1.6 : 1.2
                         let tickY = (size.height - tickHeight) / 2
-                        let tickRect = CGRect(x: x - 0.75, y: tickY, width: 1.5, height: tickHeight)
+                        let tickRect = CGRect(x: x - tickWidth / 2, y: tickY, width: tickWidth, height: tickHeight)
 
                         if i == dividerIndex {
-                            context.fill(Path(tickRect), with: .color(Color.white.opacity(0.6)))
+                            context.fill(Path(tickRect), with: .color(Color.white.opacity(0.85)))
                         } else if isPastThumb {
                             context.fill(Path(tickRect), with: .color(Color(red: 1.0, green: 0.58, blue: 0.05)))
                         } else if isNextEvent {
-                            context.fill(Path(tickRect), with: .color(Color.orange.opacity(0.6)))
+                            context.fill(Path(tickRect), with: .color(Color.orange.opacity(0.30)))
                         } else {
-                            context.fill(Path(tickRect), with: .color(Color.orange.opacity(0.32)))
+                            context.fill(
+                                Path(tickRect),
+                                with: .color(isBlockBoundary ? Color(red: 1.0, green: 0.65, blue: 0.12) : Color.orange.opacity(0.55))
+                            )
                         }
                     }
                 }
@@ -101,7 +118,7 @@ struct ScheduleTimelineCardView: View {
                 // White slider thumb indicator
                 ZStack {
                     Capsule()
-                        .fill(Color.white.opacity(0.32))
+                        .fill(Color.white.opacity(0.35))
                         .overlay(Capsule().stroke(Color.white, lineWidth: 1.2))
                         .frame(width: 10, height: 22)
                     Rectangle()
@@ -115,16 +132,23 @@ struct ScheduleTimelineCardView: View {
     }
 
     private var timeMarkers: some View {
-        HStack {
-            Text("-15min")
-            Spacer()
-            Text("+15min")
-            Spacer()
-            Text("+45min")
+        GeometryReader { geo in
+            let w = geo.size.width
+            let labels = ["-15", "0", "15", "30", "45"]
+            let fractions: [CGFloat] = [0.0, 0.25, 0.50, 0.75, 1.0]
+
+            ZStack {
+                ForEach(0..<labels.count, id: \.self) { idx in
+                    let frac = fractions[idx]
+                    let x = 6 + frac * (w - 12)
+                    Text(labels[idx])
+                        .font(.system(size: 9.5, weight: idx == 1 ? .bold : .semibold, design: .rounded))
+                        .foregroundStyle(idx == 1 ? Color(red: 1.0, green: 0.65, blue: 0.15) : Color.white.opacity(0.48))
+                        .position(x: x, y: geo.size.height / 2)
+                }
+            }
         }
-        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-        .foregroundStyle(.white.opacity(0.42))
-        .padding(.horizontal, 6)
+        .frame(height: 14)
     }
 
     private var footer: some View {

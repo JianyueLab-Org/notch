@@ -15,7 +15,7 @@ final class ScheduleController: ObservableObject {
 
     @Published var currentEventTitle: String = "Business Management"
     @Published var currentEventStatus: String = "In progress · 1hr 40min"
-    @Published var progress: Double = 0.42
+    @Published var progress: Double = 0.25
     @Published var nextEventTitle: String = "Japanese"
     @Published var nextEventTime: String = "in 1hr 17min"
 
