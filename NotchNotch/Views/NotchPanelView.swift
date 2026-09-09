@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum NotchActiveTab: String, CaseIterable, Identifiable {
     case overview = "Overview"
@@ -36,7 +37,7 @@ struct NotchPanelView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onReceive(machine.$state) { state in
-            if state == .collapsed {
+            if state == .collapsed || state == .expanding {
                 showSettings = false
                 activeTab = .overview
             }
@@ -69,6 +70,37 @@ struct NotchPanelView: View {
         .frame(width: bodySize.width, height: bodySize.height)
         .clipShape(notchShape)
         .shadow(color: .black.opacity(isOpen ? 0.45 : 0.25), radius: isOpen ? 14 : 4, y: isOpen ? 6 : 2)
+        .onDrop(of: [UTType.fileURL.identifier], isTargeted: nil) { providers in
+            handleFileDrop(providers: providers)
+        }
+    }
+
+    // MARK: - File Drop Support
+
+    private func handleFileDrop(providers: [NSItemProvider]) -> Bool {
+        var foundURLs: [URL] = []
+        let group = DispatchGroup()
+
+        for provider in providers {
+            group.enter()
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                if let url {
+                    foundURLs.append(url)
+                }
+                group.leave()
+            }
+        }
+
+        group.notify(queue: .main) {
+            if !foundURLs.isEmpty {
+                self.shelf.addURLs(foundURLs)
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    self.activeTab = .shelf
+                }
+            }
+        }
+
+        return true
     }
 
     // MARK: - Compact Content (Collapsed State)

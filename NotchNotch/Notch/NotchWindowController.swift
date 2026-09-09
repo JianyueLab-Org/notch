@@ -57,12 +57,9 @@ final class NotchWindowController {
         observeScreenChanges()
 
         lastPointer = NSEvent.mouseLocation
-        let monitor = NotchHoverMonitor { [weak self] location, isDragging in
+        let monitor = NotchHoverMonitor { [weak self] location, _ in
             guard let self else { return }
             self.lastPointer = location
-            if isDragging && self.stateMachine.state == .collapsed && self.checkFileDrag() {
-                self.activeTab = .shelf
-            }
             self.stateMachine.pointerMoved(to: location)
             if self.stateMachine.state != .collapsed {
                 self.updateInteractivity(for: self.stateMachine.state)
@@ -111,18 +108,6 @@ final class NotchWindowController {
         }
     }
 
-    private var lastDragCheckTime: TimeInterval = 0
-    private var cachedIsFileDrag: Bool = false
-
-    private func checkFileDrag() -> Bool {
-        let now = CACurrentMediaTime()
-        if now - lastDragCheckTime > 0.25 {
-            lastDragCheckTime = now
-            let types = NSPasteboard(name: .drag).types ?? []
-            cachedIsFileDrag = types.contains(.fileURL) || types.contains(NSPasteboard.PasteboardType("NSFilenamesPboardType"))
-        }
-        return cachedIsFileDrag
-    }
 
     // MARK: - Window
 
@@ -174,7 +159,7 @@ final class NotchWindowController {
                 // argument, never re-read the property.
                 self.updateInteractivity(for: state)
                 self.hoverMonitor?.setPollingEnabled(state != .collapsed)
-                if state == .collapsed {
+                if state == .collapsed || state == .expanding {
                     self.activeTab = .overview
                 }
             }
