@@ -432,6 +432,11 @@ struct NotchPanelView: View {
                     .foregroundStyle(.white.opacity(0.5))
 
                 Spacer()
+
+                let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+                Text("Version \(version)")
+                    .font(.system(size: 8.5, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.35))
             }
             .padding(10)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -451,31 +456,60 @@ struct NotchPanelView: View {
                     )
             )
 
-            VStack(spacing: 6) {
-                Button("Re-detect Notch Display") {
+            VStack(spacing: 5) {
+                Button {
                     // Triggers screen re-detect via notification
                     NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 9, weight: .semibold))
+                        Text("Re-detect Notch Display")
+                    }
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.12)))
                 }
-                .buttonStyle(.plain)
-                .font(.system(size: 10, weight: .medium, design: .rounded))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.12)))
+                .buttonStyle(TabButtonStyle())
 
-                Button("Close Settings") {
+                Button {
                     withAnimation(.easeInOut(duration: 0.12)) {
                         showSettings = false
                     }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .semibold))
+                        Text("Close Settings")
+                    }
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.06)))
                 }
                 .buttonStyle(TabButtonStyle())
-                .font(.system(size: 10, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.6))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.06)))
+
+                Button(role: .destructive) {
+                    NSApplication.shared.terminate(nil)
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "power")
+                            .font(.system(size: 9, weight: .semibold))
+                        Text("Quit Application")
+                    }
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color(red: 1.0, green: 0.40, blue: 0.40))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 7).fill(Color(red: 0.95, green: 0.22, blue: 0.22).opacity(0.14)))
+                }
+                .buttonStyle(TabButtonStyle())
             }
             .padding(10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
