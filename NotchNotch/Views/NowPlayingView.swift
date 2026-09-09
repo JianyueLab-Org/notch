@@ -45,7 +45,6 @@ struct NowPlayingView: View {
                         )
                 )
         )
-        .compositingGroup()
     }
 
     // MARK: - Components

@@ -102,7 +102,6 @@ struct ClipboardCardView: View {
                         )
                 )
         )
-        .compositingGroup()
         .onAppear {
             readPasteboard()
         }

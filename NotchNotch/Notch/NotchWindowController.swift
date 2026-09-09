@@ -32,7 +32,6 @@ final class NotchWindowController {
     ]))
     private let shelf = ShelfController()
     private let schedule = ScheduleController()
-    @Published var activeTab: NotchActiveTab = .overview
     private(set) var geometry: NotchGeometry
 
     /// Last cursor position we were told about. `ignoresMouseEvents` is a
@@ -101,9 +100,7 @@ final class NotchWindowController {
     func toggle() {
         if stateMachine.state.isOnScreen {
             stateMachine.collapseImmediately()
-            activeTab = .overview
         } else {
-            activeTab = .overview
             stateMachine.expandImmediately()
         }
     }
@@ -121,11 +118,7 @@ final class NotchWindowController {
             machine: stateMachine,
             media: nowPlaying,
             shelf: shelf,
-            schedule: schedule,
-            activeTab: Binding(
-                get: { [weak self] in self?.activeTab ?? .overview },
-                set: { [weak self] in self?.activeTab = $0 }
-            )
+            schedule: schedule
         )
         let hosting = NSHostingView(rootView: panelView)
         // The hosting view must not paint a background of its own, or the
@@ -158,10 +151,7 @@ final class NotchWindowController {
                 // is still the OLD value in here. Always use the `state`
                 // argument, never re-read the property.
                 self.updateInteractivity(for: state)
-                self.hoverMonitor?.setPollingEnabled(state != .collapsed)
-                if state == .collapsed || state == .expanding {
-                    self.activeTab = .overview
-                }
+                self.hoverMonitor?.setPollingEnabled(state == .collapsed)
             }
             .store(in: &cancellables)
     }

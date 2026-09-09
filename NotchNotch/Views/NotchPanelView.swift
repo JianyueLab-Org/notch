@@ -21,7 +21,7 @@ struct NotchPanelView: View {
     @ObservedObject var media: NowPlayingController
     @ObservedObject var shelf: ShelfController
     @ObservedObject var schedule: ScheduleController
-    @Binding var activeTab: NotchActiveTab
+    @State private var activeTab: NotchActiveTab = .overview
     @State private var showSettings: Bool = false
 
     private var isOpen: Bool { machine.state.isVisiblyExpanded }
@@ -65,7 +65,6 @@ struct NotchPanelView: View {
                 .opacity(isOpen ? 1 : 0)
                 .scaleEffect(isOpen ? 1.0 : 0.96, anchor: .top)
                 .animation(isOpen ? NotchConfiguration.expandAnimation : .easeOut(duration: 0.12), value: isOpen)
-                .compositingGroup()
                 .allowsHitTesting(isOpen)
         }
         .frame(width: bodySize.width, height: bodySize.height)
@@ -96,7 +95,7 @@ struct NotchPanelView: View {
         group.notify(queue: .main) {
             if !foundURLs.isEmpty {
                 self.shelf.addURLs(foundURLs)
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                withAnimation(.easeInOut(duration: 0.12)) {
                     self.activeTab = .shelf
                 }
             }
@@ -153,27 +152,21 @@ struct NotchPanelView: View {
             ZStack {
                 overviewContent
                     .opacity(activeTab == .overview && !showSettings ? 1 : 0)
-                    .scaleEffect(activeTab == .overview && !showSettings ? 1.0 : 0.98)
                     .allowsHitTesting(activeTab == .overview && !showSettings)
 
                 DropShelfView(shelf: shelf)
                     .opacity(activeTab == .shelf && !showSettings ? 1 : 0)
-                    .scaleEffect(activeTab == .shelf && !showSettings ? 1.0 : 0.98)
                     .allowsHitTesting(activeTab == .shelf && !showSettings)
 
                 ClipboardCardView(isActive: activeTab == .clipboard && !showSettings)
                     .opacity(activeTab == .clipboard && !showSettings ? 1 : 0)
-                    .scaleEffect(activeTab == .clipboard && !showSettings ? 1.0 : 0.98)
                     .allowsHitTesting(activeTab == .clipboard && !showSettings)
 
                 settingsContent
                     .opacity(showSettings ? 1 : 0)
-                    .scaleEffect(showSettings ? 1.0 : 0.98)
                     .allowsHitTesting(showSettings)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.spring(response: 0.22, dampingFraction: 0.88), value: activeTab)
-            .animation(.spring(response: 0.22, dampingFraction: 0.88), value: showSettings)
         }
         .padding(.horizontal, 18)
         .padding(.top, 10)
@@ -212,7 +205,7 @@ struct NotchPanelView: View {
 
             // Right settings gear button
             Button {
-                withAnimation(.spring(response: 0.22, dampingFraction: 0.88)) {
+                withAnimation(.easeInOut(duration: 0.12)) {
                     showSettings.toggle()
                 }
             } label: {
@@ -225,7 +218,7 @@ struct NotchPanelView: View {
                         .foregroundStyle(.white)
                 }
             }
-            .buttonStyle(ScaleButtonStyle())
+            .buttonStyle(TabButtonStyle())
         }
         .frame(height: 34)
     }
@@ -238,7 +231,7 @@ struct NotchPanelView: View {
     ) -> some View {
         let isSelected = activeTab == tab && !showSettings
         return Button {
-            withAnimation(.spring(response: 0.22, dampingFraction: 0.88)) {
+            withAnimation(.easeInOut(duration: 0.12)) {
                 showSettings = false
                 activeTab = tab
             }
@@ -268,7 +261,7 @@ struct NotchPanelView: View {
                 }
             }
         }
-        .buttonStyle(ScaleButtonStyle())
+        .buttonStyle(TabButtonStyle())
     }
 
     // MARK: - Overview Content
@@ -292,7 +285,6 @@ struct NotchPanelView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .compositingGroup()
     }
 
     // MARK: - Settings View
@@ -342,11 +334,11 @@ struct NotchPanelView: View {
                 .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.12)))
 
                 Button("Close Settings") {
-                    withAnimation(.spring(response: 0.22, dampingFraction: 0.88)) {
+                    withAnimation(.easeInOut(duration: 0.12)) {
                         showSettings = false
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(TabButtonStyle())
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.6))
                 .padding(.horizontal, 14)
@@ -373,17 +365,24 @@ struct NotchPanelView: View {
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .compositingGroup()
     }
 }
 
-// MARK: - Responsive Tactile Feedback
+// MARK: - Button Styles
+
+struct TabButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.72 : 1.0)
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
+    }
+}
 
 struct ScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
-            .opacity(configuration.isPressed ? 0.82 : 1.0)
-            .animation(.spring(response: 0.15, dampingFraction: 0.8), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
+            .opacity(configuration.isPressed ? 0.85 : 1.0)
+            .animation(.spring(response: 0.12, dampingFraction: 0.85), value: configuration.isPressed)
     }
 }

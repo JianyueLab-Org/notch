@@ -121,7 +121,11 @@ final class NotchHoverMonitor {
     }
 
     func setPollingEnabled(_ enabled: Bool) {
-        // Continuous polling is active
+        if enabled {
+            startPolling()
+        } else {
+            stopPolling()
+        }
     }
 
     private var lastDeliveredLocation: CGPoint = .zero

@@ -37,7 +37,6 @@ struct ScheduleTimelineCardView: View {
                         )
                 )
         )
-        .compositingGroup()
     }
 
     // MARK: - Components
@@ -138,22 +137,28 @@ struct ScheduleTimelineCardView: View {
     }
 
     private var timeMarkers: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let labels = ["-15", "0", "15", "30", "45"]
-            let fractions: [CGFloat] = [0.0, 0.25, 0.50, 0.75, 1.0]
-
-            ZStack {
-                ForEach(0..<labels.count, id: \.self) { idx in
-                    let frac = fractions[idx]
-                    let x = 6 + frac * (w - 12)
-                    Text(labels[idx])
-                        .font(.system(size: 9.5, weight: idx == 1 ? .bold : .semibold, design: .rounded))
-                        .foregroundStyle(idx == 1 ? Color(red: 1.0, green: 0.65, blue: 0.15) : Color.white.opacity(0.48))
-                        .position(x: x, y: geo.size.height / 2)
-                }
-            }
+        HStack {
+            Text("-15")
+                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.48))
+            Spacer()
+            Text("0")
+                .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                .foregroundStyle(Color(red: 1.0, green: 0.65, blue: 0.15))
+            Spacer()
+            Text("15")
+                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.48))
+            Spacer()
+            Text("30")
+                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.48))
+            Spacer()
+            Text("45")
+                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.48))
         }
+        .padding(.horizontal, 4)
         .frame(height: 14)
     }
 
