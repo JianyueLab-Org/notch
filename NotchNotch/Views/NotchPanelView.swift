@@ -2,14 +2,15 @@
 //  NotchPanelView.swift
 //  NotchNotch
 //
-//  The visual shell with segmented navigation between Now Playing and Drop Shelf.
+//  The visual shell with top circular navigation buttons and dual-card layout.
 //
 
 import SwiftUI
 
 enum NotchActiveTab: String, CaseIterable, Identifiable {
-    case nowPlaying = "Now Playing"
+    case overview = "Overview"
     case shelf = "Drop Shelf"
+    case clipboard = "Clipboard"
     var id: String { rawValue }
 }
 
@@ -18,7 +19,9 @@ struct NotchPanelView: View {
     @ObservedObject var machine: NotchStateMachine
     @ObservedObject var media: NowPlayingController
     @ObservedObject var shelf: ShelfController
+    @ObservedObject var schedule: ScheduleController
     @Binding var activeTab: NotchActiveTab
+    @State private var showSettings: Bool = false
 
     private var isOpen: Bool { machine.state.isVisiblyExpanded }
 
@@ -27,10 +30,6 @@ struct NotchPanelView: View {
     }
 
     var body: some View {
-        // Top-anchored: the panel hangs from the screen edge. The Spacer soaks
-        // up the rest of the window, and — unlike a Color — is not hit-testable,
-        // so the empty area below the panel stays click-through even while the
-        // window itself is accepting events.
         VStack(spacing: 0) {
             panel
             Spacer(minLength: 0)
@@ -45,9 +44,6 @@ struct NotchPanelView: View {
                                         : NotchConfiguration.collapsedBottomCornerRadius)
             .fill(Color.black)
             .overlay(alignment: .top) {
-                // Built only while the panel is on screen. Keeping it around at
-                // opacity 0 would leave NowPlayingView's TimelineView ticking
-                // forever for a panel nobody can see.
                 if machine.state.isOnScreen { expandedContent }
             }
             .frame(width: bodySize.width, height: bodySize.height)
@@ -57,109 +53,197 @@ struct NotchPanelView: View {
     @ViewBuilder
     private var expandedContent: some View {
         VStack(spacing: 8) {
-            tabHeader
+            topBar
 
             Group {
-                switch activeTab {
-                case .nowPlaying:
-                    mediaContent
-                case .shelf:
-                    DropShelfView(shelf: shelf)
+                if showSettings {
+                    settingsContent
+                } else {
+                    switch activeTab {
+                    case .overview:
+                        overviewContent
+                    case .shelf:
+                        DropShelfView(shelf: shelf)
+                    case .clipboard:
+                        ClipboardCardView()
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .transition(.opacity.combined(with: .scale(scale: 0.98)))
         }
         .padding(.horizontal, 16)
-        .padding(.top, machine.layout.geometry.notchRect.height + 4)
+        .padding(.top, 6)
         .padding(.bottom, 12)
         .frame(width: machine.layout.expandedSize.width,
                height: machine.layout.expandedSize.height)
         .foregroundStyle(.white)
-        // Fading with the same spring keeps the text from appearing to pop in
-        // late; clipping stops it spilling out while the body is still small.
         .opacity(isOpen ? 1 : 0)
         .allowsHitTesting(isOpen)
         .clipped()
     }
 
-    private var tabHeader: some View {
-        HStack(spacing: 4) {
-            tabButton(tab: .nowPlaying, systemImage: "music.note", title: "Playing", badge: nil)
-            tabButton(tab: .shelf, systemImage: "tray.full", title: "Shelf", badge: shelf.items.isEmpty ? nil : "\(shelf.items.count)")
+    // MARK: - Top Bar
+
+    private var topBar: some View {
+        HStack(alignment: .center) {
+            // Left circular icon buttons
+            HStack(spacing: 8) {
+                circleIconButton(
+                    tab: .overview,
+                    icon: "square.grid.2x2.fill",
+                    isBlueActive: true
+                )
+                circleIconButton(
+                    tab: .shelf,
+                    icon: "folder.fill",
+                    isBlueActive: false,
+                    badge: shelf.items.isEmpty ? nil : "\(shelf.items.count)"
+                )
+                circleIconButton(
+                    tab: .clipboard,
+                    icon: "doc.on.doc.fill",
+                    isBlueActive: false
+                )
+            }
+
+            Spacer()
+
+            // Right settings gear button
+            Button {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                    showSettings.toggle()
+                }
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(showSettings ? Color.white.opacity(0.28) : Color.white.opacity(0.12))
+                        .frame(width: 34, height: 34)
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+            }
+            .buttonStyle(.plain)
         }
-        .padding(3)
-        .background(Capsule().fill(Color.white.opacity(0.10)))
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(height: 36)
     }
 
-    private func tabButton(tab: NotchActiveTab, systemImage: String, title: String, badge: String?) -> some View {
-        let isSelected = activeTab == tab
+    private func circleIconButton(
+        tab: NotchActiveTab,
+        icon: String,
+        isBlueActive: Bool = false,
+        badge: String? = nil
+    ) -> some View {
+        let isSelected = activeTab == tab && !showSettings
         return Button {
             withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                showSettings = false
                 activeTab = tab
             }
         } label: {
-            HStack(spacing: 5) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 10, weight: .semibold))
-                Text(title)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+            ZStack(alignment: .topTrailing) {
+                Circle()
+                    .fill(
+                        isSelected
+                            ? (isBlueActive ? Color(red: 0.0, green: 0.52, blue: 1.0) : Color.white.opacity(0.25))
+                            : Color.white.opacity(0.12)
+                    )
+                    .frame(width: 34, height: 34)
+
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.75))
+                    .frame(width: 34, height: 34)
+
                 if let badge {
                     Text(badge)
                         .font(.system(size: 9, weight: .bold, design: .rounded))
-                        .padding(.horizontal, 5)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
                         .padding(.vertical, 1)
-                        .background(Capsule().fill(isSelected ? Color.white.opacity(0.25) : Color.accentColor))
+                        .background(Capsule().fill(Color.accentColor))
+                        .offset(x: 4, y: -2)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 3)
-            .background(
-                Capsule().fill(isSelected ? Color.white.opacity(0.18) : Color.clear)
-            )
-            .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.55))
         }
         .buttonStyle(.plain)
     }
 
-    @ViewBuilder
-    private var mediaContent: some View {
-        if let track = media.nowPlaying, track.hasTrack {
+    // MARK: - Overview Content
+
+    private var overviewContent: some View {
+        HStack(spacing: 12) {
+            // Left: Media Card
+            let track = media.nowPlaying ?? NowPlaying(
+                title: "", artist: "", album: "", isPlaying: false,
+                duration: 0, reportedElapsed: 0, reportedAt: .now, playbackRate: 0
+            )
             NowPlayingView(track: track) { media.send($0) }
-        } else {
-            emptyMediaState
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // Right: Schedule Timeline Card
+            ScheduleTimelineCardView(schedule: schedule)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    @ViewBuilder
-    private var emptyMediaState: some View {
-        VStack(spacing: 8) {
-            if case .needsPermission(let reason) = media.authorization {
-                Image(systemName: "lock.shield")
-                    .font(.system(size: 20))
-                    .foregroundStyle(.white.opacity(0.35))
-                Text(reason)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.5))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("Grant Access…") { media.requestAuthorization() }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+    // MARK: - Settings View
+
+    private var settingsContent: some View {
+        HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("NotchNotch Quick Settings")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 12).padding(.vertical, 5)
-                    .background(Capsule().fill(.white.opacity(0.16)))
-            } else {
-                Image(systemName: "music.note")
-                    .font(.system(size: 20))
-                    .foregroundStyle(.white.opacity(0.3))
-                Text("Nothing playing")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.45))
+
+                Text("Custom status panel for Apple Silicon notch")
+                    .font(.system(size: 11, weight: .regular, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.5))
+
+                Spacer()
             }
+            .padding(14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.white.opacity(0.08))
+            )
+
+            VStack(spacing: 8) {
+                Button("Re-detect Notch Display") {
+                    // Triggers screen re-detect via notification
+                    NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.12)))
+
+                Button("Close Settings") {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                        showSettings = false
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.6))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.06)))
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.white.opacity(0.08))
+            )
         }
-        .padding(.horizontal, 40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

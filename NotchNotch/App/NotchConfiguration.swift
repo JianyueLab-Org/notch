@@ -14,7 +14,7 @@ nonisolated enum NotchConfiguration {
     // MARK: - Sizing
 
     /// Size of the expanded panel's *visible* black body.
-    static let expandedSize = CGSize(width: 560, height: 180)
+    static let expandedSize = CGSize(width: 610, height: 185)
 
     /// Width of the stand-in notch used on Macs without a camera housing.
     /// ~200pt is roughly the real thing on a 14"/16" MacBook Pro, so the two

@@ -33,7 +33,8 @@ final class NotchWindowController {
         AccessibilityNowPlayingSource(),
     ]))
     private let shelf = ShelfController()
-    @Published var activeTab: NotchActiveTab = .nowPlaying
+    private let schedule = ScheduleController()
+    @Published var activeTab: NotchActiveTab = .overview
     private(set) var geometry: NotchGeometry
 
     /// Last cursor position we were told about. `ignoresMouseEvents` is a
@@ -122,8 +123,9 @@ final class NotchWindowController {
             machine: stateMachine,
             media: nowPlaying,
             shelf: shelf,
+            schedule: schedule,
             activeTab: Binding(
-                get: { [weak self] in self?.activeTab ?? .nowPlaying },
+                get: { [weak self] in self?.activeTab ?? .overview },
                 set: { [weak self] in self?.activeTab = $0 }
             )
         )

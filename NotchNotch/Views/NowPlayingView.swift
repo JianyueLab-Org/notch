@@ -2,8 +2,7 @@
 //  NowPlayingView.swift
 //  NotchNotch
 //
-//  The first real content module. Knows about `NowPlaying` and `MediaCommand`
-//  and nothing else — no MediaRemote, no private API.
+//  Media player card matching the macOS notch aesthetic.
 //
 
 import SwiftUI
@@ -14,17 +13,24 @@ struct NowPlayingView: View {
     let send: (MediaCommand) -> Void
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             artwork
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
                 titles
-                progress
+                Spacer(minLength: 6)
                 transport
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.08))
+        )
     }
 
-    // MARK: - Pieces
+    // MARK: - Components
 
     private var artwork: some View {
         Group {
@@ -33,71 +39,43 @@ struct NowPlayingView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             } else {
-                // Artwork is fetched lazily by the source, so this placeholder
-                // is a normal transient state, not an error.
                 ZStack {
-                    Color.white.opacity(0.08)
+                    Color.white.opacity(0.06)
                     Image(systemName: "music.note")
-                        .font(.system(size: 22))
+                        .font(.system(size: 26))
                         .foregroundStyle(.white.opacity(0.35))
                 }
             }
         }
-        .frame(width: 84, height: 84)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
+        .frame(width: 82, height: 82)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: .black.opacity(0.4), radius: 5, y: 2)
     }
 
     private var titles: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(track.title.isEmpty ? "Unknown Track" : track.title)
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
+            Text(track.title.isEmpty ? "Nothing Playing" : track.title)
+                .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
                 .lineLimit(1)
-            Text(track.artist)
+            Text(track.artist.isEmpty ? "Music / Spotify" : track.artist)
                 .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(.white.opacity(0.65))
+                .lineLimit(1)
+            Text(track.album.isEmpty ? (track.title.isEmpty ? "Ready to play" : track.artist) : track.album)
+                .font(.system(size: 11, weight: .regular, design: .rounded))
+                .foregroundStyle(.white.opacity(0.4))
                 .lineLimit(1)
         }
-    }
-
-    private var progress: some View {
-        // A TimelineView keeps the bar moving off a single snapshot, instead of
-        // us polling MediaRemote several times a second. It only ticks while
-        // the view is in the hierarchy, which is why NotchPanelView drops the
-        // content entirely once collapsed.
-        TimelineView(.periodic(from: .now, by: 0.5)) { context in
-            let date = track.isPlaying ? context.date : track.reportedAt
-            VStack(spacing: 3) {
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(.white.opacity(0.15))
-                        Capsule()
-                            .fill(.white.opacity(0.85))
-                            .frame(width: proxy.size.width * track.progress(at: date))
-                    }
-                }
-                .frame(height: 3)
-
-                HStack {
-                    Text(track.elapsed(at: date).clockString)
-                    Spacer()
-                    Text(track.duration.clockString)
-                }
-                .font(.system(size: 9, weight: .medium, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.45))
-            }
-        }
-        .frame(height: 20)
     }
 
     private var transport: some View {
         HStack(spacing: 20) {
-            button("backward.fill", size: 13) { send(.previousTrack) }
-            button(track.isPlaying ? "pause.fill" : "play.fill", size: 17) { send(.togglePlayPause) }
-            button("forward.fill", size: 13) { send(.nextTrack) }
+            button("backward.fill", size: 12) { send(.previousTrack) }
+            button(track.isPlaying ? "pause.fill" : "play.fill", size: 16) { send(.togglePlayPause) }
+            button("forward.fill", size: 12) { send(.nextTrack) }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func button(_ symbol: String, size: CGFloat, action: @escaping () -> Void) -> some View {
@@ -105,10 +83,9 @@ struct NowPlayingView: View {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
                 .foregroundStyle(.white)
-                .frame(width: 30, height: 24)
+                .frame(width: 28, height: 24)
                 .contentShape(Rectangle())
         }
-        // Plain, or AppKit draws a full push-button chrome inside the notch.
         .buttonStyle(.plain)
     }
 }
