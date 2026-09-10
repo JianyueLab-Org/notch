@@ -30,13 +30,13 @@ struct ScheduleTimelineCardView: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 1.5) {
+        VStack(alignment: .leading, spacing: 2) {
             Text(schedule.currentEventTitle)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .font(.system(size: 14.5, weight: .bold, design: .rounded))
                 .foregroundStyle(JYLTheme.textPrimary)
                 .lineLimit(1)
             Text(schedule.currentEventStatus)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(JYLTheme.textSecondary)
                 .lineLimit(1)
         }
@@ -175,37 +175,37 @@ struct ScheduleTimelineCardView: View {
     private var timeMarkers: some View {
         HStack {
             Text("-15m")
-                .font(.system(size: 8.5, weight: .medium, design: .rounded))
+                .font(.system(size: 9.5, weight: .medium, design: .rounded))
                 .foregroundStyle(JYLTheme.textMuted)
             Spacer()
             Text("+15m")
-                .font(.system(size: 8.5, weight: .medium, design: .rounded))
+                .font(.system(size: 9.5, weight: .medium, design: .rounded))
                 .foregroundStyle(JYLTheme.textMuted)
             Spacer()
             Text("+45m")
-                .font(.system(size: 8.5, weight: .medium, design: .rounded))
+                .font(.system(size: 9.5, weight: .medium, design: .rounded))
                 .foregroundStyle(JYLTheme.textMuted)
         }
         .padding(.horizontal, 4)
-        .frame(height: 11)
+        .frame(height: 13)
     }
 
     // MARK: - Footer
 
     private var footer: some View {
         HStack {
-            HStack(spacing: 4.5) {
+            HStack(spacing: 5) {
                 RoundedRectangle(cornerRadius: 2)
                     .stroke(JYLTheme.primary, style: StrokeStyle(lineWidth: 1.1, dash: [2, 1.5]))
-                    .frame(width: 7.5, height: 7.5)
+                    .frame(width: 8, height: 8)
                 Text("Next · \(schedule.nextEventTitle)")
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(JYLTheme.textPrimary)
                     .lineLimit(1)
             }
             Spacer()
             Text(schedule.nextEventTime)
-                .font(.system(size: 10, weight: .regular, design: .rounded))
+                .font(.system(size: 11, weight: .regular, design: .rounded))
                 .foregroundStyle(JYLTheme.textMuted)
         }
     }

@@ -78,8 +78,8 @@ struct NowPlayingView: View {
                 }
             }
         }
-        .frame(width: 72, height: 72)
-        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .frame(width: 76, height: 76)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .shadow(color: .black.opacity(0.35), radius: 5, y: 2)
     }
 
@@ -139,17 +139,17 @@ struct NowPlayingView: View {
     }
 
     private var titles: some View {
-        VStack(alignment: .leading, spacing: 1.5) {
+        VStack(alignment: .leading, spacing: 2) {
             Text(track.title.isEmpty ? "Nothing Playing" : track.title)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .font(.system(size: 14.5, weight: .bold, design: .rounded))
                 .foregroundStyle(JYLTheme.textPrimary)
                 .lineLimit(1)
             Text(track.artist.isEmpty ? "Music / Spotify" : track.artist)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(JYLTheme.textSecondary)
                 .lineLimit(1)
             Text(track.album.isEmpty ? (track.title.isEmpty ? "Ready to play" : track.artist) : track.album)
-                .font(.system(size: 10, weight: .regular, design: .rounded))
+                .font(.system(size: 10.5, weight: .regular, design: .rounded))
                 .foregroundStyle(JYLTheme.textMuted)
                 .lineLimit(1)
         }
@@ -160,12 +160,12 @@ struct NowPlayingView: View {
             let elapsed = track.elapsed(at: timeline.date)
             let progress = track.progress(at: timeline.date)
 
-            VStack(spacing: 2.5) {
+            VStack(spacing: 3) {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule()
                             .fill(JYLTheme.neutral800)
-                            .frame(height: 3)
+                            .frame(height: 3.5)
 
                         Capsule()
                             .fill(
@@ -178,33 +178,33 @@ struct NowPlayingView: View {
                                     endPoint: .trailing
                                 )
                             )
-                            .frame(width: max(3, geo.size.width * CGFloat(progress)), height: 3)
+                            .frame(width: max(3.5, geo.size.width * CGFloat(progress)), height: 3.5)
                     }
                     .frame(maxHeight: .infinity, alignment: .center)
                 }
-                .frame(height: 4)
+                .frame(height: 5)
 
                 HStack {
                     Text(track.hasTrack ? elapsed.clockString : "0:00")
-                        .font(.system(size: 8.5, weight: .medium, design: .rounded))
+                        .font(.system(size: 9.5, weight: .medium, design: .rounded))
                         .foregroundStyle(JYLTheme.textMuted)
 
                     Spacer()
 
                     Text(track.duration > 0 ? track.duration.clockString : "--:--")
-                        .font(.system(size: 8.5, weight: .medium, design: .rounded))
+                        .font(.system(size: 9.5, weight: .medium, design: .rounded))
                         .foregroundStyle(JYLTheme.textMuted)
                 }
             }
         }
-        .frame(height: 13)
+        .frame(height: 15)
     }
 
     private var transport: some View {
-        HStack(spacing: 18) {
-            button("backward.fill", size: 11) { send(.previousTrack) }
-            button(track.isPlaying ? "pause.fill" : "play.fill", size: 15) { send(.togglePlayPause) }
-            button("forward.fill", size: 11) { send(.nextTrack) }
+        HStack(spacing: 20) {
+            button("backward.fill", size: 12.5) { send(.previousTrack) }
+            button(track.isPlaying ? "pause.fill" : "play.fill", size: 16.5) { send(.togglePlayPause) }
+            button("forward.fill", size: 12.5) { send(.nextTrack) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -214,7 +214,7 @@ struct NowPlayingView: View {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
                 .foregroundStyle(JYLTheme.textPrimary)
-                .frame(width: 24, height: 20)
+                .frame(width: 26, height: 22)
                 .contentShape(Rectangle())
         }
         .buttonStyle(ScaleButtonStyle())

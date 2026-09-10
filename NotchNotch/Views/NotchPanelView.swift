@@ -582,31 +582,31 @@ struct NotchPanelView: View {
         Button {
             agentController.focusSession(agent)
         } label: {
-            HStack(spacing: 3.5) {
+            HStack(spacing: 4) {
                 Image(systemName: agent.state.iconName)
-                    .font(.system(size: 9.5, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(agent.state.color)
 
                 Text(agent.agent)
-                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(JYLTheme.textPrimary)
                     .lineLimit(1)
 
                 if agent.state.isWaiting {
                     Text(agent.state.shortTag)
-                        .font(.system(size: 7.5, weight: .black, design: .rounded))
+                        .font(.system(size: 8, weight: .black, design: .rounded))
                         .foregroundStyle(agent.state.color)
-                        .padding(.horizontal, 3.5)
+                        .padding(.horizontal, 4)
                         .padding(.vertical, 1)
                         .background(Capsule().fill(agent.state.colorMuted))
                 }
 
                 Image(systemName: "arrow.up.forward")
-                    .font(.system(size: 7.5, weight: .bold))
+                    .font(.system(size: 8, weight: .bold))
                     .foregroundStyle(JYLTheme.textMuted)
             }
-            .padding(.horizontal, 6.5)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4.5)
             .background(
                 Capsule()
                     .fill(agent.state.color.opacity(0.14))
@@ -631,7 +631,11 @@ struct NotchPanelView: View {
         } label: {
             ZStack(alignment: .topTrailing) {
                 Circle()
-                    .fill(isSelected ? JYLTheme.info : JYLTheme.neutral800)
+                    .fill(isSelected ? JYLTheme.neutral700 : JYLTheme.neutral800)
+                    .overlay(
+                        Circle()
+                            .strokeBorder(isSelected ? Color.white.opacity(0.18) : Color.clear, lineWidth: 0.5)
+                    )
                     .frame(width: 28, height: 28)
 
                 Image(systemName: icon)
