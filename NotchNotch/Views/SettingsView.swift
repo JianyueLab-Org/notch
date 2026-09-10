@@ -1192,6 +1192,15 @@ struct SettingsView: View {
                     )
                 }
                 .buttonStyle(.plain)
+
+                Divider()
+                    .background(JYLTheme.border.opacity(0.4))
+                    .padding(.top, 4)
+
+                Text("Copyright All Rights Reserved to JianyueLab LTD")
+                    .font(.system(size: 10.5, weight: .regular, design: .rounded))
+                    .foregroundStyle(JYLTheme.textMuted)
+                    .padding(.top, 2)
             }
         }
         .padding(14)
