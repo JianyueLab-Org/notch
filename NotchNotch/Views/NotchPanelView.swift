@@ -33,11 +33,14 @@ struct NotchPanelView: View {
         hud.isShowing && !isOpen
     }
 
+    private var hudEarWidth: CGFloat { 150 }
+
     private var hudBarWidth: CGFloat {
-        max(400, machine.layout.geometry.notchRect.width + 180)
+        machine.layout.geometry.notchRect.width + 2 * hudEarWidth
     }
+
     private var hudBarHeight: CGFloat {
-        max(34, machine.layout.geometry.notchRect.height)
+        max(36, machine.layout.geometry.notchRect.height + 2)
     }
 
     private var collapsedWidth: CGFloat {
@@ -313,11 +316,12 @@ struct NotchPanelView: View {
     // MARK: - Volume & Brightness HUD Bar
 
     private var hudBarContent: some View {
+        let notchWidth = machine.layout.geometry.notchRect.width
         let progress = hud.currentType == .volume ? CGFloat(hud.volume) : CGFloat(hud.brightness)
         let percentage = hud.displayPercentage
 
-        return HStack(alignment: .center) {
-            // Left icon + title
+        return HStack(spacing: 0) {
+            // Left ear (completely outside physical notch)
             HStack(spacing: 7) {
                 Image(systemName: hud.hudIcon)
                     .font(.system(size: 13, weight: .semibold))
@@ -327,29 +331,35 @@ struct NotchPanelView: View {
                 Text(hud.hudTitle)
                     .font(.system(size: 12.5, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
+                    .lineLimit(1)
             }
+            .padding(.leading, 18)
+            .frame(width: hudEarWidth, alignment: .leading)
 
-            Spacer()
+            // Center: Physical notch cutout exclusion zone
+            Color.clear
+                .frame(width: notchWidth, height: hudBarHeight)
 
-            // Right slider capsule + percentage number
-            HStack(spacing: 9) {
+            // Right ear (completely outside physical notch)
+            HStack(spacing: 8) {
                 ZStack(alignment: .leading) {
                     Capsule()
                         .fill(Color.white.opacity(0.22))
-                        .frame(width: 64, height: 5)
+                        .frame(width: 60, height: 5)
 
                     Capsule()
                         .fill(Color.white)
-                        .frame(width: max(4, 64 * min(1.0, max(0, progress))), height: 5)
+                        .frame(width: max(4, 60 * min(1.0, max(0, progress))), height: 5)
                 }
 
                 Text("\(percentage)")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-                    .frame(minWidth: 20, alignment: .trailing)
+                    .frame(minWidth: 22, alignment: .trailing)
             }
+            .padding(.trailing, 18)
+            .frame(width: hudEarWidth, alignment: .trailing)
         }
-        .padding(.horizontal, 16)
         .frame(width: hudBarWidth, height: hudBarHeight)
     }
 
