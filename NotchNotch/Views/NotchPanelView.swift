@@ -277,14 +277,23 @@ struct NotchPanelView: View {
                         .foregroundStyle(JYLTheme.textPrimary)
                 }
             }
-        } else if agentController.isWaiting {
+        } else if agentController.isWaitingUser {
             ZStack {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(JYLTheme.primaryMuted)
                     .frame(width: 22, height: 22)
-                Image(systemName: "exclamationmark.triangle.fill")
+                Image(systemName: "exclamationmark.bubble.fill")
                     .font(.system(size: 11.5, weight: .bold))
                     .foregroundStyle(JYLTheme.primary)
+            }
+        } else if agentController.isWaitingSubagent {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color(hex: "#a78bfa", opacity: 0.20))
+                    .frame(width: 22, height: 22)
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 11.5, weight: .bold))
+                    .foregroundStyle(JYLTheme.chart3)
             }
         } else if agentController.isWorking {
             ZStack {
@@ -330,13 +339,22 @@ struct NotchPanelView: View {
                         .frame(width: 19, height: 19)
                 }
             }
-        } else if agentController.isWaiting {
-            Text("WAIT")
-                .font(.system(size: 8, weight: .black, design: .rounded))
+        } else if agentController.isWaitingUser {
+            Text("REPLY")
+                .font(.system(size: 7.5, weight: .black, design: .rounded))
+                .lineLimit(1)
                 .foregroundStyle(JYLTheme.primary)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 2)
                 .background(Capsule().fill(JYLTheme.primaryMuted))
+        } else if agentController.isWaitingSubagent {
+            Text("SUB")
+                .font(.system(size: 7.5, weight: .black, design: .rounded))
+                .lineLimit(1)
+                .foregroundStyle(JYLTheme.chart3)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color(hex: "#a78bfa", opacity: 0.22)))
         } else if agentController.isWorking {
             TimelineView(.animation) { timeline in
                 let time = timeline.date.timeIntervalSinceReferenceDate
@@ -396,7 +414,7 @@ struct NotchPanelView: View {
                 agentController.focusActiveAgent()
             } label: {
                 HStack(spacing: 6) {
-                    Text(alert.state == .waiting ? "Action Needed" : "Completed")
+                    Text(alert.state.displayName)
                         .font(.system(size: 11.5, weight: .bold, design: .rounded))
                         .foregroundStyle(alert.state.color)
 
@@ -568,6 +586,15 @@ struct NotchPanelView: View {
                     .foregroundStyle(JYLTheme.textPrimary)
                     .lineLimit(1)
 
+                if agent.state.isWaiting {
+                    Text(agent.state.shortTag)
+                        .font(.system(size: 7.5, weight: .black, design: .rounded))
+                        .foregroundStyle(agent.state.color)
+                        .padding(.horizontal, 3.5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(agent.state.colorMuted))
+                }
+
                 Image(systemName: "arrow.up.forward")
                     .font(.system(size: 7.5, weight: .bold))
                     .foregroundStyle(JYLTheme.textMuted)
@@ -581,7 +608,7 @@ struct NotchPanelView: View {
             )
         }
         .buttonStyle(TabButtonStyle())
-        .help("Jump to \(agent.agent) Terminal")
+        .help("Jump to \(agent.agent) (\(agent.state.displayName)) in Terminal")
     }
 
     private func circleIconButton(

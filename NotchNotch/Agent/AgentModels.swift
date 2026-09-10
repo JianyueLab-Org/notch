@@ -11,23 +11,40 @@ import SwiftUI
 
 enum AgentState: String, Codable, Equatable, Sendable {
     case working = "Working"
-    case waiting = "Waiting"     // Needs user action: tool permission, question, confirmation
-    case completed = "Completed" // Finished turn or task
-    case idle = "Idle"           // Inactive / session ready
+    case waitingUser = "WaitingUser"         // Needs human reply: permission, question, prompt
+    case waitingSubagent = "WaitingSubagent" // Waiting for background subagent / delegated child task
+    case completed = "Completed"             // Finished turn or task
+    case idle = "Idle"                       // Inactive / session ready
+
+    var isWaiting: Bool {
+        self == .waitingUser || self == .waitingSubagent
+    }
 
     var displayName: String {
         switch self {
         case .working: return "Working"
-        case .waiting: return "Action Needed"
+        case .waitingUser: return "Reply Needed"
+        case .waitingSubagent: return "Subagent Active"
         case .completed: return "Completed"
         case .idle: return "Idle"
+        }
+    }
+
+    var shortTag: String {
+        switch self {
+        case .working: return "BUSY"
+        case .waitingUser: return "REPLY"
+        case .waitingSubagent: return "SUB"
+        case .completed: return "DONE"
+        case .idle: return "IDLE"
         }
     }
 
     var iconName: String {
         switch self {
         case .working: return "sparkles"
-        case .waiting: return "exclamationmark.triangle.fill"
+        case .waitingUser: return "exclamationmark.bubble.fill"
+        case .waitingSubagent: return "arrow.triangle.branch"
         case .completed: return "checkmark.circle.fill"
         case .idle: return "circle"
         }
@@ -36,9 +53,20 @@ enum AgentState: String, Codable, Equatable, Sendable {
     var color: Color {
         switch self {
         case .working: return JYLTheme.info
-        case .waiting: return JYLTheme.primary // Amber/Orange
+        case .waitingUser: return JYLTheme.primary // Amber
+        case .waitingSubagent: return JYLTheme.chart3 // Purple / Lavender (#a78bfa)
         case .completed: return JYLTheme.success
         case .idle: return JYLTheme.textMuted
+        }
+    }
+
+    var colorMuted: Color {
+        switch self {
+        case .working: return JYLTheme.infoMuted
+        case .waitingUser: return JYLTheme.primaryMuted
+        case .waitingSubagent: return Color(hex: "#a78bfa", opacity: 0.20)
+        case .completed: return JYLTheme.successMuted
+        case .idle: return Color.white.opacity(0.1)
         }
     }
 }
@@ -76,6 +104,6 @@ struct AgentAlert: Equatable, Sendable {
     let timestamp: Date
 
     var isUrgent: Bool {
-        state == .waiting
+        state == .waitingUser
     }
 }

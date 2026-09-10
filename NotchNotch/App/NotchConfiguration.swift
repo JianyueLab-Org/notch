@@ -17,7 +17,7 @@ nonisolated enum NotchConfiguration {
     static let expandedSize = CGSize(width: 530, height: 170)
 
     /// Additional width in compact (collapsed) state to reveal dynamic indicators flanking the notch.
-    static let compactWidthExtension: CGFloat = 64
+    static let compactWidthExtension: CGFloat = 72
 
     /// Width of the stand-in notch used on Macs without a camera housing.
     /// ~200pt is roughly the real thing on a 14"/16" MacBook Pro, so the two

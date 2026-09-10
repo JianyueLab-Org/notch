@@ -35,7 +35,15 @@ final class AgentHarnessController: ObservableObject {
     }
 
     var isWaiting: Bool {
-        activeSession?.state == .waiting
+        activeSession?.state.isWaiting == true
+    }
+
+    var isWaitingUser: Bool {
+        activeSession?.state == .waitingUser
+    }
+
+    var isWaitingSubagent: Bool {
+        activeSession?.state == .waitingSubagent
     }
 
     private init() {
@@ -65,20 +73,42 @@ final class AgentHarnessController: ObservableObject {
         let rawState = dict["state"] as? String ?? "Working"
         let agent = dict["agent"] as? String ?? "Agent"
         let event = dict["event"] as? String ?? ""
-        let sessionId = dict["session_id"] as? String ?? "default-\(agent)"
+        let existingSessionId = sessions.keys.first(where: {
+            sessions[$0]?.agent.caseInsensitiveCompare(agent) == .orderedSame
+        })
+        let sessionId = dict["session_id"] as? String ?? (existingSessionId ?? "default-\(agent)")
         let cwd = dict["cwd"] as? String ?? ""
         let title = dict["title"] as? String ?? ""
         let terminal = dict["terminal"] as? String ?? ""
         let pid = dict["pid"] as? Int
 
         let lowerState = rawState.lowercased()
+        let lowerTitle = title.lowercased()
+        let lowerEvent = event.lowercased()
+
         let resolvedState: AgentState
-        if lowerState == "waiting" || event == "Notification" {
-            resolvedState = .waiting
+        if lowerState == "waitingsubagent" || lowerState == "waiting_subagent" || lowerState == "subagent" || lowerState == "subagents" || lowerState == "sub" {
+            resolvedState = .waitingSubagent
+        } else if lowerState == "waitinguser" || lowerState == "waiting_user" || lowerState == "reply" || lowerState == "waiting_reply" || lowerState == "action" {
+            resolvedState = .waitingUser
+        } else if lowerState == "waiting" || event == "Notification" {
+            // Differentiate based on title or event details
+            if lowerTitle.contains("subagent") || lowerTitle.contains("invoke_subagent") || lowerTitle.contains("task") || lowerEvent.contains("subagent") {
+                resolvedState = .waitingSubagent
+            } else {
+                resolvedState = .waitingUser
+            }
         } else if lowerState == "ended" || lowerState == "completed" || event == "Stop" || event == "SessionEnd" {
             resolvedState = .completed
         } else if lowerState == "working" || lowerState == "auto" || event == "PreToolUse" || event == "UserPromptSubmit" {
-            resolvedState = .working
+            // If PreToolUse is specifically launching a subagent or asking a question
+            if lowerTitle.contains("invoke_subagent") || lowerTitle.contains("subagent") {
+                resolvedState = .waitingSubagent
+            } else if lowerTitle.contains("ask_question") || lowerTitle.contains("question") {
+                resolvedState = .waitingUser
+            } else {
+                resolvedState = .working
+            }
         } else {
             resolvedState = .idle
         }
@@ -105,37 +135,45 @@ final class AgentHarnessController: ObservableObject {
         session.lastUpdated = Date()
 
         sessions[sessionId] = session
-
-        // Priority for activeSession: if any session is waiting for action, highlight it!
-        if let waiting = sessions.values.first(where: { $0.state == .waiting }) {
-            activeSession = waiting
-        } else if let working = sessions.values.first(where: { $0.state == .working }) {
-            activeSession = working
-        } else {
-            activeSession = session
-        }
+        updateActiveSession()
 
         Log.lifecycle.notice("Agent event: \(agent) [\(sessionId)] -> \(resolvedState.rawValue) (event: \(event))")
 
         // Trigger notch prompt / alert when state requires attention or finishes
-        if resolvedState == .waiting {
-            // Needs user action (permission, question, interactive input)
-            let alertTitle = title.isEmpty ? "Action Required" : title
+        if resolvedState == .waitingUser {
+            // Needs user reply (permission, question, interactive input)
+            let alertTitle = title.isEmpty ? "Reply Needed" : title
             triggerAlert(
                 AgentAlert(
                     sessionId: sessionId,
                     agent: agent,
-                    state: .waiting,
+                    state: .waitingUser,
                     title: alertTitle,
-                    detail: "Approval or input requested",
+                    detail: "Input or approval required",
                     terminal: terminal,
                     pid: pid,
                     timestamp: Date()
                 ),
-                autoDismissAfter: 6.0
+                autoDismissAfter: 7.0
             )
             NSSound.beep()
-        } else if resolvedState == .completed && (previousState == .working || previousState == .waiting) {
+        } else if resolvedState == .waitingSubagent {
+            // Subagent execution in background - subtle alert without audio beep
+            let alertTitle = title.isEmpty ? "Subagent Active" : title
+            triggerAlert(
+                AgentAlert(
+                    sessionId: sessionId,
+                    agent: agent,
+                    state: .waitingSubagent,
+                    title: alertTitle,
+                    detail: "Delegated subagent running",
+                    terminal: terminal,
+                    pid: pid,
+                    timestamp: Date()
+                ),
+                autoDismissAfter: 3.5
+            )
+        } else if resolvedState == .completed && (previousState == .working || previousState.isWaiting) {
             // Turn completed
             let alertTitle = title.isEmpty ? "Task Completed" : title
             triggerAlert(
@@ -151,8 +189,8 @@ final class AgentHarnessController: ObservableObject {
                 ),
                 autoDismissAfter: 3.5
             )
-        } else if resolvedState == .working && isShowingAlert && currentAlert?.state == .waiting && currentAlert?.sessionId == sessionId {
-            // User provided input and this waiting agent resumed working; dismiss waiting alert
+        } else if resolvedState == .working && isShowingAlert && currentAlert?.state.isWaiting == true && currentAlert?.sessionId == sessionId {
+            // User provided input or subagent finished and agent resumed working; dismiss alert
             dismissAlert()
         }
     }
@@ -232,9 +270,25 @@ final class AgentHarnessController: ObservableObject {
         }
     }
 
+    private func updateActiveSession() {
+        if let waitingUser = sessions.values.first(where: { $0.state == .waitingUser }) {
+            activeSession = waitingUser
+        } else if let waitingSubagent = sessions.values.first(where: { $0.state == .waitingSubagent }) {
+            activeSession = waitingSubagent
+        } else if let working = sessions.values.first(where: { $0.state == .working }) {
+            activeSession = working
+        } else if let completed = sessions.values.first(where: { $0.state == .completed }) {
+            activeSession = completed
+        } else {
+            activeSession = sessions.values.first
+        }
+    }
+
     private func pollAgentProcesses() {
         // Automatically check if known agent CLI tools are running
         let agentNames = ["claude", "agy", "opencode", "codex"]
+        var currentPids: [String: Int] = [:]
+
         for name in agentNames {
             let pgrep = Process()
             pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
@@ -246,24 +300,10 @@ final class AgentHarnessController: ObservableObject {
                 pgrep.waitUntilExit()
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 if let str = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !str.isEmpty, let pid = Int(str.components(separatedBy: .newlines).first ?? "") {
-                    let agentKey = "process-\(name)-\(pid)"
-                    if sessions[agentKey] == nil {
-                        let capitalized = name == "agy" ? "Antigravity" : name.capitalized
-                        let session = AgentSession(
-                            id: agentKey,
-                            agent: capitalized,
-                            state: .working,
-                            event: "AutoDetected",
-                            title: "\(capitalized) Agent Process",
-                            cwd: "",
-                            terminal: "",
-                            pid: pid,
-                            lastUpdated: Date()
-                        )
-                        sessions[agentKey] = session
-                        if activeSession == nil {
-                            activeSession = session
+                   !str.isEmpty {
+                    for line in str.components(separatedBy: .newlines) {
+                        if let pid = Int(line.trimmingCharacters(in: .whitespaces)) {
+                            currentPids["process-\(name)-\(pid)"] = pid
                         }
                     }
                 }
@@ -271,5 +311,37 @@ final class AgentHarnessController: ObservableObject {
                 // Ignore process check error
             }
         }
+
+        // Clean up dead process sessions
+        for (key, _) in sessions where key.hasPrefix("process-") {
+            if currentPids[key] == nil {
+                sessions.removeValue(forKey: key)
+                if activeSession?.id == key {
+                    activeSession = nil
+                }
+            }
+        }
+
+        // Register new process sessions
+        for (key, pid) in currentPids {
+            if sessions[key] == nil {
+                let name = key.components(separatedBy: "-")[1]
+                let capitalized = name == "agy" ? "Antigravity" : name.capitalized
+                let session = AgentSession(
+                    id: key,
+                    agent: capitalized,
+                    state: .working,
+                    event: "AutoDetected",
+                    title: "\(capitalized) Agent Process",
+                    cwd: "",
+                    terminal: "",
+                    pid: pid,
+                    lastUpdated: Date()
+                )
+                sessions[key] = session
+            }
+        }
+
+        updateActiveSession()
     }
 }

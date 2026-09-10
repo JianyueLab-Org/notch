@@ -104,7 +104,7 @@ final class NotchWindowController {
             .receive(on: DispatchQueue.main)
             .map { track, hasActiveSchedule, agent in
                 let isMusicPlaying = (track?.isPlaying == true) && (track?.hasTrack == true)
-                let isAgentActive = (agent?.state == .working || agent?.state == .waiting)
+                let isAgentActive = (agent?.state == .working || agent?.state.isWaiting == true)
                 return isMusicPlaying || hasActiveSchedule || isAgentActive
             }
             .removeDuplicates()
