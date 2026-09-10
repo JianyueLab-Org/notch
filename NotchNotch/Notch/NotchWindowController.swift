@@ -112,6 +112,14 @@ final class NotchWindowController {
                 self.stateMachine.updateHasLiveActivity(hasLive)
             }
             .store(in: &cancellables)
+
+        SystemMediaHUDController.shared.$isShowing
+            .receive(on: DispatchQueue.main)
+            .filter { $0 }
+            .sink { [weak self] _ in
+                self?.window?.orderFrontRegardless()
+            }
+            .store(in: &cancellables)
     }
 
     /// Toggles between expanded and collapsed states.

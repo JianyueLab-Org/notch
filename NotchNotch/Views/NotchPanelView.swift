@@ -22,11 +22,23 @@ struct NotchPanelView: View {
     @ObservedObject var media: NowPlayingController
     @ObservedObject var shelf: ShelfController
     @ObservedObject var schedule: ScheduleController
+    @ObservedObject private var hud = SystemMediaHUDController.shared
     @State private var activeTab: NotchActiveTab = .overview
     @State private var showSettings: Bool = false
     @State private var isDraggingFile: Bool = false
 
     private var isOpen: Bool { machine.state.isVisiblyExpanded }
+
+    private var isShowingHUD: Bool {
+        hud.isShowing && !isOpen
+    }
+
+    private var hudBarWidth: CGFloat {
+        max(400, machine.layout.geometry.notchRect.width + 180)
+    }
+    private var hudBarHeight: CGFloat {
+        max(34, machine.layout.geometry.notchRect.height)
+    }
 
     private var collapsedWidth: CGFloat {
         let notchWidth = machine.layout.geometry.notchRect.width
@@ -34,7 +46,10 @@ struct NotchPanelView: View {
     }
 
     private var bodySize: CGSize {
-        isOpen ? machine.layout.expandedSize : CGSize(width: collapsedWidth, height: machine.layout.collapsedSize.height)
+        if isShowingHUD {
+            return CGSize(width: hudBarWidth, height: hudBarHeight)
+        }
+        return isOpen ? machine.layout.expandedSize : CGSize(width: collapsedWidth, height: machine.layout.collapsedSize.height)
     }
 
     var body: some View {
@@ -113,6 +128,9 @@ struct NotchPanelView: View {
     }
 
     private var notchShape: NotchShape {
+        if isShowingHUD {
+            return NotchShape(topRadius: 8, bottomRadius: 13)
+        }
         let collapsedTop = hasLiveActivity ? NotchConfiguration.collapsedTopCornerRadius : 0
         let collapsedBottom = hasLiveActivity ? NotchConfiguration.collapsedBottomCornerRadius : 10
         return NotchShape(
@@ -126,28 +144,35 @@ struct NotchPanelView: View {
             notchShape
                 .fill(Color.black)
 
-            compactContent
-                .opacity(isOpen ? 0 : 1)
-                .animation(isOpen ? .easeOut(duration: 0.08) : .easeIn(duration: 0.14).delay(0.08), value: isOpen)
-                .allowsHitTesting(!isOpen)
+            if isShowingHUD {
+                hudBarContent
+                    .transition(.opacity)
+            } else {
+                compactContent
+                    .opacity(isOpen ? 0 : 1)
+                    .animation(isOpen ? .easeOut(duration: 0.08) : .easeIn(duration: 0.14).delay(0.08), value: isOpen)
+                    .allowsHitTesting(!isOpen)
 
-            if machine.state.isOnScreen {
-                expandedContent
-                    .opacity(isOpen ? 1 : 0)
-                    .scaleEffect(isOpen ? 1.0 : 0.96, anchor: .top)
-                    .animation(isOpen ? NotchConfiguration.expandAnimation : .easeOut(duration: 0.12), value: isOpen)
-                    .allowsHitTesting(isOpen)
+                if machine.state.isOnScreen {
+                    expandedContent
+                        .opacity(isOpen ? 1 : 0)
+                        .scaleEffect(isOpen ? 1.0 : 0.96, anchor: .top)
+                        .animation(isOpen ? NotchConfiguration.expandAnimation : .easeOut(duration: 0.12), value: isOpen)
+                        .allowsHitTesting(isOpen)
+                }
             }
         }
         .frame(width: bodySize.width, height: bodySize.height, alignment: .top)
         .clipShape(notchShape)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: bodySize.width)
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: bodySize.height)
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isShowingHUD)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: hasLiveActivity)
         .compositingGroup()
         .shadow(
-            color: .black.opacity(isOpen ? 0.45 : (hasLiveActivity ? 0.25 : 0)),
-            radius: isOpen ? 14 : 4,
-            y: isOpen ? 6 : 2
+            color: .black.opacity((isOpen || isShowingHUD) ? 0.45 : (hasLiveActivity ? 0.25 : 0)),
+            radius: (isOpen || isShowingHUD) ? 14 : 4,
+            y: (isOpen || isShowingHUD) ? 6 : 2
         )
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDraggingFile) { providers in
             isDraggingFile = true
@@ -283,6 +308,49 @@ struct NotchPanelView: View {
                     .frame(width: 20, height: 20)
             }
         }
+    }
+
+    // MARK: - Volume & Brightness HUD Bar
+
+    private var hudBarContent: some View {
+        let progress = hud.currentType == .volume ? CGFloat(hud.volume) : CGFloat(hud.brightness)
+        let percentage = hud.displayPercentage
+
+        return HStack(alignment: .center) {
+            // Left icon + title
+            HStack(spacing: 7) {
+                Image(systemName: hud.hudIcon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 18)
+
+                Text(hud.hudTitle)
+                    .font(.system(size: 12.5, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+
+            Spacer()
+
+            // Right slider capsule + percentage number
+            HStack(spacing: 9) {
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.22))
+                        .frame(width: 64, height: 5)
+
+                    Capsule()
+                        .fill(Color.white)
+                        .frame(width: max(4, 64 * min(1.0, max(0, progress))), height: 5)
+                }
+
+                Text("\(percentage)")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(minWidth: 20, alignment: .trailing)
+            }
+        }
+        .padding(.horizontal, 16)
+        .frame(width: hudBarWidth, height: hudBarHeight)
     }
 
     @ViewBuilder
