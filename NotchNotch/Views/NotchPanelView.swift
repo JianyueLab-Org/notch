@@ -520,8 +520,11 @@ struct NotchPanelView: View {
     // MARK: - Top Bar
 
     private var topBar: some View {
-        HStack(alignment: .center) {
-            // Left circular icon buttons (Left ear)
+        let notchWidth = machine.layout.geometry.notchRect.width
+        let earWidth = max(100, (machine.layout.expandedSize.width - notchWidth) / 2 - 14)
+
+        return HStack(spacing: 0) {
+            // Left ear (Navigation buttons, aligned leading)
             HStack(spacing: 7) {
                 circleIconButton(
                     tab: .overview,
@@ -536,14 +539,19 @@ struct NotchPanelView: View {
                     tab: .clipboard,
                     icon: "doc.on.doc.fill"
                 )
+                Spacer(minLength: 0)
             }
+            .frame(width: earWidth, alignment: .leading)
 
             // Center: Physical notch cutout exclusion zone
-            // MUST stay empty so the MacBook hardware notch never obstructs any UI!
-            Spacer()
+            // Rigid barrier ensuring NO elements ever enter the camera housing region!
+            Color.clear
+                .frame(width: notchWidth, height: 28)
 
-            // Right ear: Live AI Agent badge (if active) + Settings gear button
-            HStack(spacing: 7) {
+            // Right ear (Live AI Agent badge + Settings gear button, aligned trailing)
+            HStack(spacing: 6) {
+                Spacer(minLength: 0)
+
                 if let agent = agentController.activeSession, agent.state != .idle {
                     agentTopBarBadge(agent)
                 }
@@ -564,6 +572,7 @@ struct NotchPanelView: View {
                 }
                 .buttonStyle(TabButtonStyle())
             }
+            .frame(width: earWidth, alignment: .trailing)
         }
         .frame(height: 28)
     }
@@ -572,13 +581,9 @@ struct NotchPanelView: View {
         Button {
             agentController.focusSession(agent)
         } label: {
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(agent.state.color)
-                    .frame(width: 5, height: 5)
-
+            HStack(spacing: 3.5) {
                 Image(systemName: agent.state.iconName)
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 9.5, weight: .bold))
                     .foregroundStyle(agent.state.color)
 
                 Text(agent.agent)
