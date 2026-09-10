@@ -50,7 +50,12 @@ final class ClipboardManager: ObservableObject {
 
     static let shared = ClipboardManager()
 
+    static let maxItemsOptions: [Int] = [5, 10, 15, 20]
+    static let defaultMaxItems: Int = 10
+    static let maxItemsKey = "co.jianyuelab.NotchNotch.clipboardMaxItems"
+
     @Published private(set) var items: [ClipboardItem] = []
+    @Published private(set) var maxItems: Int = defaultMaxItems
 
     private var lastChangeCount: Int = -1
     private var pollTimer: Timer?
@@ -61,6 +66,14 @@ final class ClipboardManager: ObservableObject {
         let appDir = appSupport.appendingPathComponent("co.jianyuelab.NotchNotch", isDirectory: true)
         try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
         self.persistenceURL = appDir.appendingPathComponent("clipboard_history.json")
+
+        let storedMax = UserDefaults.standard.integer(forKey: Self.maxItemsKey)
+        if Self.maxItemsOptions.contains(storedMax) {
+            self.maxItems = storedMax
+        } else {
+            self.maxItems = Self.defaultMaxItems
+            UserDefaults.standard.set(Self.defaultMaxItems, forKey: Self.maxItemsKey)
+        }
 
         loadPersisted()
         startMonitoring()
@@ -122,11 +135,21 @@ final class ClipboardManager: ObservableObject {
                 appName: appName
             )
             items.insert(newItem, at: 0)
-            if items.count > 40 {
-                items.removeLast()
-            }
+        }
+        if items.count > maxItems {
+            items = Array(items.prefix(maxItems))
         }
         savePersisted()
+    }
+
+    func updateMaxItems(_ count: Int) {
+        guard Self.maxItemsOptions.contains(count) else { return }
+        maxItems = count
+        UserDefaults.standard.set(count, forKey: Self.maxItemsKey)
+        if items.count > count {
+            items = Array(items.prefix(count))
+            savePersisted()
+        }
     }
 
     func copyToPasteboard(item: ClipboardItem) {
@@ -156,7 +179,12 @@ final class ClipboardManager: ObservableObject {
               let decoded = try? JSONDecoder().decode([ClipboardItem].self, from: data) else {
             return
         }
-        items = decoded
+        if decoded.count > maxItems {
+            items = Array(decoded.prefix(maxItems))
+            savePersisted()
+        } else {
+            items = decoded
+        }
     }
 
     private func savePersisted() {

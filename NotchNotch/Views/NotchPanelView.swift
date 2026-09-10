@@ -24,6 +24,7 @@ struct NotchPanelView: View {
     @ObservedObject var schedule: ScheduleController
     @ObservedObject private var hud = SystemMediaHUDController.shared
     @ObservedObject private var agentController = AgentHarnessController.shared
+    @ObservedObject private var clipboard = ClipboardManager.shared
     @State private var activeTab: NotchActiveTab = .overview
     @State private var showSettings: Bool = false
     @State private var isDraggingFile: Bool = false
@@ -681,14 +682,53 @@ struct NotchPanelView: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("NotchNotch Quick Settings")
-                    .font(.system(size: 12.5, weight: .bold, design: .rounded))
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(JYLTheme.textPrimary)
 
-                Text("Custom status panel for Apple Silicon notch")
-                    .font(.system(size: 10, weight: .regular, design: .rounded))
-                    .foregroundStyle(JYLTheme.textSecondary)
+                // Clipboard retention setting
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "doc.on.doc.fill")
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(JYLTheme.primary)
+                        Text("剪贴板历史保留")
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(JYLTheme.textSecondary)
+                        Spacer()
+                        Text("\(clipboard.maxItems) 条")
+                            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                            .foregroundStyle(JYLTheme.primary)
+                    }
 
-                Spacer()
+                    HStack(spacing: 5) {
+                        ForEach(ClipboardManager.maxItemsOptions, id: \.self) { count in
+                            let isSelected = clipboard.maxItems == count
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.12)) {
+                                    clipboard.updateMaxItems(count)
+                                }
+                            } label: {
+                                Text("\(count)")
+                                    .font(.system(size: 9.5, weight: isSelected ? .bold : .medium, design: .rounded))
+                                    .foregroundStyle(isSelected ? Color.black : JYLTheme.textSecondary)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 22)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .fill(isSelected ? JYLTheme.primary : JYLTheme.neutral800)
+                                    )
+                            }
+                            .buttonStyle(TabButtonStyle())
+                        }
+                    }
+                }
+                .padding(7)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(JYLTheme.neutral900.opacity(0.7))
+                )
+
+                Spacer(minLength: 0)
 
                 let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
                 Text("Version \(version)")
