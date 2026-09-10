@@ -2,7 +2,7 @@
 //  NotchNotchApp.swift
 //  NotchNotch
 //
-//  Created by Jianyue Hugo Liang on 03/09/2026.
+//  Created by JianyueLab on 03/09/2026.
 //
 
 import SwiftUI
