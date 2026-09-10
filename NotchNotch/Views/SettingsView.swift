@@ -1197,7 +1197,7 @@ struct SettingsView: View {
                     .background(JYLTheme.border.opacity(0.4))
                     .padding(.top, 4)
 
-                Text("Copyright All Rights Reserved to JianyueLab LTD")
+                Text("© 2026 JianyueLab LTD. All Rights Reserved")
                     .font(.system(size: 10.5, weight: .regular, design: .rounded))
                     .foregroundStyle(JYLTheme.textMuted)
                     .padding(.top, 2)
