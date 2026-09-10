@@ -43,15 +43,15 @@ struct NowPlayingView: View {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: 66, height: 66)
-                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .frame(width: 72, height: 72)
+                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        RoundedRectangle(cornerRadius: 11, style: .continuous)
                             .strokeBorder(JYLTheme.borderStrong, lineWidth: 0.5)
                     )
             } else {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [JYLTheme.neutral800, JYLTheme.neutral900],
@@ -60,12 +60,12 @@ struct NowPlayingView: View {
                             )
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            RoundedRectangle(cornerRadius: 11, style: .continuous)
                                 .strokeBorder(JYLTheme.border, lineWidth: 0.5)
                         )
 
                     Image(systemName: !track.hasTrack && authorization.isBlocked ? "lock.shield.fill" : "music.note")
-                        .font(.system(size: 22, weight: .medium))
+                        .font(.system(size: 24, weight: .medium))
                         .foregroundStyle(
                             LinearGradient(
                                 colors: !track.hasTrack && authorization.isBlocked
@@ -78,8 +78,8 @@ struct NowPlayingView: View {
                 }
             }
         }
-        .frame(width: 66, height: 66)
-        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .frame(width: 72, height: 72)
+        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
         .shadow(color: .black.opacity(0.35), radius: 5, y: 2)
     }
 

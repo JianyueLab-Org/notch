@@ -53,11 +53,11 @@ final class ScheduleController: ObservableObject {
     @Published var dividerIndex: Int? = nil
     @Published var hasActiveEvent: Bool = false
 
-    // Cached event interval data for timeline rendering:
-    private var currentEventStartDate: Date?
-    private var currentEventEndDate: Date?
-    private var nextEventStartDate: Date?
-    private var nextEventEndDate: Date?
+    // Event interval data for timeline ruler rendering:
+    @Published var currentEventStartDate: Date?
+    @Published var currentEventEndDate: Date?
+    @Published var nextEventStartDate: Date?
+    @Published var nextEventEndDate: Date?
 
     private let reader = CalendarReader()
     private var cancellables: Set<AnyCancellable> = []
@@ -189,7 +189,11 @@ final class ScheduleController: ObservableObject {
             progress = total > 0 ? min(1.0, max(0.04, elapsed / total)) : 0.25
 
             let remaining = max(0, current.endDate.timeIntervalSince(now))
-            currentEventStatus = "In progress · \(formatDuration(remaining)) left"
+            if elapsed < 300 {
+                currentEventStatus = "Starting now · \(formatDuration(total))"
+            } else {
+                currentEventStatus = "In progress · \(formatDuration(remaining)) left"
+            }
 
             // Compute divider tick if current event ends within the [-15min, +45min] window
             let endMinutes = current.endDate.timeIntervalSince(now) / 60.0
@@ -298,14 +302,14 @@ final class ScheduleController: ObservableObject {
         case freeTime       // Unscheduled time
     }
 
-    private func formatDuration(_ interval: TimeInterval) -> String {
+    func formatDuration(_ interval: TimeInterval) -> String {
         let minutes = max(1, Int(interval) / 60)
         if minutes < 60 {
-            return "\(minutes)min"
+            return "\(minutes)m"
         } else {
             let hours = minutes / 60
             let remMin = minutes % 60
-            return remMin == 0 ? "\(hours)hr" : "\(hours)hr \(remMin)min"
+            return remMin == 0 ? "\(hours)hr" : "\(hours)hr \(remMin)m"
         }
     }
 

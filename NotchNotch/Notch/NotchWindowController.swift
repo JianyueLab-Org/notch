@@ -203,6 +203,36 @@ final class NotchWindowController {
                 self?.reload()
             }
             .store(in: &cancellables)
+
+        NotificationCenter.default
+            .publisher(for: Notification.Name("co.jianyuelab.NotchNotch.expand"))
+            .sink { [weak self] _ in
+                self?.window?.setInteractive(true)
+                self?.stateMachine.expandImmediately()
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default
+            .publisher(for: Notification.Name("co.jianyuelab.NotchNotch.selectTab"))
+            .sink { [weak self] _ in
+                self?.window?.setInteractive(true)
+                self?.stateMachine.expandImmediately()
+            }
+            .store(in: &cancellables)
+
+        DistributedNotificationCenter.default()
+            .addObserver(forName: Notification.Name("co.jianyuelab.NotchNotch.expand"), object: nil, queue: .main) { [weak self] _ in
+                self?.window?.setInteractive(true)
+                self?.stateMachine.expandImmediately()
+            }
+
+        DistributedNotificationCenter.default()
+            .addObserver(forName: Notification.Name("co.jianyuelab.NotchNotch.selectTab"), object: nil, queue: .main) { [weak self] notif in
+                self?.window?.setInteractive(true)
+                self?.stateMachine.expandImmediately()
+                let tab = (notif.object as? String) ?? (notif.userInfo?["tab"] as? String)
+                NotificationCenter.default.post(name: Notification.Name("co.jianyuelab.NotchNotch.selectTab"), object: tab)
+            }
     }
 }
 
