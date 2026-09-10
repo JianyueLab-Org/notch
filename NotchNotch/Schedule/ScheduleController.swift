@@ -17,20 +17,20 @@ struct EventSnapshot: Sendable {
 }
 
 enum ScheduleAlertType: Equatable {
-    case startsSoon(title: String, date: Date)
-    case endsSoon(title: String, date: Date)
+    case startsSoon(title: String, date: Date, minutes: Int = 10)
+    case endsSoon(title: String, date: Date, minutes: Int = 10)
 
     var title: String {
         switch self {
-        case .startsSoon(let title, _): return title
-        case .endsSoon(let title, _): return title
+        case .startsSoon(let title, _, _): return title
+        case .endsSoon(let title, _, _): return title
         }
     }
 
     var badgeText: String {
         switch self {
-        case .startsSoon: return "10 分钟后开始"
-        case .endsSoon: return "还有 10 分钟结束"
+        case .startsSoon(_, _, let minutes): return "\(minutes) 分钟后开始"
+        case .endsSoon(_, _, let minutes): return "还有 \(minutes) 分钟结束"
         }
     }
 
@@ -79,6 +79,13 @@ final class ScheduleController: ObservableObject {
 
     static let shared = ScheduleController()
     static let reminderEnabledKey = "co.jianyuelab.NotchNotch.scheduleReminderEnabled"
+    static let remindBeforeStartKey = "co.jianyuelab.NotchNotch.scheduleRemindBeforeStart"
+    static let startReminderMinutesKey = "co.jianyuelab.NotchNotch.scheduleStartReminderMinutes"
+    static let remindBeforeEndKey = "co.jianyuelab.NotchNotch.scheduleRemindBeforeEnd"
+    static let endReminderMinutesKey = "co.jianyuelab.NotchNotch.scheduleEndReminderMinutes"
+
+    static let startMinutesOptions: [Int] = [5, 10, 15, 30]
+    static let endMinutesOptions: [Int] = [5, 10, 15]
 
     @Published var currentEventTitle: String = "No Scheduled Events"
     @Published var currentEventStatus: String = "Calendar is clear"
@@ -95,10 +102,14 @@ final class ScheduleController: ObservableObject {
     @Published var nextEventStartDate: Date?
     @Published var nextEventEndDate: Date?
 
-    // 10-minute Reminders & Alert banner:
+    // Schedule Reminders & Alert banner:
     @Published var activeAlert: ScheduleAlertType? = nil
     @Published var isShowingAlert: Bool = false
     @Published var isReminderEnabled: Bool = true
+    @Published var remindBeforeStart: Bool = true
+    @Published var startReminderMinutes: Int = 10
+    @Published var remindBeforeEnd: Bool = true
+    @Published var endReminderMinutes: Int = 10
 
     private var sentReminderKeys: Set<String> = []
     private var alertDismissTimer: Timer?
@@ -112,6 +123,25 @@ final class ScheduleController: ObservableObject {
         } else {
             self.isReminderEnabled = true
         }
+
+        if UserDefaults.standard.object(forKey: Self.remindBeforeStartKey) != nil {
+            self.remindBeforeStart = UserDefaults.standard.bool(forKey: Self.remindBeforeStartKey)
+        } else {
+            self.remindBeforeStart = true
+        }
+
+        let savedStartMinutes = UserDefaults.standard.integer(forKey: Self.startReminderMinutesKey)
+        self.startReminderMinutes = savedStartMinutes > 0 ? savedStartMinutes : 10
+
+        if UserDefaults.standard.object(forKey: Self.remindBeforeEndKey) != nil {
+            self.remindBeforeEnd = UserDefaults.standard.bool(forKey: Self.remindBeforeEndKey)
+        } else {
+            self.remindBeforeEnd = true
+        }
+
+        let savedEndMinutes = UserDefaults.standard.integer(forKey: Self.endReminderMinutesKey)
+        self.endReminderMinutes = savedEndMinutes > 0 ? savedEndMinutes : 10
+
         start()
     }
 
@@ -326,6 +356,26 @@ final class ScheduleController: ObservableObject {
         }
     }
 
+    func setRemindBeforeStart(_ enabled: Bool) {
+        remindBeforeStart = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.remindBeforeStartKey)
+    }
+
+    func setStartReminderMinutes(_ minutes: Int) {
+        startReminderMinutes = minutes
+        UserDefaults.standard.set(minutes, forKey: Self.startReminderMinutesKey)
+    }
+
+    func setRemindBeforeEnd(_ enabled: Bool) {
+        remindBeforeEnd = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.remindBeforeEndKey)
+    }
+
+    func setEndReminderMinutes(_ minutes: Int) {
+        endReminderMinutes = minutes
+        UserDefaults.standard.set(minutes, forKey: Self.endReminderMinutesKey)
+    }
+
     func triggerAlert(_ alert: ScheduleAlertType) {
         activeAlert = alert
         isShowingAlert = true
@@ -346,6 +396,8 @@ final class ScheduleController: ObservableObject {
     }
 
     private func checkReminders(events: [EventSnapshot], now: Date) {
+        guard isReminderEnabled else { return }
+
         if sentReminderKeys.count > 100 {
             sentReminderKeys.removeAll()
         }
@@ -353,25 +405,31 @@ final class ScheduleController: ObservableObject {
         for event in events {
             guard let title = event.title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
 
-            // 1. Starts soon: 10 minutes before start (within 540s ~ 660s)
-            let startDiff = event.startDate.timeIntervalSince(now)
-            if startDiff >= 540 && startDiff <= 660 {
-                let key = "\(title)_\(Int(event.startDate.timeIntervalSince1970))_start10"
-                if !sentReminderKeys.contains(key) {
-                    sentReminderKeys.insert(key)
-                    triggerAlert(.startsSoon(title: title, date: event.startDate))
-                    break
+            // 1. Starts soon: within [targetSec - 60, targetSec + 60]
+            if remindBeforeStart {
+                let targetSec = Double(startReminderMinutes * 60)
+                let startDiff = event.startDate.timeIntervalSince(now)
+                if startDiff >= (targetSec - 60) && startDiff <= (targetSec + 60) {
+                    let key = "\(title)_\(Int(event.startDate.timeIntervalSince1970))_start_\(startReminderMinutes)"
+                    if !sentReminderKeys.contains(key) {
+                        sentReminderKeys.insert(key)
+                        triggerAlert(.startsSoon(title: title, date: event.startDate, minutes: startReminderMinutes))
+                        break
+                    }
                 }
             }
 
-            // 2. Ends soon: 10 minutes before end (within 540s ~ 660s) for active event
-            let endDiff = event.endDate.timeIntervalSince(now)
-            if event.startDate <= now && endDiff >= 540 && endDiff <= 660 {
-                let key = "\(title)_\(Int(event.startDate.timeIntervalSince1970))_end10"
-                if !sentReminderKeys.contains(key) {
-                    sentReminderKeys.insert(key)
-                    triggerAlert(.endsSoon(title: title, date: event.endDate))
-                    break
+            // 2. Ends soon: within [targetSec - 60, targetSec + 60] for active event
+            if remindBeforeEnd {
+                let targetSec = Double(endReminderMinutes * 60)
+                let endDiff = event.endDate.timeIntervalSince(now)
+                if event.startDate <= now && endDiff >= (targetSec - 60) && endDiff <= (targetSec + 60) {
+                    let key = "\(title)_\(Int(event.startDate.timeIntervalSince1970))_end_\(endReminderMinutes)"
+                    if !sentReminderKeys.contains(key) {
+                        sentReminderKeys.insert(key)
+                        triggerAlert(.endsSoon(title: title, date: event.endDate, minutes: endReminderMinutes))
+                        break
+                    }
                 }
             }
         }

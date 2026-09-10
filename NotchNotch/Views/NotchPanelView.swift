@@ -608,7 +608,7 @@ struct NotchPanelView: View {
             HStack(spacing: 6) {
                 Spacer(minLength: 0)
 
-                if let agent = agentController.activeSession, agent.state != .idle {
+                if agentController.isMonitoringEnabled, let agent = agentController.activeSession, agent.state != .idle {
                     agentTopBarBadge(agent)
                 }
 

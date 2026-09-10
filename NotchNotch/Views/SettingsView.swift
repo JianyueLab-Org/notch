@@ -233,7 +233,7 @@ struct SettingsView: View {
                     )
             )
 
-            // Card 2: Schedule 10-minute reminders
+            // Card 2: Schedule Reminders
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top) {
                     ZStack {
@@ -261,7 +261,7 @@ struct SettingsView: View {
                                 .background(Capsule().fill(schedule.isReminderEnabled ? JYLTheme.primary.opacity(0.15) : JYLTheme.neutral800))
                         }
 
-                        Text("在系统日历日程开始前 10 分钟及结束前 10 分钟，于刘海 Dynamic HUD 弹出轻量提醒横幅")
+                        Text("在系统日历日程开始前及结束前，于刘海 Dynamic HUD 弹出轻量提醒横幅")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }
@@ -309,6 +309,122 @@ struct SettingsView: View {
                             )
                     }
                     .buttonStyle(.plain)
+                }
+
+                if schedule.isReminderEnabled {
+                    Divider()
+                        .background(JYLTheme.border.opacity(0.4))
+                        .padding(.vertical, 2)
+
+                    // Sub-card 1: 开始前提醒
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("日程开始前提醒")
+                                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                                .foregroundStyle(JYLTheme.textPrimary)
+
+                            Spacer()
+
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.12)) {
+                                    schedule.setRemindBeforeStart(!schedule.remindBeforeStart)
+                                }
+                            } label: {
+                                Text(schedule.remindBeforeStart ? "已开启" : "已关闭")
+                                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(schedule.remindBeforeStart ? JYLTheme.primary : JYLTheme.textMuted)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(schedule.remindBeforeStart ? JYLTheme.primary.opacity(0.15) : JYLTheme.neutral800))
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        if schedule.remindBeforeStart {
+                            HStack(spacing: 6) {
+                                ForEach(ScheduleController.startMinutesOptions, id: \.self) { min in
+                                    let isSelected = schedule.startReminderMinutes == min
+                                    Button {
+                                        withAnimation(.easeInOut(duration: 0.12)) {
+                                            schedule.setStartReminderMinutes(min)
+                                        }
+                                    } label: {
+                                        Text("提前 \(min) 分钟")
+                                            .font(.system(size: 10, weight: isSelected ? .bold : .medium, design: .rounded))
+                                            .foregroundStyle(isSelected ? JYLTheme.textPrimary : JYLTheme.textSecondary)
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 24)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                                    .fill(isSelected ? JYLTheme.neutral700 : JYLTheme.neutral800)
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                                            .strokeBorder(isSelected ? Color.white.opacity(0.15) : Color.clear, lineWidth: 0.5)
+                                                    )
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+
+                    Divider()
+                        .background(JYLTheme.border.opacity(0.4))
+                        .padding(.vertical, 2)
+
+                    // Sub-card 2: 结束前提醒
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("日程结束前提醒")
+                                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                                .foregroundStyle(JYLTheme.textPrimary)
+
+                            Spacer()
+
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.12)) {
+                                    schedule.setRemindBeforeEnd(!schedule.remindBeforeEnd)
+                                }
+                            } label: {
+                                Text(schedule.remindBeforeEnd ? "已开启" : "已关闭")
+                                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(schedule.remindBeforeEnd ? JYLTheme.primary : JYLTheme.textMuted)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(schedule.remindBeforeEnd ? JYLTheme.primary.opacity(0.15) : JYLTheme.neutral800))
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        if schedule.remindBeforeEnd {
+                            HStack(spacing: 6) {
+                                ForEach(ScheduleController.endMinutesOptions, id: \.self) { min in
+                                    let isSelected = schedule.endReminderMinutes == min
+                                    Button {
+                                        withAnimation(.easeInOut(duration: 0.12)) {
+                                            schedule.setEndReminderMinutes(min)
+                                        }
+                                    } label: {
+                                        Text("结束前 \(min) 分钟")
+                                            .font(.system(size: 10, weight: isSelected ? .bold : .medium, design: .rounded))
+                                            .foregroundStyle(isSelected ? JYLTheme.textPrimary : JYLTheme.textSecondary)
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 24)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                                    .fill(isSelected ? JYLTheme.neutral700 : JYLTheme.neutral800)
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                                            .strokeBorder(isSelected ? Color.white.opacity(0.15) : Color.clear, lineWidth: 0.5)
+                                                    )
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
                 }
             }
             .padding(14)
@@ -385,7 +501,203 @@ struct SettingsView: View {
 
     private var agentSection: some View {
         VStack(spacing: 14) {
-            // Card 1: HTTP Hook Listener Status
+            // Card 1: Master Switch for AI Agent Monitoring
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(JYLTheme.neutral800)
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(agentController.isMonitoringEnabled ? JYLTheme.primary : JYLTheme.textSecondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text("AI Agent 监控与联动")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(JYLTheme.textPrimary)
+
+                            Spacer()
+
+                            Text(agentController.isMonitoringEnabled ? "已启用" : "已停用")
+                                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                .foregroundStyle(agentController.isMonitoringEnabled ? JYLTheme.primary : JYLTheme.textMuted)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(agentController.isMonitoringEnabled ? JYLTheme.primary.opacity(0.15) : JYLTheme.neutral800))
+                        }
+
+                        Text("实时感知本地终端 AI Agent（Claude Code、Antigravity、Codex 等）生命周期，并在刘海灵动岛提供交互提醒")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(JYLTheme.textSecondary)
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.12)) {
+                            agentController.setMonitoringEnabled(false)
+                        }
+                    } label: {
+                        Text("关闭")
+                            .font(.system(size: 11, weight: !agentController.isMonitoringEnabled ? .bold : .medium, design: .rounded))
+                            .foregroundStyle(!agentController.isMonitoringEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 26)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(!agentController.isMonitoringEnabled ? JYLTheme.neutral700 : JYLTheme.neutral800)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .strokeBorder(!agentController.isMonitoringEnabled ? Color.white.opacity(0.15) : Color.clear, lineWidth: 0.5)
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.12)) {
+                            agentController.setMonitoringEnabled(true)
+                        }
+                    } label: {
+                        Text("开启")
+                            .font(.system(size: 11, weight: agentController.isMonitoringEnabled ? .bold : .medium, design: .rounded))
+                            .foregroundStyle(agentController.isMonitoringEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 26)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(agentController.isMonitoringEnabled ? JYLTheme.neutral700 : JYLTheme.neutral800)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .strokeBorder(agentController.isMonitoringEnabled ? Color.white.opacity(0.15) : Color.clear, lineWidth: 0.5)
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(JYLTheme.neutral900.opacity(0.7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(JYLTheme.border.opacity(0.6), lineWidth: 0.8)
+                    )
+            )
+
+            if !agentController.isMonitoringEnabled {
+                HStack(spacing: 8) {
+                    Image(systemName: "pause.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(JYLTheme.textMuted)
+                    Text("AI Agent 功能已完全关闭。后台进程扫描已停止，HTTP 监听服务（7823 端口）已释放，不占用任何系统资源。")
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(JYLTheme.textSecondary)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(JYLTheme.neutral900.opacity(0.4))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(JYLTheme.border.opacity(0.3), lineWidth: 0.5)
+                        )
+                )
+            } else {
+                // Card 2: Process Auto-Detection Toggle
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .top) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(JYLTheme.neutral800)
+                                .frame(width: 32, height: 32)
+                            Image(systemName: "cpu.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(agentController.isProcessScanningEnabled ? JYLTheme.info : JYLTheme.textSecondary)
+                        }
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Text("后台进程自动扫描")
+                                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                                    .foregroundStyle(JYLTheme.textPrimary)
+
+                                Spacer()
+
+                                Text(agentController.isProcessScanningEnabled ? "已开启" : "已关闭")
+                                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(agentController.isProcessScanningEnabled ? JYLTheme.info : JYLTheme.textMuted)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(agentController.isProcessScanningEnabled ? JYLTheme.info.opacity(0.15) : JYLTheme.neutral800))
+                            }
+
+                            Text("每 4 秒在后台异步检测正在运行的 CLI Agent 进程与终端窗口状态")
+                                .font(.system(size: 11, weight: .regular))
+                                .foregroundStyle(JYLTheme.textSecondary)
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                agentController.setProcessScanningEnabled(false)
+                            }
+                        } label: {
+                            Text("关闭")
+                                .font(.system(size: 11, weight: !agentController.isProcessScanningEnabled ? .bold : .medium, design: .rounded))
+                                .foregroundStyle(!agentController.isProcessScanningEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 26)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(!agentController.isProcessScanningEnabled ? JYLTheme.neutral700 : JYLTheme.neutral800)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .strokeBorder(!agentController.isProcessScanningEnabled ? Color.white.opacity(0.15) : Color.clear, lineWidth: 0.5)
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                agentController.setProcessScanningEnabled(true)
+                            }
+                        } label: {
+                            Text("开启")
+                                .font(.system(size: 11, weight: agentController.isProcessScanningEnabled ? .bold : .medium, design: .rounded))
+                                .foregroundStyle(agentController.isProcessScanningEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 26)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(agentController.isProcessScanningEnabled ? JYLTheme.neutral700 : JYLTheme.neutral800)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .strokeBorder(agentController.isProcessScanningEnabled ? Color.white.opacity(0.15) : Color.clear, lineWidth: 0.5)
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(14)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(JYLTheme.neutral900.opacity(0.7))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(JYLTheme.border.opacity(0.6), lineWidth: 0.8)
+                        )
+                )
+
+                // Card 3: HTTP Hook Listener Status
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top) {
                     ZStack {
@@ -642,6 +954,7 @@ struct SettingsView: View {
                             .strokeBorder(JYLTheme.border.opacity(0.6), lineWidth: 0.8)
                     )
             )
+            }
         }
     }
 

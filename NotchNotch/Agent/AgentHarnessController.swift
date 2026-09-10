@@ -172,7 +172,11 @@ struct DiscoveredAgentData: Sendable {
 final class AgentHarnessController: ObservableObject {
 
     static let shared = AgentHarnessController()
+    static let monitoringEnabledKey = "co.jianyuelab.NotchNotch.agentMonitoringEnabled"
+    static let processScanningEnabledKey = "co.jianyuelab.NotchNotch.agentProcessScanningEnabled"
 
+    @Published var isMonitoringEnabled: Bool = true
+    @Published var isProcessScanningEnabled: Bool = true
     @Published var sessions: [String: AgentSession] = [:]
     @Published var activeSession: AgentSession?
     @Published var currentAlert: AgentAlert?
@@ -184,28 +188,44 @@ final class AgentHarnessController: ObservableObject {
     private var isScanning: Bool = false
 
     var hasActiveAlert: Bool {
-        isShowingAlert && currentAlert != nil
+        isMonitoringEnabled && isShowingAlert && currentAlert != nil
     }
 
     var isWorking: Bool {
-        activeSession?.state == .working
+        isMonitoringEnabled && activeSession?.state == .working
     }
 
     var isWaiting: Bool {
-        activeSession?.state.isWaiting == true
+        isMonitoringEnabled && activeSession?.state.isWaiting == true
     }
 
     var isWaitingUser: Bool {
-        activeSession?.state == .waitingUser
+        isMonitoringEnabled && activeSession?.state == .waitingUser
     }
 
     var isWaitingSubagent: Bool {
-        activeSession?.state == .waitingSubagent
+        isMonitoringEnabled && activeSession?.state == .waitingSubagent
     }
 
     private init() {
-        setupHTTPServer()
-        startProcessPolling()
+        if UserDefaults.standard.object(forKey: Self.monitoringEnabledKey) != nil {
+            self.isMonitoringEnabled = UserDefaults.standard.bool(forKey: Self.monitoringEnabledKey)
+        } else {
+            self.isMonitoringEnabled = true
+        }
+
+        if UserDefaults.standard.object(forKey: Self.processScanningEnabledKey) != nil {
+            self.isProcessScanningEnabled = UserDefaults.standard.bool(forKey: Self.processScanningEnabledKey)
+        } else {
+            self.isProcessScanningEnabled = true
+        }
+
+        if isMonitoringEnabled {
+            setupHTTPServer()
+            if isProcessScanningEnabled {
+                startProcessPolling()
+            }
+        }
     }
 
     // MARK: - HTTP Ingestion
@@ -220,6 +240,7 @@ final class AgentHarnessController: ObservableObject {
     }
 
     func handleIncomingData(_ data: Data) {
+        guard isMonitoringEnabled else { return }
         guard let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             return
         }
@@ -359,9 +380,55 @@ final class AgentHarnessController: ObservableObject {
         }
     }
 
+    // MARK: - Lifecycle & Monitoring Controls
+
+    func setMonitoringEnabled(_ enabled: Bool) {
+        isMonitoringEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.monitoringEnabledKey)
+
+        if enabled {
+            setupHTTPServer()
+            if isProcessScanningEnabled {
+                startProcessPolling()
+            }
+        } else {
+            stopAll()
+        }
+    }
+
+    func setProcessScanningEnabled(_ enabled: Bool) {
+        isProcessScanningEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.processScanningEnabledKey)
+
+        if isMonitoringEnabled && enabled {
+            startProcessPolling()
+        } else {
+            stopProcessPolling()
+        }
+    }
+
+    private func stopAll() {
+        stopProcessPolling()
+        httpServer.stop()
+        dismissAlert()
+        sessions.removeAll()
+        activeSession = nil
+    }
+
+    private func stopProcessPolling() {
+        processPollTimer?.invalidate()
+        processPollTimer = nil
+        isScanning = false
+        for key in sessions.keys where key.hasPrefix("proc-") {
+            sessions.removeValue(forKey: key)
+        }
+        updateActiveSession()
+    }
+
     // MARK: - Alert HUD Presentation
 
     func triggerAlert(_ alert: AgentAlert, autoDismissAfter seconds: TimeInterval? = nil) {
+        guard isMonitoringEnabled else { return }
         currentAlert = alert
         withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
             isShowingAlert = true
@@ -412,9 +479,11 @@ final class AgentHarnessController: ObservableObject {
     // MARK: - Process Auto-Detection
 
     private func startProcessPolling() {
+        guard isMonitoringEnabled && isProcessScanningEnabled else { return }
+        processPollTimer?.invalidate()
         processPollTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self, !self.isScanning else { return }
+                guard let self, self.isMonitoringEnabled, self.isProcessScanningEnabled, !self.isScanning else { return }
                 self.isScanning = true
                 Task.detached(priority: .utility) { [weak self] in
                     defer {
@@ -587,6 +656,7 @@ final class AgentHarnessController: ObservableObject {
     }
 
     private func applySnapshotResult(discovered: [DiscoveredAgentData], activeKeys: Set<String>) {
+        guard isMonitoringEnabled && isProcessScanningEnabled else { return }
         for item in discovered {
             let hasFreshHttpHook = sessions.values.contains(where: {
                 $0.source == .httpHook &&
