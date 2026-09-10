@@ -503,7 +503,7 @@ struct NotchPanelView: View {
 
     private var topBar: some View {
         HStack(alignment: .center) {
-            // Left circular icon buttons
+            // Left circular icon buttons (Left ear)
             HStack(spacing: 7) {
                 circleIconButton(
                     tab: .overview,
@@ -520,62 +520,68 @@ struct NotchPanelView: View {
                 )
             }
 
+            // Center: Physical notch cutout exclusion zone
+            // MUST stay empty so the MacBook hardware notch never obstructs any UI!
             Spacer()
 
-            // Center: Live AI Agent harness indicator
-            if let agent = agentController.activeSession, agent.state != .idle {
+            // Right ear: Live AI Agent badge (if active) + Settings gear button
+            HStack(spacing: 7) {
+                if let agent = agentController.activeSession, agent.state != .idle {
+                    agentTopBarBadge(agent)
+                }
+
                 Button {
-                    agentController.focusSession(agent)
-                } label: {
-                    HStack(spacing: 5) {
-                        Circle()
-                            .fill(agent.state.color)
-                            .frame(width: 6, height: 6)
-
-                        Image(systemName: agent.state.iconName)
-                            .font(.system(size: 9.5, weight: .bold))
-                            .foregroundStyle(agent.state.color)
-
-                        Text(agent.agent)
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
-                            .foregroundStyle(JYLTheme.textPrimary)
-
-                        Text(agent.state.displayName)
-                            .font(.system(size: 9, weight: .medium, design: .rounded))
-                            .foregroundStyle(agent.state.color)
+                    withAnimation(.easeInOut(duration: 0.12)) {
+                        showSettings.toggle()
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(agent.state.color.opacity(0.14))
-                            .overlay(Capsule().stroke(agent.state.color.opacity(0.35), lineWidth: 0.8))
-                    )
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(showSettings ? JYLTheme.neutral700 : JYLTheme.neutral800)
+                            .frame(width: 28, height: 28)
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(showSettings ? JYLTheme.textPrimary : JYLTheme.textSecondary)
+                    }
                 }
                 .buttonStyle(TabButtonStyle())
-                .transition(.opacity)
-
-                Spacer()
             }
-
-            // Right settings gear button
-            Button {
-                withAnimation(.easeInOut(duration: 0.12)) {
-                    showSettings.toggle()
-                }
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(showSettings ? JYLTheme.neutral700 : JYLTheme.neutral800)
-                        .frame(width: 28, height: 28)
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(showSettings ? JYLTheme.textPrimary : JYLTheme.textSecondary)
-                }
-            }
-            .buttonStyle(TabButtonStyle())
         }
         .frame(height: 28)
+    }
+
+    private func agentTopBarBadge(_ agent: AgentSession) -> some View {
+        Button {
+            agentController.focusSession(agent)
+        } label: {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(agent.state.color)
+                    .frame(width: 5, height: 5)
+
+                Image(systemName: agent.state.iconName)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(agent.state.color)
+
+                Text(agent.agent)
+                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                    .foregroundStyle(JYLTheme.textPrimary)
+                    .lineLimit(1)
+
+                Image(systemName: "arrow.up.forward")
+                    .font(.system(size: 7.5, weight: .bold))
+                    .foregroundStyle(JYLTheme.textMuted)
+            }
+            .padding(.horizontal, 6.5)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(agent.state.color.opacity(0.14))
+                    .overlay(Capsule().stroke(agent.state.color.opacity(0.35), lineWidth: 0.8))
+            )
+        }
+        .buttonStyle(TabButtonStyle())
+        .help("Jump to \(agent.agent) Terminal")
     }
 
     private func circleIconButton(

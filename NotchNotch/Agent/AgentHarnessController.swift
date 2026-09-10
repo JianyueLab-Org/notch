@@ -71,12 +71,13 @@ final class AgentHarnessController: ObservableObject {
         let terminal = dict["terminal"] as? String ?? ""
         let pid = dict["pid"] as? Int
 
+        let lowerState = rawState.lowercased()
         let resolvedState: AgentState
-        if rawState == "Waiting" || event == "Notification" {
+        if lowerState == "waiting" || event == "Notification" {
             resolvedState = .waiting
-        } else if rawState == "Ended" || rawState == "Completed" || event == "Stop" || event == "SessionEnd" {
+        } else if lowerState == "ended" || lowerState == "completed" || event == "Stop" || event == "SessionEnd" {
             resolvedState = .completed
-        } else if rawState == "Working" || rawState == "Auto" || event == "PreToolUse" || event == "UserPromptSubmit" {
+        } else if lowerState == "working" || lowerState == "auto" || event == "PreToolUse" || event == "UserPromptSubmit" {
             resolvedState = .working
         } else {
             resolvedState = .idle
