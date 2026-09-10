@@ -8,9 +8,155 @@
 
 import AppKit
 import Combine
+import Darwin.libproc
 import Foundation
 import OSLog
 import SwiftUI
+
+// MARK: - Darwin Process & Window Focusing Helpers
+
+enum DarwinProcessHelper {
+
+    /// Retrieves current working directory (CWD) of any process directly via kernel proc_pidinfo.
+    static func getProcessCWD(pid: pid_t) -> String? {
+        var vpi = proc_vnodepathinfo()
+        let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
+        let ret = proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &vpi, size)
+        guard ret > 0 else { return nil }
+        return withUnsafePointer(to: &vpi.pvi_cdir.vip_path) { ptr in
+            ptr.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { cStr in
+                let path = String(cString: cStr).trimmingCharacters(in: .whitespacesAndNewlines)
+                return path.isEmpty ? nil : path
+            }
+        }
+    }
+
+    /// Gets parent PID and command name of any process via proc_bsdinfo.
+    static func getParentPID(of pid: pid_t) -> (ppid: pid_t, comm: String)? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        let ret = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size)
+        guard ret > 0 else { return nil }
+        let comm = withUnsafePointer(to: &info.pbi_comm) { ptr in
+            ptr.withMemoryRebound(to: CChar.self, capacity: 16) { cStr in
+                String(cString: cStr)
+            }
+        }
+        return (pid_t(info.pbi_ppid), comm)
+    }
+
+    /// Recursively climbs up the PPID hierarchy to discover the hosting GUI application
+    /// (e.g. Ghostty, Zed, Terminal, iTerm2, VS Code, Cursor, Warp).
+    static func findGUIApp(for pid: pid_t) -> NSRunningApplication? {
+        var cur = pid
+        var hitTmux = false
+        var visited = Set<pid_t>()
+
+        for _ in 0..<12 {
+            if visited.contains(cur) || cur <= 1 { break }
+            visited.insert(cur)
+
+            if let app = NSRunningApplication(processIdentifier: cur), app.activationPolicy == .regular {
+                return app
+            }
+
+            guard let parent = getParentPID(of: cur) else { break }
+            if parent.comm.contains("tmux") {
+                hitTmux = true
+            }
+            cur = parent.ppid
+        }
+
+        if hitTmux {
+            if let tmuxApp = resolveTmuxClientGUIApp(for: pid) {
+                return tmuxApp
+            }
+        }
+
+        return nil
+    }
+
+    /// If agent is running inside a tmux session, finds the tmux client terminal's GUI application.
+    static func resolveTmuxClientGUIApp(for agentPid: pid_t) -> NSRunningApplication? {
+        let tmuxPaths = ["/opt/homebrew/bin/tmux", "/run/current-system/sw/bin/tmux", "/usr/local/bin/tmux", "/usr/bin/tmux"]
+        guard let tmuxPath = tmuxPaths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+            return nil
+        }
+
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: tmuxPath)
+        task.arguments = ["list-clients", "-F", "#{client_pid}"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        do {
+            try task.run()
+            task.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let str = String(data: data, encoding: .utf8) {
+                for line in str.components(separatedBy: .newlines) {
+                    if let clientPid = Int(line.trimmingCharacters(in: .whitespaces)), clientPid > 1 {
+                        if let app = findGUIAppDirect(for: pid_t(clientPid)) {
+                            return app
+                        }
+                    }
+                }
+            }
+        } catch {}
+
+        return nil
+    }
+
+    private static func findGUIAppDirect(for pid: pid_t) -> NSRunningApplication? {
+        var cur = pid
+        var visited = Set<pid_t>()
+        for _ in 0..<10 {
+            if visited.contains(cur) || cur <= 1 { break }
+            visited.insert(cur)
+            if let app = NSRunningApplication(processIdentifier: cur), app.activationPolicy == .regular {
+                return app
+            }
+            guard let parent = getParentPID(of: cur) else { break }
+            cur = parent.ppid
+        }
+        return nil
+    }
+
+    /// Fallback search among running GUI applications for common terminal or editor emulators.
+    static func fallbackTerminalApp(hint: String = "") -> NSRunningApplication? {
+        let running = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }
+        if !hint.isEmpty {
+            if let app = running.first(where: {
+                $0.localizedName?.localizedCaseInsensitiveContains(hint) == true ||
+                $0.bundleIdentifier?.localizedCaseInsensitiveContains(hint) == true
+            }) {
+                return app
+            }
+        }
+
+        let candidates = ["ghostty", "zed", "iterm", "terminal", "warp", "cursor", "visual studio code"]
+        for c in candidates {
+            if let app = running.first(where: {
+                $0.localizedName?.localizedCaseInsensitiveContains(c) == true ||
+                $0.bundleIdentifier?.localizedCaseInsensitiveContains(c) == true
+            }) {
+                return app
+            }
+        }
+        return nil
+    }
+}
+
+// MARK: - Process Snapshot Parser
+
+struct ProcessRawEntry {
+    let pid: Int
+    let ppid: Int
+    let cpu: Double
+    let state: String
+    let tty: String
+    let comm: String
+    let args: String
+}
 
 @MainActor
 final class AgentHarnessController: ObservableObject {
@@ -122,17 +268,24 @@ final class AgentHarnessController: ObservableObject {
             cwd: cwd,
             terminal: terminal,
             pid: pid,
+            cpuPercent: nil,
+            source: .httpHook,
             lastUpdated: Date()
         )
 
         let previousState = session.state
         session.state = resolvedState
         session.event = event
+        session.source = .httpHook
         if !title.isEmpty { session.title = title }
         if !cwd.isEmpty { session.cwd = cwd }
         if !terminal.isEmpty { session.terminal = terminal }
         if let pid { session.pid = pid }
         session.lastUpdated = Date()
+
+        if session.terminal.isEmpty, let pid = session.pid, let app = DarwinProcessHelper.findGUIApp(for: pid_t(pid)) {
+            session.terminal = app.localizedName ?? ""
+        }
 
         sessions[sessionId] = session
         updateActiveSession()
@@ -231,32 +384,17 @@ final class AgentHarnessController: ObservableObject {
     func focusSession(_ session: AgentSession) {
         dismissAlert()
 
-        // 1. Try PID direct activation
-        if let pid = session.pid, let app = NSRunningApplication(processIdentifier: pid_t(pid)) {
-            app.activate(options: [.activateIgnoringOtherApps])
-            return
-        }
-
-        // 2. Try terminal name lookup
-        if !session.terminal.isEmpty {
-            let apps = NSWorkspace.shared.runningApplications
-            if let termApp = apps.first(where: {
-                $0.localizedName?.localizedCaseInsensitiveContains(session.terminal) == true ||
-                $0.bundleIdentifier?.localizedCaseInsensitiveContains(session.terminal) == true
-            }) {
-                termApp.activate(options: [.activateIgnoringOtherApps])
-                return
-            }
-        }
-
-        // 3. Fallback: Check common terminal / IDE apps
-        let candidates = ["ghostty", "iterm", "terminal", "warp", "cursor", "visual studio code"]
-        let running = NSWorkspace.shared.runningApplications
-        for c in candidates {
-            if let app = running.first(where: { $0.localizedName?.localizedCaseInsensitiveContains(c) == true }) {
+        // 1. First attempt: climb kernel PPID tree to find hosting regular GUI app (Ghostty, Zed, Terminal, etc.)
+        if let pid = session.pid {
+            if let app = DarwinProcessHelper.findGUIApp(for: pid_t(pid)) {
                 app.activate(options: [.activateIgnoringOtherApps])
                 return
             }
+        }
+
+        // 2. Fallback: activate by terminal name hint or frontmost terminal application
+        if let app = DarwinProcessHelper.fallbackTerminalApp(hint: session.terminal) {
+            app.activate(options: [.activateIgnoringOtherApps])
         }
     }
 
@@ -285,60 +423,215 @@ final class AgentHarnessController: ObservableObject {
     }
 
     private func pollAgentProcesses() {
-        // Automatically check if known agent CLI tools are running
-        let agentNames = ["claude", "agy", "opencode", "codex"]
-        var currentPids: [String: Int] = [:]
+        let ps = Process()
+        ps.executableURL = URL(fileURLWithPath: "/bin/ps")
+        ps.arguments = ["-eo", "pid,ppid,%cpu,state,tty,comm,args"]
+        let pipe = Pipe()
+        ps.standardOutput = pipe
 
-        for name in agentNames {
-            let pgrep = Process()
-            pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-            pgrep.arguments = ["-x", name]
-            let pipe = Pipe()
-            pgrep.standardOutput = pipe
-            do {
-                try pgrep.run()
-                pgrep.waitUntilExit()
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if let str = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !str.isEmpty {
-                    for line in str.components(separatedBy: .newlines) {
-                        if let pid = Int(line.trimmingCharacters(in: .whitespaces)) {
-                            currentPids["process-\(name)-\(pid)"] = pid
-                        }
+        do {
+            try ps.run()
+            ps.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8) else { return }
+            processSnapshot(output: output)
+        } catch {
+            Log.lifecycle.error("Failed to run ps for agent detection: \(error.localizedDescription)")
+        }
+    }
+
+    private func processSnapshot(output: String) {
+        var rawEntries: [ProcessRawEntry] = []
+        let lines = output.components(separatedBy: .newlines)
+
+        for line in lines.dropFirst() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty { continue }
+
+            // Parse columns: pid ppid %cpu state tty comm args...
+            var parts: [String] = []
+            var currentToken = ""
+            var charIndex = trimmed.startIndex
+
+            while charIndex < trimmed.endIndex && parts.count < 6 {
+                let char = trimmed[charIndex]
+                if char.isWhitespace {
+                    if !currentToken.isEmpty {
+                        parts.append(currentToken)
+                        currentToken = ""
                     }
+                } else {
+                    currentToken.append(char)
                 }
-            } catch {
-                // Ignore process check error
+                charIndex = trimmed.index(after: charIndex)
+            }
+
+            guard parts.count >= 6 else { continue }
+            let args = String(trimmed[charIndex...]).trimmingCharacters(in: .whitespaces)
+
+            guard let pid = Int(parts[0]),
+                  let ppid = Int(parts[1]),
+                  let cpu = Double(parts[2]) else { continue }
+
+            rawEntries.append(ProcessRawEntry(
+                pid: pid,
+                ppid: ppid,
+                cpu: cpu,
+                state: parts[3],
+                tty: parts[4],
+                comm: parts[5],
+                args: args.isEmpty ? parts[5] : args
+            ))
+        }
+
+        // Match known AI agents
+        var discoveredAgents: [(name: String, pid: Int, ppid: Int, cpu: Double, tty: String, args: String)] = []
+
+        for entry in rawEntries {
+            let lowerComm = entry.comm.lowercased()
+            let lowerArgs = entry.args.lowercased()
+
+            // Filter out system tools and self
+            if lowerArgs.contains("grep") || lowerArgs.contains("notchnotch") {
+                continue
+            }
+
+            // 1. Claude Code / Claude CLI
+            if lowerComm.contains("claude") || lowerArgs.contains("claude") {
+                if !lowerArgs.contains("--chrome-native-host") {
+                    let name = (lowerArgs.contains("claude-agent-sdk") || lowerArgs.contains("claude-acp"))
+                        ? "Claude (Zed ACP)"
+                        : "Claude Code"
+                    discoveredAgents.append((name, entry.pid, entry.ppid, entry.cpu, entry.tty, entry.args))
+                    continue
+                }
+            }
+
+            // 2. Antigravity CLI
+            if lowerComm == "agy" || lowerArgs.contains("agy ") || lowerArgs.hasPrefix("agy") || lowerArgs.contains("/agy ") || lowerArgs.contains("antigravity") {
+                discoveredAgents.append(("Antigravity", entry.pid, entry.ppid, entry.cpu, entry.tty, entry.args))
+                continue
+            }
+
+            // 3. Codex CLI
+            if lowerComm == "codex" || lowerArgs.contains("codex ") || lowerArgs.hasPrefix("codex") {
+                discoveredAgents.append(("Codex", entry.pid, entry.ppid, entry.cpu, entry.tty, entry.args))
+                continue
+            }
+
+            // 4. OpenCode CLI
+            if lowerComm == "opencode" || lowerArgs.contains("opencode") || lowerArgs.contains("open-code") {
+                discoveredAgents.append(("OpenCode", entry.pid, entry.ppid, entry.cpu, entry.tty, entry.args))
+                continue
+            }
+
+            // 5. Aider CLI
+            if lowerComm == "aider" || lowerArgs.contains("aider ") || lowerArgs.hasPrefix("aider") {
+                discoveredAgents.append(("Aider", entry.pid, entry.ppid, entry.cpu, entry.tty, entry.args))
+                continue
             }
         }
 
-        // Clean up dead process sessions
-        for (key, _) in sessions where key.hasPrefix("process-") {
-            if currentPids[key] == nil {
+        var activeProcessKeys: Set<String> = []
+
+        for agent in discoveredAgents {
+            let key = "proc-\(agent.name.lowercased().replacingOccurrences(of: " ", with: "-"))-\(agent.pid)"
+            activeProcessKeys.insert(key)
+
+            // If an active HTTP hook session already covers this agent, skip creating a duplicate process session
+            let hasFreshHttpHook = sessions.values.contains(where: {
+                $0.source == .httpHook &&
+                $0.agent.caseInsensitiveCompare(agent.name) == .orderedSame &&
+                Date().timeIntervalSince($0.lastUpdated) < 180
+            })
+            if hasFreshHttpHook {
+                continue
+            }
+
+            // Check if agent process has child processes actively working (e.g. running bash, git, tools)
+            let activeChildren = rawEntries.filter { $0.ppid == agent.pid }
+            let totalCpu = agent.cpu + activeChildren.reduce(0.0) { $0 + $1.cpu }
+            let hasActiveTool = activeChildren.contains(where: { $0.cpu > 0.1 })
+
+            let inferredState: AgentState
+            if hasActiveTool || totalCpu > 1.5 {
+                inferredState = .working
+            } else {
+                inferredState = .waitingUser
+            }
+
+            if var existing = sessions[key] {
+                let previousState = existing.state
+                existing.cpuPercent = totalCpu
+                existing.lastUpdated = Date()
+
+                if existing.state != inferredState {
+                    existing.state = inferredState
+                    Log.lifecycle.notice("Agent \(agent.name) state inferred: \(previousState.rawValue) -> \(inferredState.rawValue)")
+
+                    // If transitioned from working to waitingUser, pop a notch alert
+                    if previousState == .working && inferredState == .waitingUser {
+                        triggerAlert(
+                            AgentAlert(
+                                sessionId: key,
+                                agent: agent.name,
+                                state: .waitingUser,
+                                title: "\(agent.name) Needs Input",
+                                detail: "Execution paused, awaiting user response",
+                                terminal: existing.terminal,
+                                pid: agent.pid,
+                                timestamp: Date()
+                            ),
+                            autoDismissAfter: 7.0
+                        )
+                    }
+                }
+                sessions[key] = existing
+            } else {
+                // Discover CWD & Host GUI App
+                let cwd = DarwinProcessHelper.getProcessCWD(pid: pid_t(agent.pid)) ?? ""
+                let terminalName = DarwinProcessHelper.findGUIApp(for: pid_t(agent.pid))?.localizedName ?? ""
+
+                let newSession = AgentSession(
+                    id: key,
+                    agent: agent.name,
+                    state: inferredState,
+                    event: "ProcessDetected",
+                    title: "\(agent.name) Process",
+                    cwd: cwd,
+                    terminal: terminalName,
+                    pid: agent.pid,
+                    cpuPercent: totalCpu,
+                    source: .processInspection,
+                    lastUpdated: Date()
+                )
+                sessions[key] = newSession
+                Log.lifecycle.notice("Discovered agent process: \(agent.name) [PID \(agent.pid)] in \(terminalName)")
+            }
+        }
+
+        // Clean up terminated process sessions
+        for (key, session) in sessions where key.hasPrefix("proc-") {
+            if !activeProcessKeys.contains(key) {
                 sessions.removeValue(forKey: key)
                 if activeSession?.id == key {
                     activeSession = nil
                 }
-            }
-        }
-
-        // Register new process sessions
-        for (key, pid) in currentPids {
-            if sessions[key] == nil {
-                let name = key.components(separatedBy: "-")[1]
-                let capitalized = name == "agy" ? "Antigravity" : name.capitalized
-                let session = AgentSession(
-                    id: key,
-                    agent: capitalized,
-                    state: .working,
-                    event: "AutoDetected",
-                    title: "\(capitalized) Agent Process",
-                    cwd: "",
-                    terminal: "",
-                    pid: pid,
-                    lastUpdated: Date()
-                )
-                sessions[key] = session
+                if session.state == .working || session.state == .waitingUser {
+                    triggerAlert(
+                        AgentAlert(
+                            sessionId: key,
+                            agent: session.agent,
+                            state: .completed,
+                            title: "\(session.agent) Finished",
+                            detail: "Process exited",
+                            terminal: session.terminal,
+                            pid: session.pid,
+                            timestamp: Date()
+                        ),
+                        autoDismissAfter: 3.5
+                    )
+                }
             }
         }
 

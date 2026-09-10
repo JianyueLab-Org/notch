@@ -71,15 +71,22 @@ enum AgentState: String, Codable, Equatable, Sendable {
     }
 }
 
+enum AgentSource: String, Codable, Equatable, Sendable {
+    case httpHook = "HTTP Hook"
+    case processInspection = "Process Inspection"
+}
+
 struct AgentSession: Identifiable, Equatable, Sendable {
     let id: String
-    var agent: String           // e.g. "Claude", "Antigravity", "Codex", "OpenCode"
+    var agent: String           // e.g. "Claude", "Antigravity", "Codex", "OpenCode", "Aider"
     var state: AgentState
     var event: String           // e.g. "PreToolUse", "Notification", "Stop"
     var title: String           // Prompt or task summary
     var cwd: String             // Working directory
-    var terminal: String        // e.g. "Ghostty", "Terminal", "tmux", "iTerm"
+    var terminal: String        // e.g. "Ghostty", "Terminal", "tmux", "iTerm", "Zed"
     var pid: Int?               // Process ID
+    var cpuPercent: Double? = nil
+    var source: AgentSource = .httpHook
     var lastUpdated: Date
 
     var shortCwd: String {

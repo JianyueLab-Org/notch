@@ -8,6 +8,7 @@ import ServiceManagement
 
 enum SettingsTab: String, CaseIterable, Identifiable {
     case general = "常规"
+    case agent = "AI Agent"
     case clipboard = "剪贴板"
     case about = "关于"
 
@@ -16,6 +17,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var iconName: String {
         switch self {
         case .general: return "gearshape.fill"
+        case .agent: return "sparkles"
         case .clipboard: return "doc.on.doc.fill"
         case .about: return "info.circle.fill"
         }
@@ -27,8 +29,10 @@ struct SettingsView: View {
     @ObservedObject private var clipboard = ClipboardManager.shared
     @ObservedObject private var launchAtLogin = LaunchAtLoginManager.shared
     @ObservedObject private var schedule = ScheduleController.shared
+    @ObservedObject private var agentController = AgentHarnessController.shared
 
     @State private var showClearedAlert: Bool = false
+    @State private var showCopiedHookAlert: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -44,6 +48,8 @@ struct SettingsView: View {
                     switch selectedTab {
                     case .general:
                         generalSection
+                    case .agent:
+                        agentSection
                     case .clipboard:
                         clipboardSection
                     case .about:
@@ -362,6 +368,270 @@ struct SettingsView: View {
                     )
                 }
                 .buttonStyle(.plain)
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(JYLTheme.neutral900.opacity(0.7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(JYLTheme.border.opacity(0.6), lineWidth: 0.8)
+                    )
+            )
+        }
+    }
+
+    // MARK: - AI Agent Tab
+
+    private var agentSection: some View {
+        VStack(spacing: 14) {
+            // Card 1: HTTP Hook Listener Status
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(JYLTheme.neutral800)
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(JYLTheme.primary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text("Agent 联动服务 (HTTP Hook)")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(JYLTheme.textPrimary)
+
+                            Spacer()
+
+                            Text("运行中 · 7823 端口")
+                                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                .foregroundStyle(JYLTheme.success)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(JYLTheme.success.opacity(0.15)))
+                        }
+
+                        Text("本地监听 127.0.0.1:7823/event，接收 Claude Code、Antigravity 毫秒级生命周期事件")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(JYLTheme.textSecondary)
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    Button {
+                        agentController.triggerAlert(
+                            AgentAlert(
+                                sessionId: "test-alert",
+                                agent: "Claude Code",
+                                state: .waitingUser,
+                                title: "需要确认权限",
+                                detail: "测试灵动岛交互",
+                                terminal: "Ghostty",
+                                pid: nil,
+                                timestamp: Date()
+                            ),
+                            autoDismissAfter: 5.0
+                        )
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "bell.badge.fill")
+                                .font(.system(size: 10.5, weight: .semibold))
+                            Text("测试灵动岛提醒")
+                        }
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(JYLTheme.textPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 28)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(JYLTheme.neutral800)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .strokeBorder(JYLTheme.border.opacity(0.7), lineWidth: 0.5)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString("http://127.0.0.1:7823/event", forType: .string)
+                        withAnimation {
+                            showCopiedHookAlert = true
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            withAnimation {
+                                showCopiedHookAlert = false
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: showCopiedHookAlert ? "checkmark" : "doc.on.doc")
+                                .font(.system(size: 10.5, weight: .semibold))
+                            Text(showCopiedHookAlert ? "已复制接口地址" : "复制 Webhook 地址")
+                        }
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(showCopiedHookAlert ? JYLTheme.success : JYLTheme.textPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 28)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(JYLTheme.neutral800)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .strokeBorder(JYLTheme.border.opacity(0.7), lineWidth: 0.5)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(JYLTheme.neutral900.opacity(0.7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(JYLTheme.border.opacity(0.6), lineWidth: 0.8)
+                    )
+            )
+
+            // Card 2: Active Detected Sessions
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(JYLTheme.neutral800)
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "cpu.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(JYLTheme.info)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text("活跃 Agent 会话")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(JYLTheme.textPrimary)
+
+                            Spacer()
+
+                            Text("\(agentController.sessions.count) 个进程")
+                                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                .foregroundStyle(agentController.sessions.isEmpty ? JYLTheme.textMuted : JYLTheme.primary)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(agentController.sessions.isEmpty ? JYLTheme.neutral800 : JYLTheme.primary.opacity(0.15)))
+                        }
+
+                        Text("支持回溯父进程树定位终端（Claude Code、Antigravity、Zed ACP、Codex、Aider）")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(JYLTheme.textSecondary)
+                    }
+                }
+
+                if agentController.sessions.isEmpty {
+                    HStack {
+                        Spacer()
+                        Text("当前未运行任何 AI Agent CLI 进程")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(JYLTheme.textMuted)
+                            .padding(.vertical, 12)
+                        Spacer()
+                    }
+                } else {
+                    VStack(spacing: 8) {
+                        ForEach(Array(agentController.sessions.values)) { session in
+                            HStack(spacing: 10) {
+                                Image(systemName: session.state.iconName)
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(session.state.color)
+                                    .frame(width: 20)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(spacing: 6) {
+                                        Text(session.agent)
+                                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                                            .foregroundStyle(JYLTheme.textPrimary)
+
+                                        Text(session.source.rawValue)
+                                            .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                                            .foregroundStyle(session.source == .httpHook ? JYLTheme.primary : JYLTheme.info)
+                                            .padding(.horizontal, 5)
+                                            .padding(.vertical, 1)
+                                            .background(Capsule().fill(session.source == .httpHook ? JYLTheme.primary.opacity(0.15) : JYLTheme.info.opacity(0.15)))
+
+                                        Spacer()
+
+                                        Text(session.state.displayName)
+                                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                                            .foregroundStyle(session.state.color)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Capsule().fill(session.state.colorMuted))
+                                    }
+
+                                    HStack(spacing: 8) {
+                                        if let pid = session.pid {
+                                            Text("PID \(pid)")
+                                                .font(.system(size: 10, weight: .regular, design: .monospaced))
+                                                .foregroundStyle(JYLTheme.textMuted)
+                                        }
+
+                                        if !session.terminal.isEmpty {
+                                            Text("· \(session.terminal)")
+                                                .font(.system(size: 10, weight: .medium))
+                                                .foregroundStyle(JYLTheme.textSecondary)
+                                        }
+
+                                        if !session.shortCwd.isEmpty {
+                                            Text("· \(session.shortCwd)")
+                                                .font(.system(size: 10, weight: .regular))
+                                                .foregroundStyle(JYLTheme.textMuted)
+                                                .lineLimit(1)
+                                        }
+
+                                        if let cpu = session.cpuPercent, cpu > 0.1 {
+                                            Text("· \(String(format: "%.1f", cpu))% CPU")
+                                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                                .foregroundStyle(JYLTheme.warning)
+                                        }
+                                    }
+                                }
+
+                                Button {
+                                    agentController.focusSession(session)
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text("唤醒")
+                                        Image(systemName: "arrow.up.forward.app")
+                                    }
+                                    .font(.system(size: 10.5, weight: .semibold))
+                                    .foregroundStyle(JYLTheme.textPrimary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                            .fill(JYLTheme.neutral800)
+                                            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(JYLTheme.border, lineWidth: 0.5))
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(JYLTheme.neutral950.opacity(0.5))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .strokeBorder(JYLTheme.border.opacity(0.4), lineWidth: 0.5)
+                                    )
+                            )
+                        }
+                    }
+                }
             }
             .padding(14)
             .background(
