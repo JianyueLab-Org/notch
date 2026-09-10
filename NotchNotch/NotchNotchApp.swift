@@ -25,6 +25,11 @@ struct NotchNotchApp: App {
             }
             .keyboardShortcut("t")
             Divider()
+            Button("Settings…") {
+                SettingsWindowController.shared.show()
+            }
+            .keyboardShortcut(",")
+            Divider()
             Button("Re-detect Notch") {
                 appDelegate.notchController?.reload()
             }
