@@ -690,14 +690,14 @@ struct NotchPanelView: View {
                     HStack(spacing: 5) {
                         Image(systemName: "doc.on.doc.fill")
                             .font(.system(size: 9.5, weight: .semibold))
-                            .foregroundStyle(JYLTheme.primary)
+                            .foregroundStyle(JYLTheme.textSecondary)
                         Text("剪贴板历史保留")
                             .font(.system(size: 10, weight: .medium, design: .rounded))
                             .foregroundStyle(JYLTheme.textSecondary)
                         Spacer()
                         Text("\(clipboard.maxItems) 条")
-                            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                            .foregroundStyle(JYLTheme.primary)
+                            .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                            .foregroundStyle(JYLTheme.textPrimary)
                     }
 
                     HStack(spacing: 5) {
@@ -710,12 +710,16 @@ struct NotchPanelView: View {
                             } label: {
                                 Text("\(count)")
                                     .font(.system(size: 9.5, weight: isSelected ? .bold : .medium, design: .rounded))
-                                    .foregroundStyle(isSelected ? Color.black : JYLTheme.textSecondary)
+                                    .foregroundStyle(isSelected ? JYLTheme.textPrimary : JYLTheme.textSecondary)
                                     .frame(maxWidth: .infinity)
                                     .frame(height: 22)
                                     .background(
                                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .fill(isSelected ? JYLTheme.primary : JYLTheme.neutral800)
+                                            .fill(isSelected ? JYLTheme.neutral700 : JYLTheme.neutral800)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                    .strokeBorder(isSelected ? Color.white.opacity(0.15) : Color.clear, lineWidth: 0.5)
+                                            )
                                     )
                             }
                             .buttonStyle(TabButtonStyle())
@@ -726,6 +730,10 @@ struct NotchPanelView: View {
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(JYLTheme.neutral900.opacity(0.7))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(JYLTheme.border.opacity(0.5), lineWidth: 0.5)
+                        )
                 )
 
                 Spacer(minLength: 0)
@@ -773,7 +781,7 @@ struct NotchPanelView: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 7).fill(JYLTheme.neutral900))
+                    .background(RoundedRectangle(cornerRadius: 7).fill(JYLTheme.neutral800))
                 }
                 .buttonStyle(TabButtonStyle())
 
