@@ -26,6 +26,7 @@ struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .general
     @ObservedObject private var clipboard = ClipboardManager.shared
     @ObservedObject private var launchAtLogin = LaunchAtLoginManager.shared
+    @ObservedObject private var schedule = ScheduleController.shared
 
     @State private var showClearedAlert: Bool = false
 
@@ -226,7 +227,95 @@ struct SettingsView: View {
                     )
             )
 
-            // Card 2: Notch display re-detect
+            // Card 2: Schedule 10-minute reminders
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(JYLTheme.neutral800)
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "calendar.badge.clock")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(schedule.isReminderEnabled ? JYLTheme.primary : JYLTheme.textSecondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text("日程提前提醒")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(JYLTheme.textPrimary)
+
+                            Spacer()
+
+                            Text(schedule.isReminderEnabled ? "已开启" : "已关闭")
+                                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                .foregroundStyle(schedule.isReminderEnabled ? JYLTheme.primary : JYLTheme.textMuted)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(schedule.isReminderEnabled ? JYLTheme.primary.opacity(0.15) : JYLTheme.neutral800))
+                        }
+
+                        Text("在系统日历日程开始前 10 分钟及结束前 10 分钟，于刘海 Dynamic HUD 弹出轻量提醒横幅")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(JYLTheme.textSecondary)
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.12)) {
+                            schedule.setReminderEnabled(false)
+                        }
+                    } label: {
+                        Text("关闭")
+                            .font(.system(size: 11, weight: !schedule.isReminderEnabled ? .bold : .medium, design: .rounded))
+                            .foregroundStyle(!schedule.isReminderEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 26)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(!schedule.isReminderEnabled ? JYLTheme.neutral700 : JYLTheme.neutral800)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .strokeBorder(!schedule.isReminderEnabled ? Color.white.opacity(0.15) : Color.clear, lineWidth: 0.5)
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.12)) {
+                            schedule.setReminderEnabled(true)
+                        }
+                    } label: {
+                        Text("开启")
+                            .font(.system(size: 11, weight: schedule.isReminderEnabled ? .bold : .medium, design: .rounded))
+                            .foregroundStyle(schedule.isReminderEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 26)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(schedule.isReminderEnabled ? JYLTheme.neutral700 : JYLTheme.neutral800)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .strokeBorder(schedule.isReminderEnabled ? Color.white.opacity(0.15) : Color.clear, lineWidth: 0.5)
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(JYLTheme.neutral900.opacity(0.7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(JYLTheme.border.opacity(0.6), lineWidth: 0.8)
+                    )
+            )
+
+            // Card 3: Notch display re-detect
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top) {
                     ZStack {

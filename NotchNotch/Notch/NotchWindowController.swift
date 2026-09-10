@@ -31,7 +31,7 @@ final class NotchWindowController {
         AccessibilityNowPlayingSource(),
     ]))
     private let shelf = ShelfController()
-    private let schedule = ScheduleController()
+    private let schedule = ScheduleController.shared
     private(set) var geometry: NotchGeometry
 
     /// Last cursor position we were told about. `ignoresMouseEvents` is a
@@ -123,6 +123,19 @@ final class NotchWindowController {
             .store(in: &cancellables)
 
         AgentHarnessController.shared.$isShowingAlert
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isShowing in
+                guard let self else { return }
+                if isShowing {
+                    self.window?.orderFrontRegardless()
+                    self.window?.setInteractive(true)
+                } else if self.stateMachine.state == .collapsed {
+                    self.window?.setInteractive(false)
+                }
+            }
+            .store(in: &cancellables)
+
+        schedule.$isShowingAlert
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isShowing in
                 guard let self else { return }

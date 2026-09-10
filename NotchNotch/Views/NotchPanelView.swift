@@ -38,6 +38,10 @@ struct NotchPanelView: View {
         agentController.isShowingAlert && !isOpen
     }
 
+    private var isShowingScheduleAlert: Bool {
+        schedule.isShowingAlert && !isOpen
+    }
+
     private var hudEarWidth: CGFloat { 150 }
 
     private var hudBarWidth: CGFloat {
@@ -62,7 +66,7 @@ struct NotchPanelView: View {
     }
 
     private var bodySize: CGSize {
-        if isShowingHUD || isShowingAgentAlert {
+        if isShowingHUD || isShowingAgentAlert || isShowingScheduleAlert {
             return CGSize(width: hudBarWidth, height: hudBarHeight)
         }
         return isOpen ? machine.layout.expandedSize : CGSize(width: collapsedWidth, height: machine.layout.collapsedSize.height)
@@ -139,7 +143,7 @@ struct NotchPanelView: View {
     }
 
     private var notchShape: NotchShape {
-        if isShowingHUD || isShowingAgentAlert {
+        if isShowingHUD || isShowingAgentAlert || isShowingScheduleAlert {
             return NotchShape(topRadius: 8, bottomRadius: 13)
         }
         let collapsedTop = hasLiveActivity ? NotchConfiguration.collapsedTopCornerRadius : 0
@@ -155,7 +159,10 @@ struct NotchPanelView: View {
             notchShape
                 .fill(Color.black)
 
-            if isShowingAgentAlert, let alert = agentController.currentAlert {
+            if isShowingScheduleAlert, let alert = schedule.activeAlert {
+                scheduleAlertContent(alert)
+                    .transition(.opacity)
+            } else if isShowingAgentAlert, let alert = agentController.currentAlert {
                 agentAlertContent(alert)
                     .transition(.opacity)
             } else if isShowingHUD {
@@ -182,12 +189,13 @@ struct NotchPanelView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: bodySize.height)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isShowingHUD)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isShowingAgentAlert)
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isShowingScheduleAlert)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: hasLiveActivity)
         .compositingGroup()
         .shadow(
-            color: .black.opacity((isOpen || isShowingHUD || isShowingAgentAlert) ? 0.45 : (hasLiveActivity ? 0.25 : 0)),
-            radius: (isOpen || isShowingHUD || isShowingAgentAlert) ? 14 : 4,
-            y: (isOpen || isShowingHUD || isShowingAgentAlert) ? 6 : 2
+            color: .black.opacity((isOpen || isShowingHUD || isShowingAgentAlert || isShowingScheduleAlert) ? 0.45 : (hasLiveActivity ? 0.25 : 0)),
+            radius: (isOpen || isShowingHUD || isShowingAgentAlert || isShowingScheduleAlert) ? 14 : 4,
+            y: (isOpen || isShowingHUD || isShowingAgentAlert || isShowingScheduleAlert) ? 6 : 2
         )
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDraggingFile) { providers in
             isDraggingFile = true
@@ -380,6 +388,59 @@ struct NotchPanelView: View {
                     .rotationEffect(.degrees(-90))
                     .frame(width: 20, height: 20)
             }
+        }
+    }
+
+    // MARK: - Schedule Alert HUD Bar
+
+    private func scheduleAlertContent(_ alert: ScheduleAlertType) -> some View {
+        let notchWidth = machine.layout.geometry.notchRect.width
+
+        return HStack(spacing: 0) {
+            // Left ear (completely outside physical notch)
+            HStack(spacing: 7) {
+                Image(systemName: alert.iconName)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(alert.tintColor)
+                    .frame(width: 18)
+
+                Text(alert.title)
+                    .font(.system(size: 12.5, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .padding(.leading, 18)
+            .frame(width: hudEarWidth, alignment: .leading)
+
+            // Center: Physical notch cutout exclusion zone
+            Color.clear
+                .frame(width: notchWidth, height: hudBarHeight)
+
+            // Right ear (completely outside physical notch)
+            Button {
+                schedule.dismissAlert()
+                machine.expandImmediately()
+            } label: {
+                HStack(spacing: 6) {
+                    Text(alert.badgeText)
+                        .font(.system(size: 11.5, weight: .bold, design: .rounded))
+                        .foregroundStyle(alert.tintColor)
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(JYLTheme.textSecondary)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 18)
+            .frame(width: hudEarWidth, alignment: .trailing)
+        }
+        .frame(width: hudBarWidth, height: hudBarHeight)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            schedule.dismissAlert()
+            machine.expandImmediately()
         }
     }
 
