@@ -23,6 +23,7 @@ struct NotchPanelView: View {
     @ObservedObject var shelf: ShelfController
     @ObservedObject var schedule: ScheduleController
     @ObservedObject private var hud = SystemMediaHUDController.shared
+    @ObservedObject private var agentController = AgentHarnessController.shared
     @State private var activeTab: NotchActiveTab = .overview
     @State private var showSettings: Bool = false
     @State private var isDraggingFile: Bool = false
@@ -31,6 +32,10 @@ struct NotchPanelView: View {
 
     private var isShowingHUD: Bool {
         hud.isShowing && !isOpen
+    }
+
+    private var isShowingAgentAlert: Bool {
+        agentController.isShowingAlert && !isOpen
     }
 
     private var hudEarWidth: CGFloat { 150 }
@@ -43,13 +48,21 @@ struct NotchPanelView: View {
         max(36, machine.layout.geometry.notchRect.height + 2)
     }
 
+    private var isAgentActive: Bool {
+        agentController.isWorking || agentController.isWaiting
+    }
+
+    private var hasLiveActivity: Bool {
+        isMusicPlaying || schedule.hasActiveEvent || isAgentActive
+    }
+
     private var collapsedWidth: CGFloat {
         let notchWidth = machine.layout.geometry.notchRect.width
         return hasLiveActivity ? notchWidth + NotchConfiguration.compactWidthExtension : notchWidth
     }
 
     private var bodySize: CGSize {
-        if isShowingHUD {
+        if isShowingHUD || isShowingAgentAlert {
             return CGSize(width: hudBarWidth, height: hudBarHeight)
         }
         return isOpen ? machine.layout.expandedSize : CGSize(width: collapsedWidth, height: machine.layout.collapsedSize.height)
@@ -126,12 +139,8 @@ struct NotchPanelView: View {
         (media.nowPlaying?.isPlaying == true) && (media.nowPlaying?.hasTrack == true)
     }
 
-    private var hasLiveActivity: Bool {
-        isMusicPlaying || schedule.hasActiveEvent
-    }
-
     private var notchShape: NotchShape {
-        if isShowingHUD {
+        if isShowingHUD || isShowingAgentAlert {
             return NotchShape(topRadius: 8, bottomRadius: 13)
         }
         let collapsedTop = hasLiveActivity ? NotchConfiguration.collapsedTopCornerRadius : 0
@@ -147,7 +156,10 @@ struct NotchPanelView: View {
             notchShape
                 .fill(Color.black)
 
-            if isShowingHUD {
+            if isShowingAgentAlert, let alert = agentController.currentAlert {
+                agentAlertContent(alert)
+                    .transition(.opacity)
+            } else if isShowingHUD {
                 hudBarContent
                     .transition(.opacity)
             } else {
@@ -170,12 +182,13 @@ struct NotchPanelView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: bodySize.width)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: bodySize.height)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isShowingHUD)
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isShowingAgentAlert)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: hasLiveActivity)
         .compositingGroup()
         .shadow(
-            color: .black.opacity((isOpen || isShowingHUD) ? 0.45 : (hasLiveActivity ? 0.25 : 0)),
-            radius: (isOpen || isShowingHUD) ? 14 : 4,
-            y: (isOpen || isShowingHUD) ? 6 : 2
+            color: .black.opacity((isOpen || isShowingHUD || isShowingAgentAlert) ? 0.45 : (hasLiveActivity ? 0.25 : 0)),
+            radius: (isOpen || isShowingHUD || isShowingAgentAlert) ? 14 : 4,
+            y: (isOpen || isShowingHUD || isShowingAgentAlert) ? 6 : 2
         )
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDraggingFile) { providers in
             isDraggingFile = true
@@ -264,6 +277,24 @@ struct NotchPanelView: View {
                         .foregroundStyle(JYLTheme.textPrimary)
                 }
             }
+        } else if agentController.isWaiting {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(JYLTheme.primaryMuted)
+                    .frame(width: 22, height: 22)
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11.5, weight: .bold))
+                    .foregroundStyle(JYLTheme.primary)
+            }
+        } else if agentController.isWorking {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(JYLTheme.infoMuted)
+                    .frame(width: 22, height: 22)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 11.5, weight: .bold))
+                    .foregroundStyle(JYLTheme.info)
+            }
         } else if schedule.hasActiveEvent {
             ZStack {
                 RoundedRectangle(cornerRadius: 6.5, style: .continuous)
@@ -299,6 +330,28 @@ struct NotchPanelView: View {
                         .frame(width: 19, height: 19)
                 }
             }
+        } else if agentController.isWaiting {
+            Text("WAIT")
+                .font(.system(size: 8, weight: .black, design: .rounded))
+                .foregroundStyle(JYLTheme.primary)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(JYLTheme.primaryMuted))
+        } else if agentController.isWorking {
+            TimelineView(.animation) { timeline in
+                let time = timeline.date.timeIntervalSinceReferenceDate
+                let angle = (time.truncatingRemainder(dividingBy: 1.5)) / 1.5 * 360
+                ZStack {
+                    Circle()
+                        .stroke(JYLTheme.borderStrong, lineWidth: 2.5)
+                        .frame(width: 18, height: 18)
+                    Circle()
+                        .trim(from: 0, to: 0.35)
+                        .stroke(JYLTheme.info, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .rotationEffect(.degrees(angle))
+                        .frame(width: 18, height: 18)
+                }
+            }
         } else if schedule.hasActiveEvent {
             ZStack {
                 Circle()
@@ -310,6 +363,56 @@ struct NotchPanelView: View {
                     .rotationEffect(.degrees(-90))
                     .frame(width: 20, height: 20)
             }
+        }
+    }
+
+    // MARK: - Agent Alert HUD Bar
+
+    private func agentAlertContent(_ alert: AgentAlert) -> some View {
+        let notchWidth = machine.layout.geometry.notchRect.width
+
+        return HStack(spacing: 0) {
+            // Left ear (completely outside physical notch)
+            HStack(spacing: 7) {
+                Image(systemName: alert.state.iconName)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(alert.state.color)
+                    .frame(width: 18)
+
+                Text(alert.agent)
+                    .font(.system(size: 12.5, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+            }
+            .padding(.leading, 18)
+            .frame(width: hudEarWidth, alignment: .leading)
+
+            // Center: Physical notch cutout exclusion zone
+            Color.clear
+                .frame(width: notchWidth, height: hudBarHeight)
+
+            // Right ear (completely outside physical notch)
+            Button {
+                agentController.focusActiveAgent()
+            } label: {
+                HStack(spacing: 6) {
+                    Text(alert.state == .waiting ? "Action Needed" : "Completed")
+                        .font(.system(size: 11.5, weight: .bold, design: .rounded))
+                        .foregroundStyle(alert.state.color)
+
+                    Image(systemName: "arrow.up.forward.app")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(JYLTheme.textSecondary)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 18)
+            .frame(width: hudEarWidth, alignment: .trailing)
+        }
+        .frame(width: hudBarWidth, height: hudBarHeight)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            agentController.focusActiveAgent()
         }
     }
 
@@ -418,6 +521,42 @@ struct NotchPanelView: View {
             }
 
             Spacer()
+
+            // Center: Live AI Agent harness indicator
+            if let agent = agentController.activeSession, agent.state != .idle {
+                Button {
+                    agentController.focusSession(agent)
+                } label: {
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(agent.state.color)
+                            .frame(width: 6, height: 6)
+
+                        Image(systemName: agent.state.iconName)
+                            .font(.system(size: 9.5, weight: .bold))
+                            .foregroundStyle(agent.state.color)
+
+                        Text(agent.agent)
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(JYLTheme.textPrimary)
+
+                        Text(agent.state.displayName)
+                            .font(.system(size: 9, weight: .medium, design: .rounded))
+                            .foregroundStyle(agent.state.color)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(agent.state.color.opacity(0.14))
+                            .overlay(Capsule().stroke(agent.state.color.opacity(0.35), lineWidth: 0.8))
+                    )
+                }
+                .buttonStyle(TabButtonStyle())
+                .transition(.opacity)
+
+                Spacer()
+            }
 
             // Right settings gear button
             Button {

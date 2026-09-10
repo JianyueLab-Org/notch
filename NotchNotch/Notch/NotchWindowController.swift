@@ -100,11 +100,12 @@ final class NotchWindowController {
     }
 
     private func observeLiveActivities() {
-        Publishers.CombineLatest(nowPlaying.$nowPlaying, schedule.$hasActiveEvent)
+        Publishers.CombineLatest3(nowPlaying.$nowPlaying, schedule.$hasActiveEvent, AgentHarnessController.shared.$activeSession)
             .receive(on: DispatchQueue.main)
-            .map { track, hasActiveSchedule in
+            .map { track, hasActiveSchedule, agent in
                 let isMusicPlaying = (track?.isPlaying == true) && (track?.hasTrack == true)
-                return isMusicPlaying || hasActiveSchedule
+                let isAgentActive = (agent?.state == .working || agent?.state == .waiting)
+                return isMusicPlaying || hasActiveSchedule || isAgentActive
             }
             .removeDuplicates()
             .sink { [weak self] hasLive in
@@ -118,6 +119,19 @@ final class NotchWindowController {
             .filter { $0 }
             .sink { [weak self] _ in
                 self?.window?.orderFrontRegardless()
+            }
+            .store(in: &cancellables)
+
+        AgentHarnessController.shared.$isShowingAlert
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isShowing in
+                guard let self else { return }
+                if isShowing {
+                    self.window?.orderFrontRegardless()
+                    self.window?.setInteractive(true)
+                } else if self.stateMachine.state == .collapsed {
+                    self.window?.setInteractive(false)
+                }
             }
             .store(in: &cancellables)
     }
