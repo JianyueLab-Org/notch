@@ -25,6 +25,7 @@ struct NotchPanelView: View {
     @ObservedObject private var hud = SystemMediaHUDController.shared
     @ObservedObject private var agentController = AgentHarnessController.shared
     @ObservedObject private var clipboard = ClipboardManager.shared
+    @ObservedObject private var launchAtLogin = LaunchAtLoginManager.shared
     @State private var activeTab: NotchActiveTab = .overview
     @State private var showSettings: Bool = false
     @State private var isDraggingFile: Bool = false
@@ -684,27 +685,27 @@ struct NotchPanelView: View {
 
     private var settingsContent: some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text("NotchNotch Quick Settings")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .font(.system(size: 11.5, weight: .bold, design: .rounded))
                     .foregroundStyle(JYLTheme.textPrimary)
 
                 // Clipboard retention setting
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 5) {
                         Image(systemName: "doc.on.doc.fill")
-                            .font(.system(size: 9.5, weight: .semibold))
+                            .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(JYLTheme.textSecondary)
                         Text("剪贴板历史保留")
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .font(.system(size: 9.5, weight: .medium, design: .rounded))
                             .foregroundStyle(JYLTheme.textSecondary)
                         Spacer()
                         Text("\(clipboard.maxItems) 条")
-                            .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                            .font(.system(size: 9, weight: .semibold, design: .rounded))
                             .foregroundStyle(JYLTheme.textPrimary)
                     }
 
-                    HStack(spacing: 5) {
+                    HStack(spacing: 4) {
                         ForEach(ClipboardManager.maxItemsOptions, id: \.self) { count in
                             let isSelected = clipboard.maxItems == count
                             Button {
@@ -713,15 +714,15 @@ struct NotchPanelView: View {
                                 }
                             } label: {
                                 Text("\(count)")
-                                    .font(.system(size: 9.5, weight: isSelected ? .bold : .medium, design: .rounded))
+                                    .font(.system(size: 9, weight: isSelected ? .bold : .medium, design: .rounded))
                                     .foregroundStyle(isSelected ? JYLTheme.textPrimary : JYLTheme.textSecondary)
                                     .frame(maxWidth: .infinity)
-                                    .frame(height: 22)
+                                    .frame(height: 20)
                                     .background(
-                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        RoundedRectangle(cornerRadius: 5, style: .continuous)
                                             .fill(isSelected ? JYLTheme.neutral700 : JYLTheme.neutral800)
                                             .overlay(
-                                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                RoundedRectangle(cornerRadius: 5, style: .continuous)
                                                     .strokeBorder(isSelected ? Color.white.opacity(0.15) : Color.clear, lineWidth: 0.5)
                                             )
                                     )
@@ -730,12 +731,94 @@ struct NotchPanelView: View {
                         }
                     }
                 }
-                .padding(7)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 5)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(JYLTheme.neutral900.opacity(0.7))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .strokeBorder(JYLTheme.border.opacity(0.5), lineWidth: 0.5)
+                        )
+                )
+
+                // Launch at login setting
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "power.circle.fill")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(JYLTheme.textSecondary)
+                        Text("开机自动启动")
+                            .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                            .foregroundStyle(JYLTheme.textSecondary)
+                        Spacer()
+                        if launchAtLogin.requiresApproval {
+                            Button {
+                                launchAtLogin.openLoginItemsSettings()
+                            } label: {
+                                Text("需系统授权 ↗")
+                                    .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(JYLTheme.warning)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Text(launchAtLogin.isEnabled ? "已启用" : "已关闭")
+                                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                                .foregroundStyle(launchAtLogin.isEnabled ? JYLTheme.primary : JYLTheme.textMuted)
+                        }
+                    }
+
+                    HStack(spacing: 4) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                launchAtLogin.setEnabled(false)
+                            }
+                        } label: {
+                            Text("关闭")
+                                .font(.system(size: 9, weight: !launchAtLogin.isEnabled ? .bold : .medium, design: .rounded))
+                                .foregroundStyle(!launchAtLogin.isEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 20)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                        .fill(!launchAtLogin.isEnabled ? JYLTheme.neutral700 : JYLTheme.neutral800)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                                .strokeBorder(!launchAtLogin.isEnabled ? Color.white.opacity(0.15) : Color.clear, lineWidth: 0.5)
+                                        )
+                                )
+                        }
+                        .buttonStyle(TabButtonStyle())
+
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                launchAtLogin.setEnabled(true)
+                            }
+                        } label: {
+                            Text("开启")
+                                .font(.system(size: 9, weight: launchAtLogin.isEnabled ? .bold : .medium, design: .rounded))
+                                .foregroundStyle(launchAtLogin.isEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 20)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                        .fill(launchAtLogin.isEnabled ? JYLTheme.neutral700 : JYLTheme.neutral800)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                                .strokeBorder(launchAtLogin.isEnabled ? Color.white.opacity(0.15) : Color.clear, lineWidth: 0.5)
+                                        )
+                                )
+                        }
+                        .buttonStyle(TabButtonStyle())
+                    }
+                }
+                .padding(.horizontal, 7)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(JYLTheme.neutral900.opacity(0.7))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
                                 .strokeBorder(JYLTheme.border.opacity(0.5), lineWidth: 0.5)
                         )
                 )
