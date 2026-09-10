@@ -140,14 +140,6 @@ final class ClipboardManager: ObservableObject {
         savePersisted()
     }
 
-    func filteredItems(query: String) -> [ClipboardItem] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return items }
-        return items.filter {
-            $0.text.localizedCaseInsensitiveContains(trimmed) ||
-            ($0.appName?.localizedCaseInsensitiveContains(trimmed) == true)
-        }
-    }
 
     private func recordCurrentPasteboardIfAvailable() {
         if let text = NSPasteboard.general.string(forType: .string),

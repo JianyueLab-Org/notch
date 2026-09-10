@@ -12,13 +12,12 @@ import SwiftUI
 struct ClipboardCardView: View {
 
     var isActive: Bool = false
-    var searchQuery: String = ""
 
     @ObservedObject private var manager = ClipboardManager.shared
     @State private var copiedItemId: UUID? = nil
 
     private var displayItems: [ClipboardItem] {
-        manager.filteredItems(query: searchQuery)
+        manager.items
     }
 
     var body: some View {
@@ -173,10 +172,10 @@ struct ClipboardCardView: View {
             Image(systemName: "doc.on.clipboard")
                 .font(.system(size: 24))
                 .foregroundStyle(JYLTheme.neutral600)
-            Text(searchQuery.isEmpty ? "Clipboard is empty" : "No matches found")
+            Text("Clipboard is empty")
                 .font(.system(size: 11.5, weight: .medium, design: .rounded))
                 .foregroundStyle(JYLTheme.textMuted)
-            Text(searchQuery.isEmpty ? "Copy text from any app to record history" : "Try a different search term")
+            Text("Copy text from any app to record history")
                 .font(.system(size: 9.5, weight: .regular, design: .rounded))
                 .foregroundStyle(JYLTheme.textMuted.opacity(0.8))
             Spacer()

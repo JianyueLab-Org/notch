@@ -25,8 +25,6 @@ struct NotchPanelView: View {
     @State private var activeTab: NotchActiveTab = .overview
     @State private var showSettings: Bool = false
     @State private var isDraggingFile: Bool = false
-    @State private var isSearchActive: Bool = false
-    @State private var searchText: String = ""
 
     private var isOpen: Bool { machine.state.isVisiblyExpanded }
 
@@ -49,13 +47,9 @@ struct NotchPanelView: View {
             if state == .collapsed {
                 showSettings = false
                 isDraggingFile = false
-                isSearchActive = false
-                searchText = ""
                 activeTab = .overview
             } else if state == .expanding {
                 showSettings = false
-                isSearchActive = false
-                searchText = ""
                 if !isDraggingFile {
                     activeTab = .overview
                 }
@@ -305,7 +299,7 @@ struct NotchPanelView: View {
                     .opacity(activeTab == .shelf && !showSettings ? 1 : 0)
                     .allowsHitTesting(activeTab == .shelf && !showSettings)
 
-                ClipboardCardView(isActive: activeTab == .clipboard && !showSettings, searchQuery: searchText)
+                ClipboardCardView(isActive: activeTab == .clipboard && !showSettings)
                     .opacity(activeTab == .clipboard && !showSettings ? 1 : 0)
                     .allowsHitTesting(activeTab == .clipboard && !showSettings)
 
@@ -347,75 +341,22 @@ struct NotchPanelView: View {
 
             Spacer()
 
-            // Optional search input when search is active
-            if isSearchActive && (activeTab == .shelf || activeTab == .clipboard) && !showSettings {
-                HStack(spacing: 5) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 9.5, weight: .semibold))
-                        .foregroundStyle(JYLTheme.textMuted)
-                    TextField(activeTab == .clipboard ? "Search clipboard..." : "Search files...", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(JYLTheme.textPrimary)
-                    if !searchText.isEmpty {
-                        Button {
-                            searchText = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 9))
-                                .foregroundStyle(JYLTheme.textMuted)
-                        }
-                        .buttonStyle(.plain)
-                    }
+            // Right settings gear button
+            Button {
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    showSettings.toggle()
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3.5)
-                .background(Capsule().fill(JYLTheme.neutral800))
-                .frame(width: 140)
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(showSettings ? JYLTheme.neutral700 : JYLTheme.neutral800)
+                        .frame(width: 28, height: 28)
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(showSettings ? JYLTheme.textPrimary : JYLTheme.textSecondary)
+                }
             }
-
-            // Right action buttons
-            HStack(spacing: 7) {
-                // Search button on Shelf and Clipboard tabs
-                if (activeTab == .shelf || activeTab == .clipboard) && !showSettings {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.12)) {
-                            isSearchActive.toggle()
-                            if !isSearchActive {
-                                searchText = ""
-                            }
-                        }
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(isSearchActive ? JYLTheme.info : JYLTheme.neutral800)
-                                .frame(width: 28, height: 28)
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 11.5, weight: .semibold))
-                                .foregroundStyle(isSearchActive ? JYLTheme.textPrimary : JYLTheme.textSecondary)
-                        }
-                    }
-                    .buttonStyle(TabButtonStyle())
-                }
-
-                // Settings gear button
-                Button {
-                    withAnimation(.easeInOut(duration: 0.12)) {
-                        showSettings.toggle()
-                    }
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(showSettings ? JYLTheme.neutral700 : JYLTheme.neutral800)
-                            .frame(width: 28, height: 28)
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(showSettings ? JYLTheme.textPrimary : JYLTheme.textSecondary)
-                    }
-                }
-                .buttonStyle(TabButtonStyle())
-            }
+            .buttonStyle(TabButtonStyle())
         }
         .frame(height: 28)
     }
