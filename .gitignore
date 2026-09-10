@@ -16,3 +16,7 @@ xcuserdata/
 # Swift Package Manager
 .build/
 .swiftpm/
+
+# Scratch & local tooling
+.temp/
+.superpowers/
