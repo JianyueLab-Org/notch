@@ -15,7 +15,7 @@ import SwiftUI
 
 // MARK: - Darwin Process & Window Focusing Helpers
 
-enum DarwinProcessHelper {
+nonisolated enum DarwinProcessHelper {
 
     /// Retrieves current working directory (CWD) of any process directly via kernel proc_pidinfo.
     static func getProcessCWD(pid: pid_t) -> String? {
@@ -90,8 +90,8 @@ enum DarwinProcessHelper {
         task.standardOutput = pipe
         do {
             try task.run()
-            task.waitUntilExit()
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            task.waitUntilExit()
             if let str = String(data: data, encoding: .utf8) {
                 for line in str.components(separatedBy: .newlines) {
                     if let clientPid = Int(line.trimmingCharacters(in: .whitespaces)), clientPid > 1 {
@@ -158,6 +158,16 @@ struct ProcessRawEntry {
     let args: String
 }
 
+struct DiscoveredAgentData: Sendable {
+    let key: String
+    let name: String
+    let pid: Int
+    let cwd: String
+    let terminalName: String
+    let totalCpu: Double
+    let inferredState: AgentState
+}
+
 @MainActor
 final class AgentHarnessController: ObservableObject {
 
@@ -171,6 +181,7 @@ final class AgentHarnessController: ObservableObject {
     private let httpServer = AgentHTTPServer()
     private var dismissTimer: Timer?
     private var processPollTimer: Timer?
+    private var isScanning: Bool = false
 
     var hasActiveAlert: Bool {
         isShowingAlert && currentAlert != nil
@@ -401,9 +412,18 @@ final class AgentHarnessController: ObservableObject {
     // MARK: - Process Auto-Detection
 
     private func startProcessPolling() {
-        processPollTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.pollAgentProcesses()
+        processPollTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, !self.isScanning else { return }
+                self.isScanning = true
+                Task.detached(priority: .utility) { [weak self] in
+                    defer {
+                        Task { @MainActor [weak self] in
+                            self?.isScanning = false
+                        }
+                    }
+                    await self?.pollAgentProcessesBackground()
+                }
             }
         }
     }
@@ -422,7 +442,7 @@ final class AgentHarnessController: ObservableObject {
         }
     }
 
-    private func pollAgentProcesses() {
+    nonisolated private func pollAgentProcessesBackground() async {
         let ps = Process()
         ps.executableURL = URL(fileURLWithPath: "/bin/ps")
         ps.arguments = ["-eo", "pid,ppid,%cpu,state,tty,comm,args"]
@@ -431,16 +451,18 @@ final class AgentHarnessController: ObservableObject {
 
         do {
             try ps.run()
-            ps.waitUntilExit()
+            // CRITICAL: Read pipe data BEFORE waitUntilExit to prevent 64KB pipe buffer deadlock!
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            ps.waitUntilExit()
             guard let output = String(data: data, encoding: .utf8) else { return }
-            processSnapshot(output: output)
+            let (discovered, activeKeys) = parseProcessSnapshot(output: output)
+            await applySnapshotResult(discovered: discovered, activeKeys: activeKeys)
         } catch {
             Log.lifecycle.error("Failed to run ps for agent detection: \(error.localizedDescription)")
         }
     }
 
-    private func processSnapshot(output: String) {
+    nonisolated private func parseProcessSnapshot(output: String) -> ([DiscoveredAgentData], Set<String>) {
         var rawEntries: [ProcessRawEntry] = []
         let lines = output.components(separatedBy: .newlines)
 
@@ -448,7 +470,6 @@ final class AgentHarnessController: ObservableObject {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty { continue }
 
-            // Parse columns: pid ppid %cpu state tty comm args...
             var parts: [String] = []
             var currentToken = ""
             var charIndex = trimmed.startIndex
@@ -484,14 +505,12 @@ final class AgentHarnessController: ObservableObject {
             ))
         }
 
-        // Match known AI agents
         var discoveredAgents: [(name: String, pid: Int, ppid: Int, cpu: Double, tty: String, args: String)] = []
 
         for entry in rawEntries {
             let lowerComm = entry.comm.lowercased()
             let lowerArgs = entry.args.lowercased()
 
-            // Filter out system tools and self
             if lowerArgs.contains("grep") || lowerArgs.contains("notchnotch") {
                 continue
             }
@@ -532,23 +551,13 @@ final class AgentHarnessController: ObservableObject {
             }
         }
 
-        var activeProcessKeys: Set<String> = []
+        var activeKeys: Set<String> = []
+        var discoveredData: [DiscoveredAgentData] = []
 
         for agent in discoveredAgents {
             let key = "proc-\(agent.name.lowercased().replacingOccurrences(of: " ", with: "-"))-\(agent.pid)"
-            activeProcessKeys.insert(key)
+            activeKeys.insert(key)
 
-            // If an active HTTP hook session already covers this agent, skip creating a duplicate process session
-            let hasFreshHttpHook = sessions.values.contains(where: {
-                $0.source == .httpHook &&
-                $0.agent.caseInsensitiveCompare(agent.name) == .orderedSame &&
-                Date().timeIntervalSince($0.lastUpdated) < 180
-            })
-            if hasFreshHttpHook {
-                continue
-            }
-
-            // Check if agent process has child processes actively working (e.g. running bash, git, tools)
             let activeChildren = rawEntries.filter { $0.ppid == agent.pid }
             let totalCpu = agent.cpu + activeChildren.reduce(0.0) { $0 + $1.cpu }
             let hasActiveTool = activeChildren.contains(where: { $0.cpu > 0.1 })
@@ -560,59 +569,81 @@ final class AgentHarnessController: ObservableObject {
                 inferredState = .waitingUser
             }
 
-            if var existing = sessions[key] {
+            let cwd = DarwinProcessHelper.getProcessCWD(pid: pid_t(agent.pid)) ?? ""
+            let terminalName = DarwinProcessHelper.findGUIApp(for: pid_t(agent.pid))?.localizedName ?? ""
+
+            discoveredData.append(DiscoveredAgentData(
+                key: key,
+                name: agent.name,
+                pid: agent.pid,
+                cwd: cwd,
+                terminalName: terminalName,
+                totalCpu: totalCpu,
+                inferredState: inferredState
+            ))
+        }
+
+        return (discoveredData, activeKeys)
+    }
+
+    private func applySnapshotResult(discovered: [DiscoveredAgentData], activeKeys: Set<String>) {
+        for item in discovered {
+            let hasFreshHttpHook = sessions.values.contains(where: {
+                $0.source == .httpHook &&
+                $0.agent.caseInsensitiveCompare(item.name) == .orderedSame &&
+                Date().timeIntervalSince($0.lastUpdated) < 180
+            })
+            if hasFreshHttpHook {
+                continue
+            }
+
+            if var existing = sessions[item.key] {
                 let previousState = existing.state
-                existing.cpuPercent = totalCpu
+                existing.cpuPercent = item.totalCpu
                 existing.lastUpdated = Date()
 
-                if existing.state != inferredState {
-                    existing.state = inferredState
-                    Log.lifecycle.notice("Agent \(agent.name) state inferred: \(previousState.rawValue) -> \(inferredState.rawValue)")
+                if existing.state != item.inferredState {
+                    existing.state = item.inferredState
+                    Log.lifecycle.notice("Agent \(item.name) state inferred: \(previousState.rawValue) -> \(item.inferredState.rawValue)")
 
-                    // If transitioned from working to waitingUser, pop a notch alert
-                    if previousState == .working && inferredState == .waitingUser {
+                    if previousState == .working && item.inferredState == .waitingUser {
                         triggerAlert(
                             AgentAlert(
-                                sessionId: key,
-                                agent: agent.name,
+                                sessionId: item.key,
+                                agent: item.name,
                                 state: .waitingUser,
-                                title: "\(agent.name) Needs Input",
+                                title: "\(item.name) Needs Input",
                                 detail: "Execution paused, awaiting user response",
                                 terminal: existing.terminal,
-                                pid: agent.pid,
+                                pid: item.pid,
                                 timestamp: Date()
                             ),
                             autoDismissAfter: 7.0
                         )
                     }
                 }
-                sessions[key] = existing
+                sessions[item.key] = existing
             } else {
-                // Discover CWD & Host GUI App
-                let cwd = DarwinProcessHelper.getProcessCWD(pid: pid_t(agent.pid)) ?? ""
-                let terminalName = DarwinProcessHelper.findGUIApp(for: pid_t(agent.pid))?.localizedName ?? ""
-
                 let newSession = AgentSession(
-                    id: key,
-                    agent: agent.name,
-                    state: inferredState,
+                    id: item.key,
+                    agent: item.name,
+                    state: item.inferredState,
                     event: "ProcessDetected",
-                    title: "\(agent.name) Process",
-                    cwd: cwd,
-                    terminal: terminalName,
-                    pid: agent.pid,
-                    cpuPercent: totalCpu,
+                    title: "\(item.name) Process",
+                    cwd: item.cwd,
+                    terminal: item.terminalName,
+                    pid: item.pid,
+                    cpuPercent: item.totalCpu,
                     source: .processInspection,
                     lastUpdated: Date()
                 )
-                sessions[key] = newSession
-                Log.lifecycle.notice("Discovered agent process: \(agent.name) [PID \(agent.pid)] in \(terminalName)")
+                sessions[item.key] = newSession
+                Log.lifecycle.notice("Discovered agent process: \(item.name) [PID \(item.pid)] in \(item.terminalName)")
             }
         }
 
-        // Clean up terminated process sessions
         for (key, session) in sessions where key.hasPrefix("proc-") {
-            if !activeProcessKeys.contains(key) {
+            if !activeKeys.contains(key) {
                 sessions.removeValue(forKey: key)
                 if activeSession?.id == key {
                     activeSession = nil

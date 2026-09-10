@@ -280,7 +280,7 @@ final class SystemMediaHUDController: ObservableObject {
 
     private func startBrightnessPolling() {
         pollTimer?.invalidate()
-        let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.pollBrightness()
             }
