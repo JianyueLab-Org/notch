@@ -176,10 +176,10 @@ struct DropShelfView: View {
             triggerAirDrop()
         } label: {
             VStack(spacing: 8) {
-                AirDropIconView(size: 32, isHighlighted: isAirDropTargeted)
+                AirDropIconView(size: 34, isHighlighted: isAirDropTargeted)
 
                 Text("AirDrop")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .font(.system(size: 12.5, weight: .bold, design: .rounded))
                     .foregroundStyle(isAirDropTargeted ? JYLTheme.primary : JYLTheme.textPrimary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -257,57 +257,33 @@ struct DropShelfView: View {
 // MARK: - AirDrop Icon View
 
 struct AirDropIconView: View {
-    var size: CGFloat = 32
+    var size: CGFloat = 34
     var isHighlighted: Bool = false
 
     var body: some View {
         Canvas { context, canvasSize in
             let center = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
-            let color = isHighlighted ? Color(red: 0.96, green: 0.62, blue: 0.04) : Color.white.opacity(0.85)
+            let color = isHighlighted ? Color(red: 0.96, green: 0.62, blue: 0.04) : Color.white.opacity(0.92)
 
             let dim = min(canvasSize.width, canvasSize.height)
-            // Center solid circle
-            let dotRadius = dim * 0.22
+
+            // Center solid dot
+            let dotRadius = dim * 0.075
             let dotRect = CGRect(x: center.x - dotRadius, y: center.y - dotRadius, width: dotRadius * 2, height: dotRadius * 2)
             context.fill(Path(ellipseIn: dotRect), with: .color(color))
 
-            // Wave arcs on left and right
-            let strokeStyle = StrokeStyle(lineWidth: 2.2, lineCap: .round)
-            let r1 = dim * 0.38
-            let r2 = dim * 0.52
-            let arcSpan: CGFloat = 50.0
+            // 3 Concentric AirDrop broadcast rings (top-centered, opening at bottom)
+            let strokeStyle = StrokeStyle(lineWidth: dim * 0.072, lineCap: .round)
+            let openingDeg: Double = 76.0
+            let startDeg = 90.0 + openingDeg / 2
+            let endDeg = 90.0 - openingDeg / 2
+            let radii: [CGFloat] = [dim * 0.20, dim * 0.32, dim * 0.44]
 
-            // Left inner arc
-            var leftInner = Path()
-            leftInner.addArc(center: center, radius: r1,
-                             startAngle: .degrees(180 - arcSpan),
-                             endAngle: .degrees(180 + arcSpan),
-                             clockwise: false)
-            context.stroke(leftInner, with: .color(color), style: strokeStyle)
-
-            // Left outer arc
-            var leftOuter = Path()
-            leftOuter.addArc(center: center, radius: r2,
-                             startAngle: .degrees(180 - arcSpan),
-                             endAngle: .degrees(180 + arcSpan),
-                             clockwise: false)
-            context.stroke(leftOuter, with: .color(color), style: strokeStyle)
-
-            // Right inner arc
-            var rightInner = Path()
-            rightInner.addArc(center: center, radius: r1,
-                              startAngle: .degrees(-arcSpan),
-                              endAngle: .degrees(arcSpan),
-                              clockwise: false)
-            context.stroke(rightInner, with: .color(color), style: strokeStyle)
-
-            // Right outer arc
-            var rightOuter = Path()
-            rightOuter.addArc(center: center, radius: r2,
-                              startAngle: .degrees(-arcSpan),
-                              endAngle: .degrees(arcSpan),
-                              clockwise: false)
-            context.stroke(rightOuter, with: .color(color), style: strokeStyle)
+            for r in radii {
+                var path = Path()
+                path.addArc(center: center, radius: r, startAngle: .degrees(startDeg), endAngle: .degrees(endDeg), clockwise: false)
+                context.stroke(path, with: .color(color), style: strokeStyle)
+            }
         }
         .frame(width: size, height: size)
     }
