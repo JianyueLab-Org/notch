@@ -8,6 +8,7 @@ import ServiceManagement
 
 enum SettingsTab: String, CaseIterable, Identifiable {
     case general = "常规"
+    case weather = "天气"
     case agent = "AI Agent"
     case clipboard = "剪贴板"
     case about = "关于"
@@ -17,6 +18,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var iconName: String {
         switch self {
         case .general: return "gearshape.fill"
+        case .weather: return "cloud.sun.fill"
         case .agent: return "sparkles"
         case .clipboard: return "doc.on.doc.fill"
         case .about: return "info.circle.fill"
@@ -30,9 +32,11 @@ struct SettingsView: View {
     @ObservedObject private var launchAtLogin = LaunchAtLoginManager.shared
     @ObservedObject private var schedule = ScheduleController.shared
     @ObservedObject private var agentController = AgentHarnessController.shared
+    @ObservedObject private var weather = WeatherController.shared
 
     @State private var showClearedAlert: Bool = false
     @State private var showCopiedHookAlert: Bool = false
+    @State private var customCityInput: String = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -48,6 +52,8 @@ struct SettingsView: View {
                     switch selectedTab {
                     case .general:
                         generalSection
+                    case .weather:
+                        weatherSection
                     case .agent:
                         agentSection
                     case .clipboard:
@@ -59,9 +65,12 @@ struct SettingsView: View {
                 .padding(20)
             }
         }
-        .frame(width: 500, height: 420)
+        .frame(width: 520, height: 460)
         .background(JYLTheme.surface)
         .preferredColorScheme(.dark)
+        .onAppear {
+            customCityInput = weather.customCity
+        }
     }
 
     // MARK: - Header & Tab Bar
@@ -484,6 +493,420 @@ struct SettingsView: View {
                     )
                 }
                 .buttonStyle(.plain)
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(JYLTheme.neutral900.opacity(0.7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(JYLTheme.border.opacity(0.6), lineWidth: 0.8)
+                    )
+            )
+        }
+    }
+
+    // MARK: - Weather Tab
+
+    private var weatherSection: some View {
+        VStack(spacing: 14) {
+            // Card 1: 基础开关 (Master & Compact Ear Toggles)
+            VStack(alignment: .leading, spacing: 12) {
+                // Master Toggle
+                HStack(alignment: .center) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(JYLTheme.neutral800)
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "cloud.sun.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(weather.isEnabled ? JYLTheme.primary : JYLTheme.textSecondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text("启用天气服务")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(JYLTheme.textPrimary)
+
+                            Text(weather.isEnabled ? "已启用" : "已关闭")
+                                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                .foregroundStyle(weather.isEnabled ? JYLTheme.primary : JYLTheme.textMuted)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(weather.isEnabled ? JYLTheme.primary.opacity(0.15) : JYLTheme.neutral800))
+                        }
+
+                        Text("通过 Open-Meteo 实时气象接口获取实时温度、天气现象及逐小时预报")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(JYLTheme.textSecondary)
+                    }
+
+                    Spacer()
+
+                    Toggle("", isOn: Binding(
+                        get: { weather.isEnabled },
+                        set: { weather.setEnabled($0) }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                }
+
+                Divider()
+                    .background(JYLTheme.border.opacity(0.4))
+                    .padding(.vertical, 2)
+
+                // Ear Toggle
+                HStack(alignment: .center) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(JYLTheme.neutral800)
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "menubar.rectangle")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(weather.isEnabled && weather.showInEars ? JYLTheme.primary : JYLTheme.textSecondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text("在刘海折叠耳部显示天气")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(weather.isEnabled ? JYLTheme.textPrimary : JYLTheme.textMuted)
+
+                            Text(weather.showInEars ? "已启用" : "已关闭")
+                                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                .foregroundStyle(weather.isEnabled && weather.showInEars ? JYLTheme.primary : JYLTheme.textMuted)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(weather.isEnabled && weather.showInEars ? JYLTheme.primary.opacity(0.15) : JYLTheme.neutral800))
+                        }
+
+                        Text("无音乐播放且无高优先级警报时，在刘海两侧常驻展示气温与天气图标")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(weather.isEnabled ? JYLTheme.textSecondary : JYLTheme.textMuted)
+                    }
+
+                    Spacer()
+
+                    Toggle("", isOn: Binding(
+                        get: { weather.showInEars },
+                        set: { weather.setShowInEars($0) }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .disabled(!weather.isEnabled)
+                }
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(JYLTheme.neutral900.opacity(0.7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(JYLTheme.border.opacity(0.6), lineWidth: 0.8)
+                    )
+            )
+
+            // Card 2: 定位与城市 (Location Mode & Custom City)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(JYLTheme.neutral800)
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(JYLTheme.info)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("定位模式与位置")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(JYLTheme.textPrimary)
+
+                        Text("选择自动定位或指定城市，获取精准的当地实时气象与预报")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(JYLTheme.textSecondary)
+                    }
+
+                    Spacer()
+                }
+
+                Picker("定位模式与位置", selection: Binding(
+                    get: { weather.locationMode },
+                    set: { weather.setLocationMode($0) }
+                )) {
+                    Text("自动定位 (GPS / IP)").tag(LocationMode.auto)
+                    Text("指定城市 (手动输入)").tag(LocationMode.manual)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                if weather.locationMode == .manual {
+                    HStack(spacing: 8) {
+                        TextField("输入城市名称（如：上海 或 Tokyo）", text: $customCityInput, onCommit: {
+                            weather.setCustomCity(customCityInput)
+                        })
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                        .foregroundStyle(JYLTheme.textPrimary)
+                        .padding(.horizontal, 10)
+                        .frame(height: 28)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(JYLTheme.neutral800)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .strokeBorder(JYLTheme.border.opacity(0.7), lineWidth: 0.5)
+                                )
+                        )
+                        .onSubmit {
+                            weather.setCustomCity(customCityInput)
+                        }
+
+                        Button("保存并定位") {
+                            weather.setCustomCity(customCityInput)
+                        }
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(JYLTheme.textPrimary)
+                        .padding(.horizontal, 12)
+                        .frame(height: 28)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(JYLTheme.neutral700)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5)
+                                )
+                        )
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Divider()
+                    .background(JYLTheme.border.opacity(0.4))
+                    .padding(.vertical, 2)
+
+                // Status readout
+                HStack {
+                    Text("当前定位城市")
+                        .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                        .foregroundStyle(JYLTheme.textSecondary)
+
+                    Spacer()
+
+                    if let loc = weather.currentLocation {
+                        HStack(spacing: 8) {
+                            Text(loc.cityName)
+                                .font(.system(size: 11.5, weight: .bold, design: .rounded))
+                                .foregroundStyle(JYLTheme.textPrimary)
+
+                            Text("lat: \(String(format: "%.2f", loc.latitude)), lon: \(String(format: "%.2f", loc.longitude))")
+                                .font(.system(size: 10.5, weight: .regular, design: .monospaced))
+                                .foregroundStyle(JYLTheme.textMuted)
+                        }
+                    } else {
+                        Text("未获取")
+                            .font(.system(size: 11.5, weight: .regular, design: .rounded))
+                            .foregroundStyle(JYLTheme.textMuted)
+                    }
+                }
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(JYLTheme.neutral900.opacity(0.7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(JYLTheme.border.opacity(0.6), lineWidth: 0.8)
+                    )
+            )
+
+            // Card 3: 偏好与刷新 (Units & Interval)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(JYLTheme.neutral800)
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "thermometer.medium")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(JYLTheme.warning)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("偏好与刷新")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(JYLTheme.textPrimary)
+
+                        Text("定制天气展示温度单位及后台自动刷新周期")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(JYLTheme.textSecondary)
+                    }
+
+                    Spacer()
+                }
+
+                HStack {
+                    Text("温度单位")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(JYLTheme.textPrimary)
+
+                    Spacer()
+
+                    Picker("温度单位", selection: Binding(
+                        get: { weather.temperatureUnit },
+                        set: { weather.setTemperatureUnit($0) }
+                    )) {
+                        ForEach(TemperatureUnit.allCases) { unit in
+                            Text(unit.displayName).tag(unit)
+                        }
+                    }
+                    .labelsHidden()
+                }
+
+                Divider()
+                    .background(JYLTheme.border.opacity(0.4))
+                    .padding(.vertical, 2)
+
+                HStack {
+                    Text("刷新频率")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(JYLTheme.textPrimary)
+
+                    Spacer()
+
+                    Picker("刷新频率", selection: Binding(
+                        get: { weather.refreshIntervalMinutes },
+                        set: { weather.setRefreshInterval($0) }
+                    )) {
+                        Text("15 分钟").tag(15)
+                        Text("30 分钟 (推荐)").tag(30)
+                        Text("1 小时").tag(60)
+                    }
+                    .labelsHidden()
+                }
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(JYLTheme.neutral900.opacity(0.7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(JYLTheme.border.opacity(0.6), lineWidth: 0.8)
+                    )
+            )
+
+            // Card 4: 状态与手动刷新 (Status & Actions)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(JYLTheme.neutral800)
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(JYLTheme.textSecondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text("状态与数据更新")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(JYLTheme.textPrimary)
+
+                            Spacer()
+
+                            if weather.isLoading {
+                                HStack(spacing: 4) {
+                                    ProgressView()
+                                        .scaleEffect(0.6)
+                                        .frame(width: 12, height: 12)
+                                    Text("正在获取…")
+                                        .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(JYLTheme.info)
+                                }
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(JYLTheme.info.opacity(0.15)))
+                            } else if weather.lastError != nil {
+                                Text("更新失败")
+                                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(JYLTheme.warning)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(JYLTheme.warning.opacity(0.15)))
+                            } else {
+                                Text("服务正常")
+                                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(JYLTheme.primary)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(JYLTheme.primary.opacity(0.15)))
+                            }
+                        }
+
+                        let formattedDate: String = {
+                            if let date = weather.currentSnapshot?.lastUpdated {
+                                let formatter = DateFormatter()
+                                formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+                                return formatter.string(from: date)
+                            } else {
+                                return "暂无记录"
+                            }
+                        }()
+
+                        Text("上次更新: \(formattedDate)")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(JYLTheme.textSecondary)
+                    }
+                }
+
+                if let error = weather.lastError {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(JYLTheme.warning)
+                        Text(error)
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(JYLTheme.warning)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(JYLTheme.warning.opacity(0.1))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .strokeBorder(JYLTheme.warning.opacity(0.3), lineWidth: 0.5)
+                            )
+                    )
+                }
+
+                Button {
+                    weather.refresh()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("立即刷新数据")
+                            .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundStyle(weather.isLoading ? JYLTheme.textMuted : JYLTheme.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 28)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(JYLTheme.neutral800)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(weather.isLoading)
             }
             .padding(14)
             .background(
