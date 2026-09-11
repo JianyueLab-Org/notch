@@ -15,6 +15,16 @@ enum NotchActiveTab: String, CaseIterable, Identifiable {
     case shelf = "Drop Shelf"
     case clipboard = "Clipboard"
     var id: String { rawValue }
+
+    @MainActor
+    var localizedTitle: String {
+        switch self {
+        case .overview: return L10n.tr(.tabOverview)
+        case .weather: return L10n.tr(.tabWeather)
+        case .shelf: return L10n.tr(.tabShelf)
+        case .clipboard: return L10n.tr(.tabClipboard)
+        }
+    }
 }
 
 struct NotchPanelView: View {
@@ -27,6 +37,7 @@ struct NotchPanelView: View {
     @ObservedObject private var agentController = AgentHarnessController.shared
     @ObservedObject private var clipboard = ClipboardManager.shared
     @ObservedObject private var weather = WeatherController.shared
+    @ObservedObject private var loc = LocalizationManager.shared
     @State private var activeTab: NotchActiveTab = .overview
     @State private var isDraggingFile: Bool = false
 
@@ -658,6 +669,7 @@ struct NotchPanelView: View {
                     }
                 }
                 .buttonStyle(TabButtonStyle())
+                .help(L10n.tr(.menuSettings))
             }
             .frame(width: earWidth, alignment: .trailing)
         }
@@ -700,7 +712,7 @@ struct NotchPanelView: View {
             )
         }
         .buttonStyle(TabButtonStyle())
-        .help("Jump to \(agent.agent) (\(agent.state.displayName)) in Terminal")
+        .help(loc.isChinese ? "在终端中跳转至 \(agent.agent) (\(agent.state.displayName))" : "Jump to \(agent.agent) (\(agent.state.displayName)) in Terminal")
     }
 
     private func circleIconButton(
@@ -740,6 +752,7 @@ struct NotchPanelView: View {
             }
         }
         .buttonStyle(TabButtonStyle())
+        .help(tab.localizedTitle)
     }
 
     // MARK: - Overview Content

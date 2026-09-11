@@ -21,12 +21,13 @@ enum AgentState: String, Codable, Equatable, Sendable {
     }
 
     var displayName: String {
+        let isZh = LocalizationManager.shared.isChinese
         switch self {
-        case .working: return "Working"
-        case .waitingUser: return "Reply Needed"
-        case .waitingSubagent: return "Subagent Active"
-        case .completed: return "Completed"
-        case .idle: return "Idle"
+        case .working: return isZh ? "运行中" : "Working"
+        case .waitingUser: return isZh ? "等待回复" : "Reply Needed"
+        case .waitingSubagent: return isZh ? "子任务执行中" : "Subagent Active"
+        case .completed: return isZh ? "已完成" : "Completed"
+        case .idle: return isZh ? "空闲" : "Idle"
         }
     }
 

@@ -14,6 +14,7 @@ struct ClipboardCardView: View {
     var isActive: Bool = false
 
     @ObservedObject private var manager = ClipboardManager.shared
+    @ObservedObject private var loc = LocalizationManager.shared
     @State private var copiedItemId: UUID? = nil
 
     private var displayItems: [ClipboardItem] {
@@ -172,10 +173,10 @@ struct ClipboardCardView: View {
             Image(systemName: "doc.on.clipboard")
                 .font(.system(size: 24))
                 .foregroundStyle(JYLTheme.neutral600)
-            Text("Clipboard is empty")
+            Text(L10n.tr(.clipboardEmptyTitle))
                 .font(.system(size: 11.5, weight: .medium, design: .rounded))
                 .foregroundStyle(JYLTheme.textMuted)
-            Text("Copy text from any app to record history")
+            Text(loc.isChinese ? "从任意 App 复制文本即可自动记录" : "Copy text from any app to record history")
                 .font(.system(size: 9.5, weight: .regular, design: .rounded))
                 .foregroundStyle(JYLTheme.textMuted.opacity(0.8))
             Spacer()

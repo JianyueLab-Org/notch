@@ -12,6 +12,7 @@ import SwiftUI
 struct ScheduleTimelineCardView: View {
 
     @ObservedObject var schedule: ScheduleController
+    @ObservedObject private var loc = LocalizationManager.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -31,15 +32,38 @@ struct ScheduleTimelineCardView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(schedule.currentEventTitle)
+            Text(displayTitle)
                 .font(.system(size: 14.5, weight: .bold, design: .rounded))
                 .foregroundStyle(JYLTheme.textPrimary)
                 .lineLimit(1)
-            Text(schedule.currentEventStatus)
+            Text(displayStatus)
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(JYLTheme.textSecondary)
                 .lineLimit(1)
         }
+    }
+
+    private var displayTitle: String {
+        if schedule.currentEventTitle == "No Scheduled Events" {
+            return L10n.tr(.scheduleNoEvents)
+        }
+        if schedule.currentEventTitle == "Calendar Access Required" {
+            return loc.isChinese ? "需要日历访问权限" : "Calendar Access Required"
+        }
+        return schedule.currentEventTitle
+    }
+
+    private var displayStatus: String {
+        if schedule.currentEventStatus == "Calendar is clear" {
+            return loc.isChinese ? "暂无日程安排" : "Calendar is clear"
+        }
+        if schedule.currentEventStatus == "No more events today" {
+            return loc.isChinese ? "今日暂无后续日程" : "No more events today"
+        }
+        if schedule.currentEventStatus == "Enable in System Settings > Privacy" {
+            return loc.isChinese ? "请在「系统设置 > 隐私」中开启" : "Enable in System Settings > Privacy"
+        }
+        return schedule.currentEventStatus
     }
 
     // MARK: - Ruler Gauge
@@ -198,7 +222,7 @@ struct ScheduleTimelineCardView: View {
                 RoundedRectangle(cornerRadius: 2)
                     .stroke(JYLTheme.primary, style: StrokeStyle(lineWidth: 1.1, dash: [2, 1.5]))
                     .frame(width: 8, height: 8)
-                Text("Next · \(schedule.nextEventTitle)")
+                Text("\(loc.isChinese ? "下个日程" : "Next") · \(displayNextTitle)")
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(JYLTheme.textPrimary)
                     .lineLimit(1)
@@ -208,5 +232,12 @@ struct ScheduleTimelineCardView: View {
                 .font(.system(size: 11, weight: .regular, design: .rounded))
                 .foregroundStyle(JYLTheme.textMuted)
         }
+    }
+
+    private var displayNextTitle: String {
+        if schedule.nextEventTitle == "No Scheduled Events" || schedule.nextEventTitle.isEmpty {
+            return L10n.tr(.scheduleNoEvents)
+        }
+        return schedule.nextEventTitle
     }
 }

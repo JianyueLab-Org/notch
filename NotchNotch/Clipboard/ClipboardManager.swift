@@ -21,14 +21,18 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
 
     var ageString: String {
         let elapsed = max(0, -timestamp.timeIntervalSinceNow)
+        let isZh = LocalizationManager.shared.isChinese
         if elapsed < 60 {
-            return "now"
+            return isZh ? "刚刚" : "now"
         } else if elapsed < 3600 {
-            return "\(max(1, Int(elapsed / 60)))m"
+            let mins = max(1, Int(elapsed / 60))
+            return isZh ? "\(mins)分前" : "\(mins)m"
         } else if elapsed < 86400 {
-            return "\(max(1, Int(elapsed / 3600)))h"
+            let hours = max(1, Int(elapsed / 3600))
+            return isZh ? "\(hours)时前" : "\(hours)h"
         } else {
-            return "\(max(1, Int(elapsed / 86400)))d"
+            let days = max(1, Int(elapsed / 86400))
+            return isZh ? "\(days)天前" : "\(days)d"
         }
     }
 

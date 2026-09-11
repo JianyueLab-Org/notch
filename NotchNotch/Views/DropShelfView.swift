@@ -13,6 +13,7 @@ import UniformTypeIdentifiers
 struct DropShelfView: View {
 
     @ObservedObject var shelf: ShelfController
+    @ObservedObject private var loc = LocalizationManager.shared
     @State private var isAirDropTargeted: Bool = false
 
     var body: some View {
@@ -62,11 +63,11 @@ struct DropShelfView: View {
                 .animation(.spring(response: 0.25, dampingFraction: 0.7), value: shelf.isTargeted)
 
             VStack(spacing: 2) {
-                Text(shelf.isTargeted ? "Release to stage files" : "Drop Files Here")
+                Text(shelf.isTargeted ? (loc.isChinese ? "释放以暂存文件" : "Release to stage files") : L10n.tr(.shelfEmptyTitle))
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(shelf.isTargeted ? JYLTheme.primary : JYLTheme.textPrimary)
 
-                Text("Files kept for a day")
+                Text(L10n.tr(.shelfEmptySubtitle))
                     .font(.system(size: 10.5, weight: .regular, design: .rounded))
                     .foregroundStyle(JYLTheme.textMuted)
             }
@@ -83,14 +84,14 @@ struct DropShelfView: View {
                         .font(.system(size: 9.5, weight: .semibold))
                         .foregroundStyle(JYLTheme.primary)
 
-                    Text("\(shelf.items.count) item\(shelf.items.count == 1 ? "" : "s") staged")
+                    Text(loc.isChinese ? "\(shelf.items.count) 个暂存文件" : "\(shelf.items.count) item\(shelf.items.count == 1 ? "" : "s") staged")
                         .font(.system(size: 10, weight: .semibold, design: .rounded))
                         .foregroundStyle(JYLTheme.textSecondary)
                 }
 
                 Spacer()
 
-                Button("Clear All") {
+                Button(L10n.tr(.shelfClearAll)) {
                     withAnimation(.easeInOut(duration: 0.18)) {
                         shelf.clearAll()
                     }
@@ -178,7 +179,7 @@ struct DropShelfView: View {
             VStack(spacing: 8) {
                 AirDropIconView(size: 34, isHighlighted: isAirDropTargeted)
 
-                Text("AirDrop")
+                Text(L10n.tr(.shelfAirDrop))
                     .font(.system(size: 12.5, weight: .bold, design: .rounded))
                     .foregroundStyle(isAirDropTargeted ? JYLTheme.primary : JYLTheme.textPrimary)
             }

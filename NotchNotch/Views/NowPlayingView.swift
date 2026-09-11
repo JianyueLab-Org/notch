@@ -13,6 +13,7 @@ struct NowPlayingView: View {
     var authorization: NowPlayingAuthorization = .notRequired
     var onRequestAuthorization: (() -> Void)? = nil
     let send: (MediaCommand) -> Void
+    @ObservedObject private var loc = LocalizationManager.shared
 
     var body: some View {
         HStack(spacing: 10) {
@@ -140,7 +141,7 @@ struct NowPlayingView: View {
 
     private var titles: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(track.title.isEmpty ? "Nothing Playing" : track.title)
+            Text(track.title.isEmpty ? L10n.tr(.mediaNotPlaying) : track.title)
                 .font(.system(size: 14.5, weight: .bold, design: .rounded))
                 .foregroundStyle(JYLTheme.textPrimary)
                 .lineLimit(1)
