@@ -51,6 +51,7 @@ final class NotchWindowController {
 
     func start() {
         nowPlaying.start()
+        WeatherController.shared.start()
         buildWindowIfNeeded()
         observeState()
         observeLiveActivities()
@@ -100,19 +101,32 @@ final class NotchWindowController {
     }
 
     private func observeLiveActivities() {
-        Publishers.CombineLatest3(nowPlaying.$nowPlaying, schedule.$hasActiveEvent, AgentHarnessController.shared.$activeSession)
-            .receive(on: DispatchQueue.main)
-            .map { track, hasActiveSchedule, agent in
-                let isMusicPlaying = (track?.isPlaying == true) && (track?.hasTrack == true)
-                let isAgentActive = (agent?.state == .working || agent?.state.isWaiting == true)
-                return isMusicPlaying || hasActiveSchedule || isAgentActive
-            }
-            .removeDuplicates()
-            .sink { [weak self] hasLive in
-                guard let self else { return }
-                self.stateMachine.updateHasLiveActivity(hasLive)
-            }
-            .store(in: &cancellables)
+        let weatherPublisher = Publishers.CombineLatest3(
+            WeatherController.shared.$currentSnapshot,
+            WeatherController.shared.$isEnabled,
+            WeatherController.shared.$showInEars
+        ).map { snapshot, isEnabled, showInEars in
+            isEnabled && showInEars && (snapshot != nil)
+        }
+
+        Publishers.CombineLatest4(
+            nowPlaying.$nowPlaying,
+            schedule.$hasActiveEvent,
+            AgentHarnessController.shared.$activeSession,
+            weatherPublisher
+        )
+        .receive(on: DispatchQueue.main)
+        .map { track, hasActiveSchedule, agent, isWeatherActive in
+            let isMusicPlaying = (track?.isPlaying == true) && (track?.hasTrack == true)
+            let isAgentActive = (agent?.state == .working || agent?.state.isWaiting == true)
+            return isMusicPlaying || hasActiveSchedule || isAgentActive || isWeatherActive
+        }
+        .removeDuplicates()
+        .sink { [weak self] hasLive in
+            guard let self else { return }
+            self.stateMachine.updateHasLiveActivity(hasLive)
+        }
+        .store(in: &cancellables)
 
         SystemMediaHUDController.shared.$isShowing
             .receive(on: DispatchQueue.main)

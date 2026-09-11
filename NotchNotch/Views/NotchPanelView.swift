@@ -11,6 +11,7 @@ import OSLog
 
 enum NotchActiveTab: String, CaseIterable, Identifiable {
     case overview = "Overview"
+    case weather = "Weather"
     case shelf = "Drop Shelf"
     case clipboard = "Clipboard"
     var id: String { rawValue }
@@ -25,6 +26,7 @@ struct NotchPanelView: View {
     @ObservedObject private var hud = SystemMediaHUDController.shared
     @ObservedObject private var agentController = AgentHarnessController.shared
     @ObservedObject private var clipboard = ClipboardManager.shared
+    @ObservedObject private var weather = WeatherController.shared
     @State private var activeTab: NotchActiveTab = .overview
     @State private var isDraggingFile: Bool = false
 
@@ -56,8 +58,12 @@ struct NotchPanelView: View {
         agentController.isWorking || agentController.isWaiting
     }
 
+    private var isWeatherActive: Bool {
+        weather.isEnabled && weather.showInEars && (weather.currentSnapshot != nil)
+    }
+
     private var hasLiveActivity: Bool {
-        isMusicPlaying || schedule.hasActiveEvent || isAgentActive
+        isMusicPlaying || schedule.hasActiveEvent || isAgentActive || isWeatherActive
     }
 
     private var collapsedWidth: CGFloat {
@@ -98,6 +104,8 @@ struct NotchPanelView: View {
                             activeTab = .shelf
                         } else if tabName == "clipboard" {
                             activeTab = .clipboard
+                        } else if tabName == "weather" {
+                            activeTab = .weather
                         } else {
                             activeTab = .overview
                         }
@@ -320,6 +328,15 @@ struct NotchPanelView: View {
                     .font(.system(size: 12.5, weight: .bold))
                     .foregroundStyle(JYLTheme.primary)
             }
+        } else if isWeatherActive, let _ = weather.currentSnapshot {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.white.opacity(0.12))
+                    .frame(width: 22, height: 22)
+                Image(systemName: weather.currentSymbolName)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(JYLTheme.primary)
+            }
         }
     }
 
@@ -388,6 +405,14 @@ struct NotchPanelView: View {
                     .rotationEffect(.degrees(-90))
                     .frame(width: 20, height: 20)
             }
+        } else if isWeatherActive, let _ = weather.currentSnapshot {
+            Text(weather.formattedCurrentTemperature ?? "")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .foregroundStyle(JYLTheme.textPrimary)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.white.opacity(0.12)))
         }
     }
 
@@ -554,6 +579,10 @@ struct NotchPanelView: View {
                     .opacity(activeTab == .overview ? 1 : 0)
                     .allowsHitTesting(activeTab == .overview)
 
+                WeatherCardView()
+                    .opacity(activeTab == .weather ? 1 : 0)
+                    .allowsHitTesting(activeTab == .weather)
+
                 DropShelfView(shelf: shelf)
                     .opacity(activeTab == .shelf ? 1 : 0)
                     .allowsHitTesting(activeTab == .shelf)
@@ -585,6 +614,10 @@ struct NotchPanelView: View {
                 circleIconButton(
                     tab: .overview,
                     icon: "square.grid.2x2.fill"
+                )
+                circleIconButton(
+                    tab: .weather,
+                    icon: "cloud.sun.fill"
                 )
                 circleIconButton(
                     tab: .shelf,
