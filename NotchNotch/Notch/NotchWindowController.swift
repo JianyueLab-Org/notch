@@ -92,7 +92,9 @@ final class NotchWindowController {
         let detected = NotchGeometry.detect(on: screen)
         geometry = detected
         let isMusicPlaying = (nowPlaying.nowPlaying?.isPlaying == true) && (nowPlaying.nowPlaying?.hasTrack == true)
-        let hasLive = isMusicPlaying || schedule.hasActiveEvent
+        let isAgentActive = (AgentHarnessController.shared.activeSession?.state == .working || AgentHarnessController.shared.activeSession?.state.isWaiting == true)
+        let isWeatherActive = WeatherController.shared.isEnabled && WeatherController.shared.showInEars && (WeatherController.shared.currentSnapshot != nil)
+        let hasLive = isMusicPlaying || schedule.hasActiveEvent || isAgentActive || isWeatherActive
         let layout = NotchLayout(geometry: detected, hasLiveActivity: hasLive)
         stateMachine.collapseImmediately()
         stateMachine.layout = layout

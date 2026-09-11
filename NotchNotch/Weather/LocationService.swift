@@ -38,15 +38,17 @@ public enum LocationError: LocalizedError, Sendable, Equatable {
     }
 }
 
+public typealias GPSLocationProviding = @Sendable () async throws -> CLLocation
+
 public final class LocationService: NSObject, CLLocationManagerDelegate, @unchecked Sendable {
     public static let shared = LocationService()
 
     private let session: URLSession
-    internal var customGPSProvider: (@Sendable () async throws -> CLLocation)?
+    private let customGPSProvider: GPSLocationProviding?
 
     public init(
         session: URLSession = .shared,
-        customGPSProvider: (@Sendable () async throws -> CLLocation)? = nil
+        customGPSProvider: GPSLocationProviding? = nil
     ) {
         self.session = session
         self.customGPSProvider = customGPSProvider
@@ -348,9 +350,15 @@ private final class GPSLocationFetcher: NSObject, @preconcurrency CLLocationMana
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = self.manager.authorizationStatus
+        #if !os(macOS)
+        let isAuthorized = (status == .authorizedAlways || status == .authorizedWhenInUse)
+        #else
+        let isAuthorized = (status == .authorizedAlways)
+        #endif
+
         if status == .denied || status == .restricted {
             complete(with: .failure(LocationError.locationUnavailable))
-        } else if status == .authorizedAlways {
+        } else if isAuthorized {
             self.manager.requestLocation()
         }
     }

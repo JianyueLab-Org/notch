@@ -84,7 +84,11 @@ struct WeatherCardView: View {
                     .foregroundStyle(JYLTheme.textPrimary)
                 }
                 .buttonStyle(.plain)
-                .onHover { isHoveringRetry = $0 }
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isHoveringRetry = hovering
+                    }
+                }
             } else {
                 ProgressView()
                     .controlSize(.small)
@@ -217,6 +221,7 @@ struct WeatherCardView: View {
         .buttonStyle(.plain)
         .disabled(weather.isLoading)
         .contentShape(Circle())
+        .accessibilityLabel("刷新天气")
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHoveringRefresh = hovering
