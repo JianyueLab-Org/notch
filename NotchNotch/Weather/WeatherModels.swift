@@ -139,48 +139,93 @@ public enum WMOCodeHelper: Sendable {
         }
     }
 
-    public static func description(for code: Int) -> String {
-        switch code {
-        case 0:
-            return "晴朗"
-        case 1:
-            return "晴间多云"
-        case 2:
-            return "多云"
-        case 3:
-            return "阴天"
-        case 45, 48:
-            return "雾"
-        case 51, 53, 55:
-            return "毛毛细雨"
-        case 56, 57:
-            return "冻毛毛雨"
-        case 61:
-            return "小雨"
-        case 63:
-            return "中雨"
-        case 65:
-            return "大雨"
-        case 66, 67:
-            return "冻雨"
-        case 71:
-            return "小雪"
-        case 73:
-            return "中雪"
-        case 75:
-            return "大雪"
-        case 77:
-            return "雪粒"
-        case 80, 81, 82:
-            return "阵雨"
-        case 85, 86:
-            return "阵雪"
-        case 95:
-            return "雷阵雨"
-        case 96, 99:
-            return "雷暴伴有冰雹"
-        default:
-            return "未知气象"
+    public static func description(for code: Int, isChinese: Bool = LocalizationManager.shared.isChinese) -> String {
+        if isChinese {
+            switch code {
+            case 0:
+                return "晴朗"
+            case 1:
+                return "晴间多云"
+            case 2:
+                return "多云"
+            case 3:
+                return "阴天"
+            case 45, 48:
+                return "雾"
+            case 51, 53, 55:
+                return "毛毛细雨"
+            case 56, 57:
+                return "冻毛毛雨"
+            case 61:
+                return "小雨"
+            case 63:
+                return "中雨"
+            case 65:
+                return "大雨"
+            case 66, 67:
+                return "冻雨"
+            case 71:
+                return "小雪"
+            case 73:
+                return "中雪"
+            case 75:
+                return "大雪"
+            case 77:
+                return "雪粒"
+            case 80, 81, 82:
+                return "阵雨"
+            case 85, 86:
+                return "阵雪"
+            case 95:
+                return "雷阵雨"
+            case 96, 99:
+                return "雷暴伴有冰雹"
+            default:
+                return "未知气象"
+            }
+        } else {
+            switch code {
+            case 0:
+                return "Clear Sky"
+            case 1:
+                return "Mainly Clear"
+            case 2:
+                return "Partly Cloudy"
+            case 3:
+                return "Overcast"
+            case 45, 48:
+                return "Foggy"
+            case 51, 53, 55:
+                return "Drizzle"
+            case 56, 57:
+                return "Freezing Drizzle"
+            case 61:
+                return "Light Rain"
+            case 63:
+                return "Moderate Rain"
+            case 65:
+                return "Heavy Rain"
+            case 66, 67:
+                return "Freezing Rain"
+            case 71:
+                return "Light Snow"
+            case 73:
+                return "Moderate Snow"
+            case 75:
+                return "Heavy Snow"
+            case 77:
+                return "Snow Grains"
+            case 80, 81, 82:
+                return "Rain Showers"
+            case 85, 86:
+                return "Snow Showers"
+            case 95:
+                return "Thunderstorm"
+            case 96, 99:
+                return "Thunderstorm with Hail"
+            default:
+                return "Unknown"
+            }
         }
     }
 }

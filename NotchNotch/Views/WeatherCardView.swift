@@ -11,6 +11,7 @@ import SwiftUI
 
 struct WeatherCardView: View {
     @ObservedObject private var weather = WeatherController.shared
+    @ObservedObject private var loc = LocalizationManager.shared
 
     @State private var isHoveringRefresh: Bool = false
     @State private var isHoveringRetry: Bool = false
@@ -51,7 +52,7 @@ struct WeatherCardView: View {
                     .font(.system(size: 24))
                     .foregroundStyle(JYLTheme.warning)
 
-                Text("获取天气失败")
+                Text(loc.isChinese ? "获取天气失败" : "Weather Update Failed")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(JYLTheme.textPrimary)
 
@@ -68,7 +69,7 @@ struct WeatherCardView: View {
                     HStack(spacing: 5) {
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 11, weight: .semibold))
-                        Text("点击重试")
+                        Text(L10n.tr(.weatherRetry))
                             .font(.system(size: 12, weight: .medium, design: .rounded))
                     }
                     .padding(.horizontal, 14)
@@ -94,7 +95,7 @@ struct WeatherCardView: View {
                     .controlSize(.small)
                     .padding(.bottom, 2)
 
-                Text("获取天气信息中...")
+                Text(L10n.tr(.weatherFetching))
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundStyle(JYLTheme.textSecondary)
             }
@@ -113,13 +114,13 @@ struct WeatherCardView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(JYLTheme.primary)
 
-                let city = snapshot.cityName.isEmpty ? (weather.currentLocation?.cityName ?? "未知位置") : snapshot.cityName
+                let city = snapshot.cityName.isEmpty ? (weather.currentLocation?.cityName ?? (loc.isChinese ? "未知位置" : "Unknown")) : snapshot.cityName
                 Text(city)
                     .font(.system(size: 13.5, weight: .bold, design: .rounded))
                     .foregroundStyle(JYLTheme.textPrimary)
                     .lineLimit(1)
 
-                Text(WMOCodeHelper.description(for: snapshot.weatherCode))
+                Text(WMOCodeHelper.description(for: snapshot.weatherCode, isChinese: loc.isChinese))
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(JYLTheme.textSecondary)
                     .lineLimit(1)
@@ -163,11 +164,11 @@ struct WeatherCardView: View {
             // Metrics Row
             HStack(spacing: 8) {
                 metricChip(
-                    label: "体感",
+                    label: L10n.tr(.weatherApparent),
                     value: weather.temperatureUnit.format(celsius: snapshot.apparentTemperature)
                 )
                 metricChip(
-                    label: "湿度",
+                    label: L10n.tr(.weatherHumidity),
                     value: "\(snapshot.humidity)%"
                 )
             }
@@ -221,7 +222,7 @@ struct WeatherCardView: View {
         .buttonStyle(.plain)
         .disabled(weather.isLoading)
         .contentShape(Circle())
-        .accessibilityLabel("刷新天气")
+        .accessibilityLabel(L10n.tr(.weatherRefresh))
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHoveringRefresh = hovering
@@ -241,13 +242,15 @@ struct WeatherCardView: View {
         VStack(alignment: .leading, spacing: 8) {
             // Header
             HStack(alignment: .center) {
-                Text("逐小时预报")
+                Text(L10n.tr(.weatherHourly))
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(JYLTheme.textPrimary)
 
                 Spacer()
 
-                Text("最高 \(weather.temperatureUnit.format(celsius: snapshot.highTemperature)) · 最低 \(weather.temperatureUnit.format(celsius: snapshot.lowTemperature))")
+                let high = weather.temperatureUnit.format(celsius: snapshot.highTemperature)
+                let low = weather.temperatureUnit.format(celsius: snapshot.lowTemperature)
+                Text(loc.isChinese ? "最高 \(high) · 最低 \(low)" : "H: \(high) · L: \(low)")
                     .font(.system(size: 10.5, weight: .medium, design: .rounded))
                     .foregroundStyle(JYLTheme.textSecondary)
             }
@@ -280,7 +283,7 @@ struct WeatherCardView: View {
         let color = weatherSymbolColor(for: item.weatherCode, isDaytime: isDay)
 
         return VStack(spacing: 6) {
-            Text(isFirst ? "现在" : Self.timeFormatter.string(from: item.time))
+            Text(isFirst ? L10n.tr(.weatherNow) : Self.timeFormatter.string(from: item.time))
                 .font(.system(size: 11, weight: isFirst ? .bold : .medium, design: .rounded))
                 .foregroundStyle(isFirst ? JYLTheme.primary : JYLTheme.textSecondary)
                 .lineLimit(1)
@@ -339,9 +342,9 @@ struct WeatherCardView: View {
     private func formatUpdateTime(_ date: Date) -> String {
         let interval = Date().timeIntervalSince(date)
         if interval < 60 {
-            return "刚刚更新"
+            return L10n.tr(.weatherJustUpdated)
         }
-        return "\(Self.timeFormatter.string(from: date)) 更新"
+        return L10n.tr(.weatherUpdatedAt, Self.timeFormatter.string(from: date))
     }
 
     private func isDaytime(for date: Date) -> Bool {
