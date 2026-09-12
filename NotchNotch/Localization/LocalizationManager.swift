@@ -17,10 +17,11 @@ public enum AppLanguage: String, CaseIterable, Identifiable, Codable, Sendable {
 
     public var id: String { rawValue }
 
+    @MainActor
     public var displayName: String {
         switch self {
         case .system:
-            return "跟随系统 (System)"
+            return LocalizationManager.shared.isChinese ? "跟随系统" : "System"
         case .zhHans:
             return "简体中文"
         case .en:

@@ -7,13 +7,24 @@ import SwiftUI
 import ServiceManagement
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general = "常规"
-    case weather = "天气"
-    case agent = "AI Agent"
-    case clipboard = "剪贴板"
-    case about = "关于"
+    case general = "general"
+    case weather = "weather"
+    case agent = "agent"
+    case clipboard = "clipboard"
+    case about = "about"
 
     var id: String { rawValue }
+
+    @MainActor
+    var title: String {
+        switch self {
+        case .general: return L10n.tr(.settingsTabGeneral)
+        case .weather: return L10n.tr(.settingsTabWeather)
+        case .agent: return L10n.tr(.settingsTabAgent)
+        case .clipboard: return L10n.tr(.settingsTabClipboard)
+        case .about: return L10n.tr(.settingsTabAbout)
+        }
+    }
 
     var iconName: String {
         switch self {
@@ -33,6 +44,7 @@ struct SettingsView: View {
     @ObservedObject private var schedule = ScheduleController.shared
     @ObservedObject private var agentController = AgentHarnessController.shared
     @ObservedObject private var weather = WeatherController.shared
+    @ObservedObject private var loc = LocalizationManager.shared
 
     @State private var showClearedAlert: Bool = false
     @State private var showCopiedHookAlert: Bool = false
@@ -78,7 +90,7 @@ struct SettingsView: View {
     private var headerView: some View {
         VStack(spacing: 12) {
             HStack {
-                Text("NotchNotch 设置")
+                Text(loc.isChinese ? "NotchNotch 设置" : "NotchNotch Settings")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(JYLTheme.textPrimary)
 
@@ -99,7 +111,7 @@ struct SettingsView: View {
                         HStack(spacing: 6) {
                             Image(systemName: tab.iconName)
                                 .font(.system(size: 11, weight: .semibold))
-                            Text(tab.rawValue)
+                            Text(tab.title)
                                 .font(.system(size: 11.5, weight: isSelected ? .bold : .medium, design: .rounded))
                         }
                         .foregroundStyle(isSelected ? JYLTheme.textPrimary : JYLTheme.textSecondary)
@@ -127,6 +139,67 @@ struct SettingsView: View {
 
     private var generalSection: some View {
         VStack(spacing: 14) {
+            // Card 0: Interface Language Switcher
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(JYLTheme.neutral800)
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "globe")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(JYLTheme.primary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L10n.tr(.settingsGeneralLanguageTitle))
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(JYLTheme.textPrimary)
+
+                        Text(L10n.tr(.settingsGeneralLanguageDesc))
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(JYLTheme.textSecondary)
+                    }
+
+                    Spacer()
+                }
+
+                HStack(spacing: 8) {
+                    ForEach(AppLanguage.allCases) { lang in
+                        let isSelected = loc.language == lang
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                loc.setLanguage(lang)
+                            }
+                        } label: {
+                            Text(lang.displayName)
+                                .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .rounded))
+                                .foregroundStyle(isSelected ? JYLTheme.textPrimary : JYLTheme.textSecondary)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 26)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(isSelected ? JYLTheme.neutral700 : JYLTheme.neutral800)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                .strokeBorder(isSelected ? Color.white.opacity(0.15) : Color.clear, lineWidth: 0.5)
+                                        )
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(JYLTheme.neutral900.opacity(0.7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(JYLTheme.border.opacity(0.6), lineWidth: 0.8)
+                    )
+            )
+
             // Card 1: Launch at login
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top) {
@@ -141,21 +214,21 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
-                            Text("开机自动启动")
+                            Text(L10n.tr(.settingsGeneralLaunchTitle))
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundStyle(JYLTheme.textPrimary)
 
                             Spacer()
 
                             if launchAtLogin.requiresApproval {
-                                Text("需系统授权")
+                                Text(L10n.tr(.settingsGeneralLaunchApproved))
                                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                                     .foregroundStyle(JYLTheme.warning)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
                                     .background(Capsule().fill(JYLTheme.warning.opacity(0.15)))
                             } else {
-                                Text(launchAtLogin.isEnabled ? "已启用" : "已关闭")
+                                Text(launchAtLogin.isEnabled ? L10n.tr(.commonEnabled) : L10n.tr(.commonDisabled))
                                     .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                                     .foregroundStyle(launchAtLogin.isEnabled ? JYLTheme.primary : JYLTheme.textMuted)
                                     .padding(.horizontal, 7)
@@ -164,7 +237,7 @@ struct SettingsView: View {
                             }
                         }
 
-                        Text("登录 macOS 系统时自动在后台启动 NotchNotch 刘海面板")
+                        Text(L10n.tr(.settingsGeneralLaunchDesc))
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }
@@ -172,13 +245,13 @@ struct SettingsView: View {
 
                 if launchAtLogin.requiresApproval {
                     HStack {
-                        Text("系统登录项已被系统禁用，需前往系统设置手动开启。")
+                        Text(loc.isChinese ? "系统登录项已被系统禁用，需前往系统设置手动开启。" : "Login items disabled by macOS. Please enable NotchNotch in System Settings.")
                             .font(.system(size: 10.5, weight: .regular))
                             .foregroundStyle(JYLTheme.warning)
 
                         Spacer()
 
-                        Button("打开系统登录项 ↗") {
+                        Button(L10n.tr(.settingsGeneralOpenLoginItems)) {
                             launchAtLogin.openLoginItemsSettings()
                         }
                         .font(.system(size: 10.5, weight: .semibold))
@@ -194,7 +267,7 @@ struct SettingsView: View {
                             launchAtLogin.setEnabled(false)
                         }
                     } label: {
-                        Text("关闭")
+                        Text(loc.isChinese ? "关闭" : "Off")
                             .font(.system(size: 11, weight: !launchAtLogin.isEnabled ? .bold : .medium, design: .rounded))
                             .foregroundStyle(!launchAtLogin.isEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
                             .frame(maxWidth: .infinity)
@@ -215,7 +288,7 @@ struct SettingsView: View {
                             launchAtLogin.setEnabled(true)
                         }
                     } label: {
-                        Text("开启")
+                        Text(loc.isChinese ? "开启" : "On")
                             .font(.system(size: 11, weight: launchAtLogin.isEnabled ? .bold : .medium, design: .rounded))
                             .foregroundStyle(launchAtLogin.isEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
                             .frame(maxWidth: .infinity)
@@ -256,13 +329,13 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
-                            Text("日程提前提醒")
+                            Text(L10n.tr(.settingsGeneralScheduleTitle))
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundStyle(JYLTheme.textPrimary)
 
                             Spacer()
 
-                            Text(schedule.isReminderEnabled ? "已开启" : "已关闭")
+                            Text(schedule.isReminderEnabled ? L10n.tr(.commonEnabled) : L10n.tr(.commonDisabled))
                                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                                 .foregroundStyle(schedule.isReminderEnabled ? JYLTheme.primary : JYLTheme.textMuted)
                                 .padding(.horizontal, 7)
@@ -270,7 +343,7 @@ struct SettingsView: View {
                                 .background(Capsule().fill(schedule.isReminderEnabled ? JYLTheme.primary.opacity(0.15) : JYLTheme.neutral800))
                         }
 
-                        Text("在系统日历日程开始前及结束前，于刘海 Dynamic HUD 弹出轻量提醒横幅")
+                        Text(L10n.tr(.settingsGeneralScheduleDesc))
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }
@@ -282,7 +355,7 @@ struct SettingsView: View {
                             schedule.setReminderEnabled(false)
                         }
                     } label: {
-                        Text("关闭")
+                        Text(loc.isChinese ? "关闭" : "Off")
                             .font(.system(size: 11, weight: !schedule.isReminderEnabled ? .bold : .medium, design: .rounded))
                             .foregroundStyle(!schedule.isReminderEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
                             .frame(maxWidth: .infinity)
@@ -303,7 +376,7 @@ struct SettingsView: View {
                             schedule.setReminderEnabled(true)
                         }
                     } label: {
-                        Text("开启")
+                        Text(loc.isChinese ? "开启" : "On")
                             .font(.system(size: 11, weight: schedule.isReminderEnabled ? .bold : .medium, design: .rounded))
                             .foregroundStyle(schedule.isReminderEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
                             .frame(maxWidth: .infinity)
@@ -328,7 +401,7 @@ struct SettingsView: View {
                     // Sub-card 1: 开始前提醒
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("日程开始前提醒")
+                            Text(L10n.tr(.settingsGeneralScheduleStartLead))
                                 .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                                 .foregroundStyle(JYLTheme.textPrimary)
 
@@ -339,7 +412,7 @@ struct SettingsView: View {
                                     schedule.setRemindBeforeStart(!schedule.remindBeforeStart)
                                 }
                             } label: {
-                                Text(schedule.remindBeforeStart ? "已开启" : "已关闭")
+                                Text(schedule.remindBeforeStart ? L10n.tr(.commonEnabled) : L10n.tr(.commonDisabled))
                                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                                     .foregroundStyle(schedule.remindBeforeStart ? JYLTheme.primary : JYLTheme.textMuted)
                                     .padding(.horizontal, 6)
@@ -358,7 +431,7 @@ struct SettingsView: View {
                                             schedule.setStartReminderMinutes(min)
                                         }
                                     } label: {
-                                        Text("提前 \(min) 分钟")
+                                        Text(loc.isChinese ? "提前 \(min) 分钟" : "\(min)m before")
                                             .font(.system(size: 10, weight: isSelected ? .bold : .medium, design: .rounded))
                                             .foregroundStyle(isSelected ? JYLTheme.textPrimary : JYLTheme.textSecondary)
                                             .frame(maxWidth: .infinity)
@@ -385,7 +458,7 @@ struct SettingsView: View {
                     // Sub-card 2: 结束前提醒
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("日程结束前提醒")
+                            Text(L10n.tr(.settingsGeneralScheduleEndLead))
                                 .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                                 .foregroundStyle(JYLTheme.textPrimary)
 
@@ -396,7 +469,7 @@ struct SettingsView: View {
                                     schedule.setRemindBeforeEnd(!schedule.remindBeforeEnd)
                                 }
                             } label: {
-                                Text(schedule.remindBeforeEnd ? "已开启" : "已关闭")
+                                Text(schedule.remindBeforeEnd ? L10n.tr(.commonEnabled) : L10n.tr(.commonDisabled))
                                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                                     .foregroundStyle(schedule.remindBeforeEnd ? JYLTheme.primary : JYLTheme.textMuted)
                                     .padding(.horizontal, 6)
@@ -415,7 +488,7 @@ struct SettingsView: View {
                                             schedule.setEndReminderMinutes(min)
                                         }
                                     } label: {
-                                        Text("结束前 \(min) 分钟")
+                                        Text(loc.isChinese ? "结束前 \(min) 分钟" : "\(min)m before end")
                                             .font(.system(size: 10, weight: isSelected ? .bold : .medium, design: .rounded))
                                             .foregroundStyle(isSelected ? JYLTheme.textPrimary : JYLTheme.textSecondary)
                                             .frame(maxWidth: .infinity)
@@ -459,11 +532,11 @@ struct SettingsView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("屏幕与刘海适配")
+                        Text(loc.isChinese ? "屏幕与刘海适配" : "Screen & Notch Fit")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundStyle(JYLTheme.textPrimary)
 
-                        Text("插拔外接显示器或更改显示分辨率后，重新计算刘海位置与几何尺寸")
+                        Text(loc.isChinese ? "插拔外接显示器或更改显示分辨率后，重新计算刘海位置与几何尺寸" : "Recalculate notch position and geometry after connecting external displays or changing resolution")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }
@@ -477,7 +550,7 @@ struct SettingsView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "arrow.triangle.2.circlepath")
                             .font(.system(size: 10.5, weight: .semibold))
-                        Text("重新检测刘海屏幕")
+                        Text(loc.isChinese ? "重新检测刘海屏幕" : "Redetect Notch Screen")
                             .font(.system(size: 11, weight: .semibold, design: .rounded))
                     }
                     .foregroundStyle(JYLTheme.textPrimary)
@@ -525,11 +598,11 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
-                            Text("启用天气服务")
+                            Text(L10n.tr(.settingsWeatherMasterTitle))
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundStyle(JYLTheme.textPrimary)
 
-                            Text(weather.isEnabled ? "已启用" : "已关闭")
+                            Text(weather.isEnabled ? L10n.tr(.commonEnabled) : L10n.tr(.commonDisabled))
                                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                                 .foregroundStyle(weather.isEnabled ? JYLTheme.primary : JYLTheme.textMuted)
                                 .padding(.horizontal, 7)
@@ -537,7 +610,7 @@ struct SettingsView: View {
                                 .background(Capsule().fill(weather.isEnabled ? JYLTheme.primary.opacity(0.15) : JYLTheme.neutral800))
                         }
 
-                        Text("通过 Open-Meteo 实时气象接口获取实时温度、天气现象及逐小时预报")
+                        Text(L10n.tr(.settingsWeatherMasterDesc))
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }
@@ -569,11 +642,11 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
-                            Text("在刘海折叠耳部显示天气")
+                            Text(L10n.tr(.settingsWeatherEarTitle))
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundStyle(weather.isEnabled ? JYLTheme.textPrimary : JYLTheme.textMuted)
 
-                            Text(weather.showInEars ? "已启用" : "已关闭")
+                            Text(weather.showInEars ? L10n.tr(.commonEnabled) : L10n.tr(.commonDisabled))
                                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                                 .foregroundStyle(weather.isEnabled && weather.showInEars ? JYLTheme.primary : JYLTheme.textMuted)
                                 .padding(.horizontal, 7)
@@ -581,7 +654,7 @@ struct SettingsView: View {
                                 .background(Capsule().fill(weather.isEnabled && weather.showInEars ? JYLTheme.primary.opacity(0.15) : JYLTheme.neutral800))
                         }
 
-                        Text("无音乐播放且无高优先级警报时，在刘海两侧常驻展示气温与天气图标")
+                        Text(L10n.tr(.settingsWeatherEarDesc))
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(weather.isEnabled ? JYLTheme.textSecondary : JYLTheme.textMuted)
                     }
@@ -620,11 +693,11 @@ struct SettingsView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("定位模式与位置")
+                        Text(L10n.tr(.settingsWeatherLocationTitle))
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundStyle(JYLTheme.textPrimary)
 
-                        Text("选择自动定位或指定城市，获取精准的当地实时气象与预报")
+                        Text(loc.isChinese ? "选择自动定位或指定城市，获取精准的当地实时气象与预报" : "Choose automatic location or specify a city to get accurate local weather and forecast")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }
@@ -636,15 +709,15 @@ struct SettingsView: View {
                     get: { weather.locationMode },
                     set: { weather.setLocationMode($0) }
                 )) {
-                    Text("自动定位 (GPS / IP)").tag(LocationMode.auto)
-                    Text("指定城市 (手动输入)").tag(LocationMode.manual)
+                    Text(L10n.tr(.settingsWeatherLocationAuto)).tag(LocationMode.auto)
+                    Text(L10n.tr(.settingsWeatherLocationManual)).tag(LocationMode.manual)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
 
                 if weather.locationMode == .manual {
                     HStack(spacing: 8) {
-                        TextField("输入城市名称（如：上海 或 Tokyo）", text: $customCityInput, onCommit: {
+                        TextField(L10n.tr(.settingsWeatherLocationInputPlaceholder), text: $customCityInput, onCommit: {
                             weather.setCustomCity(customCityInput)
                         })
                         .textFieldStyle(.plain)
@@ -664,7 +737,7 @@ struct SettingsView: View {
                             weather.setCustomCity(customCityInput)
                         }
 
-                        Button("保存并定位") {
+                        Button(L10n.tr(.settingsWeatherLocationSaveBtn)) {
                             weather.setCustomCity(customCityInput)
                         }
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
@@ -689,24 +762,24 @@ struct SettingsView: View {
 
                 // Status readout
                 HStack {
-                    Text("当前定位城市")
+                    Text(L10n.tr(.settingsWeatherCurrentLocationLabel))
                         .font(.system(size: 11.5, weight: .medium, design: .rounded))
                         .foregroundStyle(JYLTheme.textSecondary)
 
                     Spacer()
 
-                    if let loc = weather.currentLocation {
+                    if let currentLoc = weather.currentLocation {
                         HStack(spacing: 8) {
-                            Text(loc.cityName)
+                            Text(currentLoc.cityName)
                                 .font(.system(size: 11.5, weight: .bold, design: .rounded))
                                 .foregroundStyle(JYLTheme.textPrimary)
 
-                            Text("lat: \(String(format: "%.2f", loc.latitude)), lon: \(String(format: "%.2f", loc.longitude))")
+                            Text("lat: \(String(format: "%.2f", currentLoc.latitude)), lon: \(String(format: "%.2f", currentLoc.longitude))")
                                 .font(.system(size: 10.5, weight: .regular, design: .monospaced))
                                 .foregroundStyle(JYLTheme.textMuted)
                         }
                     } else {
-                        Text("未获取")
+                        Text(L10n.tr(.settingsWeatherLocationNotResolved))
                             .font(.system(size: 11.5, weight: .regular, design: .rounded))
                             .foregroundStyle(JYLTheme.textMuted)
                     }
@@ -735,11 +808,11 @@ struct SettingsView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("偏好与刷新")
+                        Text(loc.isChinese ? "偏好与刷新" : "Units & Interval")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundStyle(JYLTheme.textPrimary)
 
-                        Text("定制天气展示温度单位及后台自动刷新周期")
+                        Text(loc.isChinese ? "定制天气展示温度单位及后台自动刷新周期" : "Customize temperature display units and background refresh interval")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }
@@ -748,7 +821,7 @@ struct SettingsView: View {
                 }
 
                 HStack {
-                    Text("温度单位")
+                    Text(L10n.tr(.settingsWeatherUnitsTitle))
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(JYLTheme.textPrimary)
 
@@ -770,7 +843,7 @@ struct SettingsView: View {
                     .padding(.vertical, 2)
 
                 HStack {
-                    Text("刷新频率")
+                    Text(L10n.tr(.settingsWeatherIntervalTitle))
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(JYLTheme.textPrimary)
 
@@ -780,9 +853,9 @@ struct SettingsView: View {
                         get: { weather.refreshIntervalMinutes },
                         set: { weather.setRefreshInterval($0) }
                     )) {
-                        Text("15 分钟").tag(15)
-                        Text("30 分钟 (推荐)").tag(30)
-                        Text("1 小时").tag(60)
+                        Text(L10n.tr(.settingsWeatherInterval15)).tag(15)
+                        Text(L10n.tr(.settingsWeatherInterval30)).tag(30)
+                        Text(L10n.tr(.settingsWeatherInterval60)).tag(60)
                     }
                     .labelsHidden()
                 }
@@ -811,7 +884,7 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
-                            Text("状态与数据更新")
+                            Text(loc.isChinese ? "状态与数据更新" : "Status & Data Refresh")
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundStyle(JYLTheme.textPrimary)
 
@@ -822,7 +895,7 @@ struct SettingsView: View {
                                     ProgressView()
                                         .scaleEffect(0.6)
                                         .frame(width: 12, height: 12)
-                                    Text("正在获取…")
+                                    Text(loc.isChinese ? "正在获取…" : "Fetching…")
                                         .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                                         .foregroundStyle(JYLTheme.info)
                                 }
@@ -830,14 +903,14 @@ struct SettingsView: View {
                                 .padding(.vertical, 2)
                                 .background(Capsule().fill(JYLTheme.info.opacity(0.15)))
                             } else if weather.lastError != nil {
-                                Text("更新失败")
+                                Text(loc.isChinese ? "更新失败" : "Update Failed")
                                     .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                                     .foregroundStyle(JYLTheme.warning)
                                     .padding(.horizontal, 7)
                                     .padding(.vertical, 2)
                                     .background(Capsule().fill(JYLTheme.warning.opacity(0.15)))
                             } else {
-                                Text("服务正常")
+                                Text(loc.isChinese ? "服务正常" : "Operational")
                                     .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                                     .foregroundStyle(JYLTheme.primary)
                                     .padding(.horizontal, 7)
@@ -852,11 +925,11 @@ struct SettingsView: View {
                                 formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
                                 return formatter.string(from: date)
                             } else {
-                                return "暂无记录"
+                                return loc.isChinese ? "暂无记录" : "No record"
                             }
                         }()
 
-                        Text("上次更新: \(formattedDate)")
+                        Text("\(L10n.tr(.settingsWeatherLastUpdatedLabel)): \(formattedDate)")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }
@@ -890,7 +963,7 @@ struct SettingsView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 11, weight: .semibold))
-                        Text("立即刷新数据")
+                        Text(L10n.tr(.settingsWeatherRefreshBtn))
                             .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                     }
                     .foregroundStyle(weather.isLoading ? JYLTheme.textMuted : JYLTheme.textPrimary)
@@ -938,13 +1011,13 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
-                            Text("AI Agent 监控与联动")
+                            Text(L10n.tr(.settingsAgentMasterTitle))
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundStyle(JYLTheme.textPrimary)
 
                             Spacer()
 
-                            Text(agentController.isMonitoringEnabled ? "已启用" : "已停用")
+                            Text(agentController.isMonitoringEnabled ? L10n.tr(.commonEnabled) : L10n.tr(.commonDisabled))
                                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                                 .foregroundStyle(agentController.isMonitoringEnabled ? JYLTheme.primary : JYLTheme.textMuted)
                                 .padding(.horizontal, 7)
@@ -952,7 +1025,7 @@ struct SettingsView: View {
                                 .background(Capsule().fill(agentController.isMonitoringEnabled ? JYLTheme.primary.opacity(0.15) : JYLTheme.neutral800))
                         }
 
-                        Text("实时感知本地终端 AI Agent（Claude Code、Antigravity、Codex 等）生命周期，并在刘海灵动岛提供交互提醒")
+                        Text(L10n.tr(.settingsAgentMasterDesc))
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }
@@ -964,7 +1037,7 @@ struct SettingsView: View {
                             agentController.setMonitoringEnabled(false)
                         }
                     } label: {
-                        Text("关闭")
+                        Text(loc.isChinese ? "关闭" : "Off")
                             .font(.system(size: 11, weight: !agentController.isMonitoringEnabled ? .bold : .medium, design: .rounded))
                             .foregroundStyle(!agentController.isMonitoringEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
                             .frame(maxWidth: .infinity)
@@ -985,7 +1058,7 @@ struct SettingsView: View {
                             agentController.setMonitoringEnabled(true)
                         }
                     } label: {
-                        Text("开启")
+                        Text(loc.isChinese ? "开启" : "On")
                             .font(.system(size: 11, weight: agentController.isMonitoringEnabled ? .bold : .medium, design: .rounded))
                             .foregroundStyle(agentController.isMonitoringEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
                             .frame(maxWidth: .infinity)
@@ -1017,7 +1090,7 @@ struct SettingsView: View {
                     Image(systemName: "pause.circle.fill")
                         .font(.system(size: 14))
                         .foregroundStyle(JYLTheme.textMuted)
-                    Text("AI Agent 功能已完全关闭。后台进程扫描已停止，HTTP 监听服务（7823 端口）已释放，不占用任何系统资源。")
+                    Text(loc.isChinese ? "AI Agent 功能已完全关闭。后台进程扫描已停止，HTTP 监听服务（7823 端口）已释放，不占用任何系统资源。" : "AI Agent monitoring is completely disabled. Background process scanning is stopped and port 7823 is released.")
                         .font(.system(size: 11, weight: .regular))
                         .foregroundStyle(JYLTheme.textSecondary)
                 }
@@ -1046,13 +1119,13 @@ struct SettingsView: View {
 
                         VStack(alignment: .leading, spacing: 3) {
                             HStack {
-                                Text("后台进程自动扫描")
+                                Text(L10n.tr(.settingsAgentScanTitle))
                                     .font(.system(size: 13, weight: .bold, design: .rounded))
                                     .foregroundStyle(JYLTheme.textPrimary)
 
                                 Spacer()
 
-                                Text(agentController.isProcessScanningEnabled ? "已开启" : "已关闭")
+                                Text(agentController.isProcessScanningEnabled ? L10n.tr(.commonEnabled) : L10n.tr(.commonDisabled))
                                     .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                                     .foregroundStyle(agentController.isProcessScanningEnabled ? JYLTheme.info : JYLTheme.textMuted)
                                     .padding(.horizontal, 7)
@@ -1060,7 +1133,7 @@ struct SettingsView: View {
                                     .background(Capsule().fill(agentController.isProcessScanningEnabled ? JYLTheme.info.opacity(0.15) : JYLTheme.neutral800))
                             }
 
-                            Text("每 4 秒在后台异步检测正在运行的 CLI Agent 进程与终端窗口状态")
+                            Text(L10n.tr(.settingsAgentScanDesc))
                                 .font(.system(size: 11, weight: .regular))
                                 .foregroundStyle(JYLTheme.textSecondary)
                         }
@@ -1072,7 +1145,7 @@ struct SettingsView: View {
                                 agentController.setProcessScanningEnabled(false)
                             }
                         } label: {
-                            Text("关闭")
+                            Text(loc.isChinese ? "关闭" : "Off")
                                 .font(.system(size: 11, weight: !agentController.isProcessScanningEnabled ? .bold : .medium, design: .rounded))
                                 .foregroundStyle(!agentController.isProcessScanningEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
                             .frame(maxWidth: .infinity)
@@ -1093,7 +1166,7 @@ struct SettingsView: View {
                                 agentController.setProcessScanningEnabled(true)
                             }
                         } label: {
-                            Text("开启")
+                            Text(loc.isChinese ? "开启" : "On")
                                 .font(.system(size: 11, weight: agentController.isProcessScanningEnabled ? .bold : .medium, design: .rounded))
                                 .foregroundStyle(agentController.isProcessScanningEnabled ? JYLTheme.textPrimary : JYLTheme.textSecondary)
                             .frame(maxWidth: .infinity)
@@ -1134,13 +1207,13 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
-                            Text("Agent 联动服务 (HTTP Hook)")
+                            Text(loc.isChinese ? "Agent 联动服务 (HTTP Hook)" : "Agent Service (HTTP Hook)")
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundStyle(JYLTheme.textPrimary)
 
                             Spacer()
 
-                            Text("运行中 · 7823 端口")
+                            Text(loc.isChinese ? "运行中 · 7823 端口" : "Running · Port 7823")
                                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                                 .foregroundStyle(JYLTheme.success)
                                 .padding(.horizontal, 7)
@@ -1148,7 +1221,7 @@ struct SettingsView: View {
                                 .background(Capsule().fill(JYLTheme.success.opacity(0.15)))
                         }
 
-                        Text("本地监听 127.0.0.1:7823/event，接收 Claude Code、Antigravity 毫秒级生命周期事件")
+                        Text(loc.isChinese ? "本地监听 127.0.0.1:7823/event，接收 Claude Code、Antigravity 毫秒级生命周期事件" : "Listening on 127.0.0.1:7823/event for millisecond lifecycle events from Claude Code and Antigravity")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }
@@ -1161,8 +1234,8 @@ struct SettingsView: View {
                                 sessionId: "test-alert",
                                 agent: "Claude Code",
                                 state: .waitingUser,
-                                title: "需要确认权限",
-                                detail: "测试灵动岛交互",
+                                title: loc.isChinese ? "需要确认权限" : "Permission Required",
+                                detail: loc.isChinese ? "测试灵动岛交互" : "Testing Dynamic Island",
                                 terminal: "Ghostty",
                                 pid: nil,
                                 timestamp: Date()
@@ -1173,7 +1246,7 @@ struct SettingsView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "bell.badge.fill")
                                 .font(.system(size: 10.5, weight: .semibold))
-                            Text("测试灵动岛提醒")
+                            Text(loc.isChinese ? "测试灵动岛提醒" : "Test Notch Alert")
                         }
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(JYLTheme.textPrimary)
@@ -1205,7 +1278,7 @@ struct SettingsView: View {
                         HStack(spacing: 6) {
                             Image(systemName: showCopiedHookAlert ? "checkmark" : "doc.on.doc")
                                 .font(.system(size: 10.5, weight: .semibold))
-                            Text(showCopiedHookAlert ? "已复制接口地址" : "复制 Webhook 地址")
+                            Text(showCopiedHookAlert ? (loc.isChinese ? "已复制接口地址" : "URL Copied") : (loc.isChinese ? "复制 Webhook 地址" : "Copy Webhook URL"))
                         }
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(showCopiedHookAlert ? JYLTheme.success : JYLTheme.textPrimary)
@@ -1247,13 +1320,13 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
-                            Text("活跃 Agent 会话")
+                            Text(loc.isChinese ? "活跃 Agent 会话" : "Active Agent Sessions")
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundStyle(JYLTheme.textPrimary)
 
                             Spacer()
 
-                            Text("\(agentController.sessions.count) 个进程")
+                            Text(loc.isChinese ? "\(agentController.sessions.count) 个进程" : "\(agentController.sessions.count) process\(agentController.sessions.count == 1 ? "" : "es")")
                                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                                 .foregroundStyle(agentController.sessions.isEmpty ? JYLTheme.textMuted : JYLTheme.primary)
                                 .padding(.horizontal, 7)
@@ -1261,7 +1334,7 @@ struct SettingsView: View {
                                 .background(Capsule().fill(agentController.sessions.isEmpty ? JYLTheme.neutral800 : JYLTheme.primary.opacity(0.15)))
                         }
 
-                        Text("支持回溯父进程树定位终端（Claude Code、Antigravity、Zed ACP、Codex、Aider）")
+                        Text(loc.isChinese ? "支持回溯父进程树定位终端（Claude Code、Antigravity、Zed ACP、Codex、Aider）" : "Traces process tree to locate terminal (Claude Code, Antigravity, Zed ACP, Codex, Aider)")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }
@@ -1270,7 +1343,7 @@ struct SettingsView: View {
                 if agentController.sessions.isEmpty {
                     HStack {
                         Spacer()
-                        Text("当前未运行任何 AI Agent CLI 进程")
+                        Text(loc.isChinese ? "当前未运行任何 AI Agent CLI 进程" : "No AI Agent CLI processes currently running")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textMuted)
                             .padding(.vertical, 12)
@@ -1340,7 +1413,7 @@ struct SettingsView: View {
                                     agentController.focusSession(session)
                                 } label: {
                                     HStack(spacing: 4) {
-                                        Text("唤醒")
+                                        Text(loc.isChinese ? "唤醒" : "Focus")
                                         Image(systemName: "arrow.up.forward.app")
                                     }
                                     .font(.system(size: 10.5, weight: .semibold))
@@ -1399,13 +1472,13 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
-                            Text("剪贴板历史保留上限")
+                            Text(L10n.tr(.settingsClipboardRetentionTitle))
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundStyle(JYLTheme.textPrimary)
 
                             Spacer()
 
-                            Text("\(clipboard.maxItems) 条")
+                            Text(loc.isChinese ? "\(clipboard.maxItems) 条" : "\(clipboard.maxItems) items")
                                 .font(.system(size: 11, weight: .bold, design: .rounded))
                                 .foregroundStyle(JYLTheme.primary)
                                 .padding(.horizontal, 8)
@@ -1413,7 +1486,7 @@ struct SettingsView: View {
                                 .background(Capsule().fill(JYLTheme.primary.opacity(0.15)))
                         }
 
-                        Text("自动记录复制的文本内容，超出上限后将移除最旧记录")
+                        Text(L10n.tr(.settingsClipboardRetentionDesc))
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }
@@ -1427,7 +1500,7 @@ struct SettingsView: View {
                                 clipboard.updateMaxItems(count)
                             }
                         } label: {
-                            Text("\(count) 条")
+                            Text(loc.isChinese ? "\(count) 条" : "\(count)")
                                 .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .rounded))
                                 .foregroundStyle(isSelected ? JYLTheme.textPrimary : JYLTheme.textSecondary)
                                 .frame(maxWidth: .infinity)
@@ -1469,18 +1542,18 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
-                            Text("清空历史记录")
+                            Text(L10n.tr(.settingsClipboardClearBtn))
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundStyle(JYLTheme.textPrimary)
 
                             Spacer()
 
-                            Text("当前已存 \(clipboard.items.count) 条")
+                            Text(String.localizedStringWithFormat(L10n.tr(.settingsClipboardHistoryCount), clipboard.items.count))
                                 .font(.system(size: 10.5, weight: .medium, design: .rounded))
                                 .foregroundStyle(JYLTheme.textMuted)
                         }
 
-                        Text("清空 NotchNotch 记录的全部剪贴板卡片，不会影响当前系统剪贴板")
+                        Text(loc.isChinese ? "清空 NotchNotch 记录的全部剪贴板卡片，不会影响当前系统剪贴板" : "Clears all clipboard cards recorded by NotchNotch without affecting system pasteboard")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }
@@ -1498,7 +1571,7 @@ struct SettingsView: View {
                     HStack(spacing: 6) {
                         Image(systemName: showClearedAlert ? "checkmark" : "trash")
                             .font(.system(size: 10.5, weight: .semibold))
-                        Text(showClearedAlert ? "已清空" : "清空剪贴板记录")
+                        Text(showClearedAlert ? (loc.isChinese ? "已清空" : "Cleared") : L10n.tr(.settingsClipboardClearBtn))
                             .font(.system(size: 11, weight: .semibold, design: .rounded))
                     }
                     .foregroundStyle(showClearedAlert ? JYLTheme.success : JYLTheme.textSecondary)
@@ -1556,7 +1629,7 @@ struct SettingsView: View {
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundStyle(JYLTheme.textMuted)
 
-                Text("MacBook Pro 刘海专属生产力增强面板")
+                Text(loc.isChinese ? "MacBook Pro 刘海专属生产力增强面板" : "Productivity notch overlay for MacBook Pro")
                     .font(.system(size: 12, weight: .regular))
                     .foregroundStyle(JYLTheme.textSecondary)
                     .multilineTextAlignment(.center)
@@ -1576,7 +1649,7 @@ struct SettingsView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "link")
                             .font(.system(size: 11, weight: .semibold))
-                        Text("访问 GitHub 开源仓库 ↗")
+                        Text(loc.isChinese ? "访问 GitHub 开源仓库 ↗" : "Visit GitHub Repository ↗")
                             .font(.system(size: 11.5, weight: .medium, design: .rounded))
                     }
                     .foregroundStyle(JYLTheme.textPrimary)
@@ -1599,7 +1672,7 @@ struct SettingsView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "power")
                             .font(.system(size: 11, weight: .semibold))
-                        Text("退出 NotchNotch")
+                        Text(L10n.tr(.menuQuit))
                             .font(.system(size: 11.5, weight: .medium, design: .rounded))
                     }
                     .foregroundStyle(Color(red: 0.95, green: 0.35, blue: 0.35))

@@ -14,11 +14,12 @@ public enum TemperatureUnit: String, Codable, CaseIterable, Identifiable, Sendab
     public var id: String { rawValue }
 
     public var displayName: String {
+        let isZh = LocalizationManager.shared.isChinese
         switch self {
         case .celsius:
-            return "摄氏度 (°C)"
+            return isZh ? "摄氏度 (°C)" : "Celsius (°C)"
         case .fahrenheit:
-            return "华氏度 (°F)"
+            return isZh ? "华氏度 (°F)" : "Fahrenheit (°F)"
         }
     }
 
@@ -39,11 +40,12 @@ public enum LocationMode: String, Codable, CaseIterable, Identifiable, Sendable 
     public var id: String { rawValue }
 
     public var displayName: String {
+        let isZh = LocalizationManager.shared.isChinese
         switch self {
         case .auto:
-            return "自动定位"
+            return isZh ? "自动定位" : "Auto (GPS/IP)"
         case .manual:
-            return "指定城市"
+            return isZh ? "指定城市" : "Custom City"
         }
     }
 }
