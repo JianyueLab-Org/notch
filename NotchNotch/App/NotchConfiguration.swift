@@ -19,6 +19,9 @@ nonisolated enum NotchConfiguration {
     /// Additional width in compact (collapsed) state to reveal dynamic indicators flanking the notch.
     static let compactWidthExtension: CGFloat = 72
 
+    /// Width of ear wings shown during HUD alert banners (agent alert, schedule alert, volume/brightness HUD).
+    static let hudEarWidth: CGFloat = 150
+
     /// Width of the stand-in notch used on Macs without a camera housing.
     /// ~200pt is roughly the real thing on a 14"/16" MacBook Pro, so the two
     /// code paths feel the same while developing on an external display.

@@ -62,9 +62,7 @@ final class NotchWindowController {
             guard let self else { return }
             self.lastPointer = location
             self.stateMachine.pointerMoved(to: location)
-            if self.stateMachine.state != .collapsed {
-                self.updateInteractivity(for: self.stateMachine.state)
-            }
+            self.updateInteractivity(for: self.stateMachine.state)
         }
         monitor.start()
         hoverMonitor = monitor
@@ -99,6 +97,7 @@ final class NotchWindowController {
         stateMachine.collapseImmediately()
         stateMachine.layout = layout
         window?.setFrame(layout.windowFrame, display: true)
+        updateInteractivity(for: .collapsed)
         Log.lifecycle.notice("controller: reloaded onto \(detected.screenName, privacy: .public)")
     }
 
@@ -144,10 +143,8 @@ final class NotchWindowController {
                 guard let self else { return }
                 if isShowing {
                     self.window?.orderFrontRegardless()
-                    self.window?.setInteractive(true)
-                } else if self.stateMachine.state == .collapsed {
-                    self.window?.setInteractive(false)
                 }
+                self.updateInteractivity(for: self.stateMachine.state)
             }
             .store(in: &cancellables)
 
@@ -157,10 +154,8 @@ final class NotchWindowController {
                 guard let self else { return }
                 if isShowing {
                     self.window?.orderFrontRegardless()
-                    self.window?.setInteractive(true)
-                } else if self.stateMachine.state == .collapsed {
-                    self.window?.setInteractive(false)
                 }
+                self.updateInteractivity(for: self.stateMachine.state)
             }
             .store(in: &cancellables)
     }
@@ -230,17 +225,22 @@ final class NotchWindowController {
             .store(in: &cancellables)
     }
 
+    private var isAlertShowing: Bool {
+        AgentHarnessController.shared.isShowingAlert || schedule.isShowingAlert
+    }
+
     /// The window must accept clicks only while the cursor is genuinely over the
     /// painted body — anywhere else in its (much larger) frame has to stay
     /// click-through, or the top of the screen goes dead whenever the panel is
-    /// open. `NotchLayout.acceptsClick(at:in:)` documents why this cannot be
+    /// open or showing alerts. `NotchLayout.acceptsClick(at:in:isShowingAlert:)` documents why this cannot be
     /// solved with a `hitTest(_:)` override.
     private func updateInteractivity(for state: NotchState) {
-        if state == .collapsed {
-            window?.setInteractive(false)
-        } else {
-            window?.setInteractive(stateMachine.layout.acceptsClick(at: lastPointer, in: state))
-        }
+        let accepts = stateMachine.layout.acceptsClick(
+            at: lastPointer,
+            in: state,
+            isShowingAlert: isAlertShowing
+        )
+        window?.setInteractive(accepts)
     }
 
     private func observeScreenChanges() {

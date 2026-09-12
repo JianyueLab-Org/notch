@@ -94,6 +94,26 @@ nonisolated struct NotchLayout: Equatable, Sendable {
                             height: expandedBodyRect.height + NotchConfiguration.hoverExitMargin + 50)
     }
 
+    /// Height of HUD alert banners (Agent harness alert, schedule alert, system volume/brightness).
+    var alertBarHeight: CGFloat {
+        max(36, geometry.notchRect.height + 2)
+    }
+
+    /// Full width of HUD alert banners including left and right ears.
+    var alertBarWidth: CGFloat {
+        geometry.notchRect.width + 2 * NotchConfiguration.hudEarWidth
+    }
+
+    /// The visible rect of an active HUD alert bar in screen coordinates.
+    var alertBarRect: CGRect {
+        CGRect(
+            x: geometry.notchRect.midX - alertBarWidth / 2,
+            y: geometry.screenFrame.maxY - alertBarHeight,
+            width: alertBarWidth,
+            height: alertBarHeight
+        )
+    }
+
     /// Should the overlay window accept a click with the cursor at `point`?
     ///
     /// GOTCHA — the reason this exists at all. The window is much larger than
@@ -110,7 +130,10 @@ nonisolated struct NotchLayout: Equatable, Sendable {
     /// actually over the painted body. Mouse-down is always preceded by a
     /// mouse-moved to the same point, so the flag is already correct by the
     /// time the click arrives.
-    func acceptsClick(at point: CGPoint, in state: NotchState) -> Bool {
+    func acceptsClick(at point: CGPoint, in state: NotchState, isShowingAlert: Bool = false) -> Bool {
+        if isShowingAlert && state == .collapsed {
+            return alertBarRect.insetBy(dx: -2, dy: -2).contains(point)
+        }
         guard state != .collapsed else { return false }
         let body = state.isVisiblyExpanded ? expandedBodyRect : collapsedBodyRect
         return body.insetBy(dx: -4, dy: -4).contains(point)

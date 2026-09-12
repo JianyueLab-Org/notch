@@ -55,15 +55,11 @@ struct NotchPanelView: View {
         schedule.isShowingAlert && !isOpen
     }
 
-    private var hudEarWidth: CGFloat { 150 }
+    private var hudEarWidth: CGFloat { NotchConfiguration.hudEarWidth }
 
-    private var hudBarWidth: CGFloat {
-        machine.layout.geometry.notchRect.width + 2 * hudEarWidth
-    }
+    private var hudBarWidth: CGFloat { machine.layout.alertBarWidth }
 
-    private var hudBarHeight: CGFloat {
-        max(36, machine.layout.geometry.notchRect.height + 2)
-    }
+    private var hudBarHeight: CGFloat { machine.layout.alertBarHeight }
 
     private var isAgentActive: Bool {
         agentController.isWorking || agentController.isWaiting
