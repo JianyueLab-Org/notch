@@ -95,8 +95,9 @@ nonisolated struct NotchLayout: Equatable, Sendable {
     }
 
     /// Height of HUD alert banners (Agent harness alert, schedule alert, system volume/brightness).
+    /// Kept strictly within the notch / menu bar height so it never protrudes down into windows on screen.
     var alertBarHeight: CGFloat {
-        max(36, geometry.notchRect.height + 2)
+        geometry.notchRect.height
     }
 
     /// Full width of HUD alert banners including left and right ears.
