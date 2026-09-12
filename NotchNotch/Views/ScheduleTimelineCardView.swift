@@ -17,13 +17,13 @@ struct ScheduleTimelineCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             header
-            Spacer(minLength: 2)
+            Spacer(minLength: 4)
             rulerGauge
             timeMarkers
-            Spacer(minLength: 2)
+            Spacer(minLength: 4)
             footer
         }
-        .padding(10)
+        .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .jylCard()
     }

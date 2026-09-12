@@ -602,7 +602,7 @@ struct NotchPanelView: View {
         }
         .padding(.horizontal, 14)
         .padding(.top, 8)
-        .padding(.bottom, 14)
+        .padding(.bottom, 16)
         .frame(width: machine.layout.expandedSize.width,
                height: machine.layout.expandedSize.height,
                alignment: .top)

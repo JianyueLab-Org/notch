@@ -23,15 +23,15 @@ struct NowPlayingView: View {
                     permissionView(message: message)
                 } else {
                     titles
-                    Spacer(minLength: 2)
+                    Spacer(minLength: 4)
                     progressBar
-                    Spacer(minLength: 2)
+                    Spacer(minLength: 4)
                     transport
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(10)
+        .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .jylCard()
     }
