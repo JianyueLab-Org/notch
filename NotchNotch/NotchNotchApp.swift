@@ -11,6 +11,7 @@ import SwiftUI
 struct NotchNotchApp: App {
 
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @ObservedObject private var loc = LocalizationManager.shared
 
     var body: some Scene {
         // MenuBarExtra (macOS 13+) is the app's only scene. An agent app needs
@@ -20,21 +21,21 @@ struct NotchNotchApp: App {
         // nothing in SwiftUI's scene vocabulary produces a borderless
         // click-through panel above the menu bar.
         MenuBarExtra("NotchNotch", systemImage: "menubar.rectangle") {
-            Button("Toggle Notch Panel") {
+            Button(loc.isChinese ? "展开/折叠刘海面板" : "Toggle Notch Panel") {
                 appDelegate.notchController?.toggle()
             }
             .keyboardShortcut("t")
             Divider()
-            Button("Settings…") {
+            Button(L10n.tr(.menuSettings)) {
                 SettingsWindowController.shared.show()
             }
             .keyboardShortcut(",")
             Divider()
-            Button("Re-detect Notch") {
+            Button(loc.isChinese ? "重新检测刘海屏幕" : "Re-detect Notch") {
                 appDelegate.notchController?.reload()
             }
             Divider()
-            Button("Quit NotchNotch") {
+            Button(L10n.tr(.menuQuit)) {
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("q")
