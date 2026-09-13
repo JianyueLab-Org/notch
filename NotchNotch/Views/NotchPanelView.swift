@@ -578,7 +578,7 @@ struct NotchPanelView: View {
 
     @ViewBuilder
     private var expandedContent: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             topBar
 
             ZStack {
@@ -600,9 +600,9 @@ struct NotchPanelView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 8)
-        .padding(.bottom, 16)
+        .padding(.horizontal, 12)
+        .padding(.top, 6)
+        .padding(.bottom, 8)
         .frame(width: machine.layout.expandedSize.width,
                height: machine.layout.expandedSize.height,
                alignment: .top)
@@ -614,11 +614,11 @@ struct NotchPanelView: View {
 
     private var topBar: some View {
         let notchWidth = machine.layout.geometry.notchRect.width
-        let earWidth = max(100, (machine.layout.expandedSize.width - notchWidth) / 2 - 14)
+        let earWidth = max(100, (machine.layout.expandedSize.width - notchWidth) / 2 - 12)
 
         return HStack(spacing: 0) {
             // Left ear (Navigation buttons, aligned leading)
-            HStack(spacing: 7) {
+            HStack(spacing: 6) {
                 circleIconButton(
                     tab: .overview,
                     icon: "square.grid.2x2.fill"
@@ -643,7 +643,7 @@ struct NotchPanelView: View {
             // Center: Physical notch cutout exclusion zone
             // Rigid barrier ensuring NO elements ever enter the camera housing region!
             Color.clear
-                .frame(width: notchWidth, height: 28)
+                .frame(width: notchWidth, height: 26)
 
             // Right ear (Live AI Agent badge + Settings gear button, aligned trailing)
             HStack(spacing: 6) {
@@ -659,9 +659,9 @@ struct NotchPanelView: View {
                     ZStack {
                         Circle()
                             .fill(JYLTheme.neutral800)
-                            .frame(width: 28, height: 28)
+                            .frame(width: 26, height: 26)
                         Image(systemName: "gearshape.fill")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: 11.5, weight: .semibold))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }
                 }
@@ -670,7 +670,7 @@ struct NotchPanelView: View {
             }
             .frame(width: earWidth, alignment: .trailing)
         }
-        .frame(height: 28)
+        .frame(height: 26)
     }
 
     private func agentTopBarBadge(_ agent: AgentSession) -> some View {
@@ -730,18 +730,18 @@ struct NotchPanelView: View {
                         Circle()
                             .strokeBorder(isSelected ? Color.white.opacity(0.18) : Color.clear, lineWidth: 0.5)
                     )
-                    .frame(width: 28, height: 28)
+                    .frame(width: 26, height: 26)
 
                 Image(systemName: icon)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 11.5, weight: .semibold))
                     .foregroundStyle(isSelected ? JYLTheme.textPrimary : JYLTheme.textSecondary)
-                    .frame(width: 28, height: 28)
+                    .frame(width: 26, height: 26)
 
                 if let badge {
                     Text(badge)
-                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .font(.system(size: 7.5, weight: .bold, design: .rounded))
                         .foregroundStyle(JYLTheme.textPrimary)
-                        .padding(.horizontal, 3.5)
+                        .padding(.horizontal, 3)
                         .padding(.vertical, 0.5)
                         .background(Capsule().fill(JYLTheme.primary))
                         .offset(x: 3, y: -2)

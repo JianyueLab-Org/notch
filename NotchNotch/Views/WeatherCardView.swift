@@ -133,25 +133,25 @@ struct WeatherCardView: View {
             Spacer(minLength: 0)
 
             // Hero Section
-            HStack(alignment: .center, spacing: 10) {
+            HStack(alignment: .center, spacing: 8) {
                 Image(systemName: weather.currentSymbolName)
-                    .font(.system(size: 36, weight: .medium))
+                    .font(.system(size: 30, weight: .medium))
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(weatherSymbolColor(for: snapshot.weatherCode, isDaytime: snapshot.isDaytime))
-                    .frame(width: 44, height: 44)
+                    .frame(width: 36, height: 36)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 1.5) {
                     Text(weather.temperatureUnit.format(celsius: snapshot.temperature))
-                        .font(.system(size: 44, weight: .bold, design: .rounded))
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
                         .foregroundStyle(JYLTheme.textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
 
                     Text("↑ \(weather.temperatureUnit.format(celsius: snapshot.highTemperature))  ↓ \(weather.temperatureUnit.format(celsius: snapshot.lowTemperature))")
-                        .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
                         .foregroundStyle(JYLTheme.textSecondary)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1.5)
                         .background(
                             Capsule()
                                 .fill(Color.white.opacity(0.08))
@@ -162,7 +162,7 @@ struct WeatherCardView: View {
             Spacer(minLength: 0)
 
             // Metrics Row
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 metricChip(
                     label: L10n.tr(.weatherApparent),
                     value: weather.temperatureUnit.format(celsius: snapshot.apparentTemperature)
@@ -178,7 +178,7 @@ struct WeatherCardView: View {
             // Footer
             HStack(spacing: 5) {
                 Text(formatUpdateTime(snapshot.lastUpdated))
-                    .font(.system(size: 10, weight: .regular, design: .rounded))
+                    .font(.system(size: 9.5, weight: .regular, design: .rounded))
                     .foregroundStyle(JYLTheme.textMuted)
 
                 if let error = weather.lastError {
@@ -191,7 +191,8 @@ struct WeatherCardView: View {
                 Spacer(minLength: 0)
             }
         }
-        .padding(11)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .frame(width: 220)
         .frame(maxHeight: .infinity)
         .jylCard(cornerRadius: 13)
@@ -270,7 +271,8 @@ struct WeatherCardView: View {
 
             Spacer(minLength: 0)
         }
-        .padding(11)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .jylCard(cornerRadius: 13)
     }

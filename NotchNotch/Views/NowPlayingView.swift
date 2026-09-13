@@ -16,22 +16,21 @@ struct NowPlayingView: View {
     @ObservedObject private var loc = LocalizationManager.shared
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 9) {
             artwork
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3.5) {
                 if !track.hasTrack, case .needsPermission(let message) = authorization {
                     permissionView(message: message)
                 } else {
                     titles
-                    Spacer(minLength: 4)
                     progressBar
-                    Spacer(minLength: 4)
                     transport
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(12)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .jylCard()
     }
@@ -41,47 +40,47 @@ struct NowPlayingView: View {
     private var artwork: some View {
         Group {
             if let image = track.artwork {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 72, height: 72)
-                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 11, style: .continuous)
-                            .strokeBorder(JYLTheme.borderStrong, lineWidth: 0.5)
-                    )
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [JYLTheme.neutral800, JYLTheme.neutral900],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                                .strokeBorder(JYLTheme.border, lineWidth: 0.5)
-                        )
+                 Image(nsImage: image)
+                     .resizable()
+                     .aspectRatio(contentMode: .fill)
+                     .frame(width: 60, height: 60)
+                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                     .overlay(
+                         RoundedRectangle(cornerRadius: 10, style: .continuous)
+                             .strokeBorder(JYLTheme.borderStrong, lineWidth: 0.5)
+                     )
+             } else {
+                 ZStack {
+                     RoundedRectangle(cornerRadius: 10, style: .continuous)
+                         .fill(
+                             LinearGradient(
+                                 colors: [JYLTheme.neutral800, JYLTheme.neutral900],
+                                 startPoint: .topLeading,
+                                 endPoint: .bottomTrailing
+                             )
+                         )
+                         .overlay(
+                             RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                 .strokeBorder(JYLTheme.border, lineWidth: 0.5)
+                         )
 
-                    Image(systemName: !track.hasTrack && authorization.isBlocked ? "lock.shield.fill" : "music.note")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: !track.hasTrack && authorization.isBlocked
-                                    ? [JYLTheme.warning, JYLTheme.warning.opacity(0.6)]
-                                    : [JYLTheme.textSecondary, JYLTheme.textMuted],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                }
-            }
+                     Image(systemName: !track.hasTrack && authorization.isBlocked ? "lock.shield.fill" : "music.note")
+                         .font(.system(size: 21, weight: .medium))
+                         .foregroundStyle(
+                             LinearGradient(
+                                 colors: !track.hasTrack && authorization.isBlocked
+                                     ? [JYLTheme.warning, JYLTheme.warning.opacity(0.6)]
+                                     : [JYLTheme.textSecondary, JYLTheme.textMuted],
+                                 startPoint: .top,
+                                 endPoint: .bottom
+                             )
+                         )
+                 }
+             }
         }
-        .frame(width: 76, height: 76)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .shadow(color: .black.opacity(0.35), radius: 5, y: 2)
+        .frame(width: 64, height: 64)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .shadow(color: .black.opacity(0.35), radius: 4, y: 1.5)
     }
 
     private func permissionView(message: String) -> some View {
@@ -140,17 +139,17 @@ struct NowPlayingView: View {
     }
 
     private var titles: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 1.5) {
             Text(track.title.isEmpty ? L10n.tr(.mediaNotPlaying) : track.title)
-                .font(.system(size: 14.5, weight: .bold, design: .rounded))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(JYLTheme.textPrimary)
                 .lineLimit(1)
             Text(track.artist.isEmpty ? "Music / Spotify" : track.artist)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(JYLTheme.textSecondary)
                 .lineLimit(1)
             Text(track.album.isEmpty ? (track.title.isEmpty ? "Ready to play" : track.artist) : track.album)
-                .font(.system(size: 10.5, weight: .regular, design: .rounded))
+                .font(.system(size: 9.5, weight: .regular, design: .rounded))
                 .foregroundStyle(JYLTheme.textMuted)
                 .lineLimit(1)
         }
@@ -161,12 +160,12 @@ struct NowPlayingView: View {
             let elapsed = track.elapsed(at: timeline.date)
             let progress = track.progress(at: timeline.date)
 
-            VStack(spacing: 3) {
+            VStack(spacing: 2) {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule()
                             .fill(JYLTheme.neutral800)
-                            .frame(height: 3.5)
+                            .frame(height: 3)
 
                         Capsule()
                             .fill(
@@ -179,33 +178,33 @@ struct NowPlayingView: View {
                                     endPoint: .trailing
                                 )
                             )
-                            .frame(width: max(3.5, geo.size.width * CGFloat(progress)), height: 3.5)
+                            .frame(width: max(3, geo.size.width * CGFloat(progress)), height: 3)
                     }
                     .frame(maxHeight: .infinity, alignment: .center)
                 }
-                .frame(height: 5)
+                .frame(height: 3)
 
                 HStack {
                     Text(track.hasTrack ? elapsed.clockString : "0:00")
-                        .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                        .font(.system(size: 8.5, weight: .medium, design: .rounded))
                         .foregroundStyle(JYLTheme.textMuted)
 
                     Spacer()
 
                     Text(track.duration > 0 ? track.duration.clockString : "--:--")
-                        .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                        .font(.system(size: 8.5, weight: .medium, design: .rounded))
                         .foregroundStyle(JYLTheme.textMuted)
                 }
             }
         }
-        .frame(height: 15)
+        .frame(height: 12)
     }
 
     private var transport: some View {
-        HStack(spacing: 20) {
-            button("backward.fill", size: 12.5) { send(.previousTrack) }
-            button(track.isPlaying ? "pause.fill" : "play.fill", size: 16.5) { send(.togglePlayPause) }
-            button("forward.fill", size: 12.5) { send(.nextTrack) }
+        HStack(spacing: 14) {
+            button("backward.fill", size: 10.5) { send(.previousTrack) }
+            button(track.isPlaying ? "pause.fill" : "play.fill", size: 13.5) { send(.togglePlayPause) }
+            button("forward.fill", size: 10.5) { send(.nextTrack) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -215,7 +214,7 @@ struct NowPlayingView: View {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
                 .foregroundStyle(JYLTheme.textPrimary)
-                .frame(width: 26, height: 22)
+                .frame(width: 22, height: 18)
                 .contentShape(Rectangle())
         }
         .buttonStyle(ScaleButtonStyle())
