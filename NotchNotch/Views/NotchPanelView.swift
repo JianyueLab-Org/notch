@@ -581,25 +581,19 @@ struct NotchPanelView: View {
         VStack(spacing: 7) {
             topBar
 
+            // Every tab is pinned to its own content-row slot rather than being
+            // sized by the ZStack. The ZStack would otherwise adopt the tallest
+            // child's minimum height and centre *all* of them on it, so one
+            // oversized card silently pushed every other tab out of the panel.
             ZStack {
-                overviewContent
-                    .opacity(activeTab == .overview ? 1 : 0)
-                    .allowsHitTesting(activeTab == .overview)
-
-                WeatherCardView()
-                    .opacity(activeTab == .weather ? 1 : 0)
-                    .allowsHitTesting(activeTab == .weather)
-
-                DropShelfView(shelf: shelf)
-                    .opacity(activeTab == .shelf ? 1 : 0)
-                    .allowsHitTesting(activeTab == .shelf)
-
-                ClipboardCardView(isActive: activeTab == .clipboard)
-                    .opacity(activeTab == .clipboard ? 1 : 0)
-                    .allowsHitTesting(activeTab == .clipboard)
+                tabSlot(.overview) { overviewContent }
+                tabSlot(.weather) { WeatherCardView() }
+                tabSlot(.shelf) { DropShelfView(shelf: shelf) }
+                tabSlot(.clipboard) { ClipboardCardView(isActive: activeTab == .clipboard) }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 120)
+            .frame(height: NotchConfiguration.expandedContentRowHeight)
+            .clipped()
         }
         .padding(.horizontal, 14)
         .padding(.top, 7)
@@ -609,6 +603,22 @@ struct NotchPanelView: View {
                alignment: .top)
         .foregroundStyle(.white)
         .clipped()
+    }
+
+    /// One tab's slot in the content row: fixed to the row height so a card that
+    /// refuses to compress cannot resize the shared ZStack, and clipped so it
+    /// cannot bleed into the top bar or past the bottom of the panel.
+    @ViewBuilder
+    private func tabSlot<Content: View>(
+        _ tab: NotchActiveTab,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .frame(maxWidth: .infinity)
+            .frame(height: NotchConfiguration.expandedContentRowHeight)
+            .clipped()
+            .opacity(activeTab == tab ? 1 : 0)
+            .allowsHitTesting(activeTab == tab)
     }
 
     // MARK: - Top Bar

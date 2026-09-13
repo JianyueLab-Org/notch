@@ -107,32 +107,49 @@ struct WeatherCardView: View {
     // MARK: - Left Card: Current Weather Overview
 
     private func leftOverviewCard(snapshot: WeatherSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        // HEIGHT BUDGET — this card shares `expandedContentRowHeight` (120pt)
+        // with every other tab and must not exceed it; an oversized card is not
+        // clipped by `.frame(height:)`, it is centred and bleeds out of the
+        // panel. Current minimum: 16 (padding) + 18 (header) + 36 (hero)
+        // + 19 (metrics) + 20 (4 gaps) = 109pt. Keep the slack when editing.
+        VStack(alignment: .leading, spacing: 5) {
             // Header
             HStack(alignment: .center, spacing: 5) {
                 Image(systemName: "location.fill")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(JYLTheme.primary)
 
                 let city = snapshot.cityName.isEmpty ? (weather.currentLocation?.cityName ?? (loc.isChinese ? "未知位置" : "Unknown")) : snapshot.cityName
                 Text(city)
-                    .font(.system(size: 13.5, weight: .bold, design: .rounded))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(JYLTheme.textPrimary)
                     .lineLimit(1)
 
                 Text(WMOCodeHelper.description(for: snapshot.weatherCode, isChinese: loc.isChinese))
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.system(size: 11.5, weight: .medium, design: .rounded))
                     .foregroundStyle(JYLTheme.textSecondary)
                     .lineLimit(1)
 
                 Spacer(minLength: 4)
 
+                if let error = weather.lastError {
+                    Circle()
+                        .fill(JYLTheme.warning)
+                        .frame(width: 5, height: 5)
+                        .help((loc.isChinese ? "更新告警: " : "Update warning: ") + error)
+                }
+
+                // The footer row that used to carry this was the 12pt that put
+                // the card over budget; the timestamp lives on the button now.
                 refreshButton
+                    .help(formatUpdateTime(snapshot.lastUpdated))
             }
 
             Spacer(minLength: 0)
 
-            // Hero Section
+            // Hero Section — icon, temperature and the high/low badge share one
+            // row. Stacking the badge under the temperature made this row 50.5pt
+            // instead of the icon's 36pt, which is what broke the panel.
             HStack(alignment: .center, spacing: 8) {
                 Image(systemName: weather.currentSymbolName)
                     .font(.system(size: 30, weight: .medium))
@@ -140,23 +157,25 @@ struct WeatherCardView: View {
                     .foregroundStyle(weatherSymbolColor(for: snapshot.weatherCode, isDaytime: snapshot.isDaytime))
                     .frame(width: 36, height: 36)
 
-                VStack(alignment: .leading, spacing: 1.5) {
-                    Text(weather.temperatureUnit.format(celsius: snapshot.temperature))
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .foregroundStyle(JYLTheme.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
+                Text(weather.temperatureUnit.format(celsius: snapshot.temperature))
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .foregroundStyle(JYLTheme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
-                    Text("↑ \(weather.temperatureUnit.format(celsius: snapshot.highTemperature))  ↓ \(weather.temperatureUnit.format(celsius: snapshot.lowTemperature))")
-                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                        .foregroundStyle(JYLTheme.textSecondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 1.5)
-                        .background(
-                            Capsule()
-                                .fill(Color.white.opacity(0.08))
-                        )
-                }
+                Text("↑ \(weather.temperatureUnit.format(celsius: snapshot.highTemperature))  ↓ \(weather.temperatureUnit.format(celsius: snapshot.lowTemperature))")
+                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(JYLTheme.textSecondary)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1.5)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.08))
+                    )
+
+                Spacer(minLength: 0)
             }
 
             Spacer(minLength: 0)
@@ -172,27 +191,9 @@ struct WeatherCardView: View {
                     value: "\(snapshot.humidity)%"
                 )
             }
-
-            Spacer(minLength: 0)
-
-            // Footer
-            HStack(spacing: 5) {
-                Text(formatUpdateTime(snapshot.lastUpdated))
-                    .font(.system(size: 9.5, weight: .regular, design: .rounded))
-                    .foregroundStyle(JYLTheme.textMuted)
-
-                if let error = weather.lastError {
-                    Circle()
-                        .fill(JYLTheme.warning)
-                        .frame(width: 5, height: 5)
-                        .help("更新告警: \(error)")
-                }
-
-                Spacer(minLength: 0)
-            }
         }
         .padding(.horizontal, 11)
-        .padding(.vertical, 9)
+        .padding(.vertical, 8)
         .frame(width: 220)
         .frame(maxHeight: .infinity)
         .jylCard(cornerRadius: 13)
@@ -214,7 +215,7 @@ struct WeatherCardView: View {
                         : .default,
                     value: isAnimatingRefresh
                 )
-                .frame(width: 22, height: 22)
+                .frame(width: 18, height: 18)
                 .background(
                     Circle()
                         .fill(isHoveringRefresh ? Color.white.opacity(0.12) : Color.clear)
@@ -240,7 +241,13 @@ struct WeatherCardView: View {
     // MARK: - Right Card: Hourly Forecast
 
     private func rightHourlyCard(snapshot: WeatherSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        // HEIGHT BUDGET — 120pt shared row (see expandedContentRowHeight):
+        // 16 (padding) + 16 (header) + 6 (gap) leaves an 82pt carousel viewport,
+        // and `hourlyColumn` is 74pt + 4pt scroll padding. The Spacers that used
+        // to sit either side of the carousel only ever resolved to 0 (the
+        // ScrollView is greedy) while still costing 16pt of VStack spacing, so
+        // they are gone.
+        VStack(alignment: .leading, spacing: 6) {
             // Header
             HStack(alignment: .center) {
                 Text(L10n.tr(.weatherHourly))
@@ -256,8 +263,6 @@ struct WeatherCardView: View {
                     .foregroundStyle(JYLTheme.textSecondary)
             }
 
-            Spacer(minLength: 0)
-
             // Content Carousel
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 12) {
@@ -268,11 +273,9 @@ struct WeatherCardView: View {
                 .padding(.horizontal, 2)
                 .padding(.vertical, 2)
             }
-
-            Spacer(minLength: 0)
         }
         .padding(.horizontal, 11)
-        .padding(.vertical, 9)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .jylCard(cornerRadius: 13)
     }
@@ -284,7 +287,7 @@ struct WeatherCardView: View {
         let symbolName = WMOCodeHelper.symbolName(for: item.weatherCode, isDaytime: isDay)
         let color = weatherSymbolColor(for: item.weatherCode, isDaytime: isDay)
 
-        return VStack(spacing: 6) {
+        return VStack(spacing: 4) {
             Text(isFirst ? L10n.tr(.weatherNow) : Self.timeFormatter.string(from: item.time))
                 .font(.system(size: 11, weight: isFirst ? .bold : .medium, design: .rounded))
                 .foregroundStyle(isFirst ? JYLTheme.primary : JYLTheme.textSecondary)
@@ -294,7 +297,7 @@ struct WeatherCardView: View {
                 .font(.system(size: 20, weight: .medium))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(color)
-                .frame(height: 22)
+                .frame(height: 20)
 
             Text(weather.temperatureUnit.format(celsius: item.temperature))
                 .font(.system(size: 12.5, weight: .semibold, design: .rounded))

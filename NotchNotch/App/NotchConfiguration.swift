@@ -16,6 +16,19 @@ nonisolated enum NotchConfiguration {
     /// Size of the expanded panel's *visible* black body.
     static let expandedSize = CGSize(width: 630, height: 174)
 
+    /// Height of the tab-content row inside the expanded panel.
+    ///
+    /// The vertical budget is exact and must stay that way:
+    ///   7 (top pad) + 26 (top bar) + 7 (spacing) + this + 14 (bottom pad)
+    ///   == expandedSize.height
+    ///
+    /// GOTCHA: `.frame(height:)` does NOT clip — a card whose content cannot
+    /// compress to this height renders at its own minimum, *centred* on the
+    /// slot, and bleeds out of both ends of the panel. Because every tab lives
+    /// in the same ZStack, an oversized card breaks the layout of the other
+    /// tabs too, even while it is the hidden one. Every tab card must fit here.
+    static let expandedContentRowHeight: CGFloat = 120
+
     /// Additional width in compact (collapsed) state to reveal dynamic indicators flanking the notch.
     static let compactWidthExtension: CGFloat = 72
 
