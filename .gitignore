@@ -20,3 +20,4 @@ xcuserdata/
 # Scratch & local tooling
 .temp/
 .superpowers/
+.worktrees/
