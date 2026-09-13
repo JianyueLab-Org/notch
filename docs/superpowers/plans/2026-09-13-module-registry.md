@@ -53,11 +53,17 @@ swiftc -swift-version 6 -o .temp/t_<name>/run \
 
 If `-swift-version 6` produces concurrency noise unrelated to the assertion under test, drop to `-swift-version 5` and note it in the commit body — do not silence the warning in production source to make a scratch script happy.
 
-### Accepted visual deltas
+### The ears must stay pixel-identical
 
-The current ear code uses three ring diameters (18/19/20pt), three stroke widths (2.5/2.8/3.2pt), four chip sizes (21/22pt) and four corner radii (5.5/6/6.5pt) for what are visually the same component. Collapsing them into one template normalizes these to **22pt chips at radius 6** and **20pt rings at 3.0pt stroke**, and merges the two `#a78bfa` fill opacities (0.20 and 0.22) into one at 0.20.
+The current ear code uses three ring diameters (18/19/20pt), three stroke widths (2.5/2.8/3.2pt),
+four chip sizes (21/22pt), four corner radii (5.5/6/6.5pt), four symbol sizes (11/11.5/12/12.5pt) and
+two `#a78bfa` opacities (0.20 and 0.22).
 
-This is a deliberate, tiny normalization, not an accident. Task 6 requires screenshot sign-off before it is accepted.
+**Every one of those values is preserved.** They are carried as parameters on the `EarState` cases
+with today's values as defaults, rather than normalized away. A refactor that changes what the user
+sees is a refactor that cannot be verified by comparing screenshots — and screenshot comparison is
+the only verification this project has for the overlay. Task 7 requires before/after shots that
+match.
 
 ---
 
@@ -140,7 +146,11 @@ nonisolated public enum ThemeToken: String, CaseIterable, Sendable {
     case chart1
     case chart2
     case chart3
+    /// `#a78bfa` at 0.20 — the subagent ear's chip fill.
     case chart3Muted
+    /// `#a78bfa` at 0.22 — the subagent ear's capsule fill. Two tokens rather
+    /// than one because the originals differ and the ears must not shift.
+    case chart3MutedStrong
     case chart4
     case chart5
     case white
@@ -187,6 +197,7 @@ extension ThemeToken {
         case .chart2:        return JYLTheme.chart2
         case .chart3:        return JYLTheme.chart3
         case .chart3Muted:   return Color(hex: "#a78bfa", opacity: 0.20)
+        case .chart3MutedStrong: return Color(hex: "#a78bfa", opacity: 0.22)
         case .chart4:        return JYLTheme.chart4
         case .chart5:        return JYLTheme.chart5
         case .white:         return .white
@@ -212,25 +223,55 @@ The five cases below are not speculative — between them they reproduce every e
 //  nothing running behind it. The same shape then serves the built-ins, which
 //  is what collapses the ~130-line if/else chains into one template.
 //
+//  WHY the geometry is on the case rather than in the view: the six existing
+//  ears each picked their own chip size, corner radius, symbol size, ring
+//  diameter and stroke width. Defaulting those parameters keeps the common
+//  case terse while letting every built-in reproduce its original pixels
+//  exactly — a refactor whose only check is a screenshot diff must not move
+//  anything.
+//
 
 import AppKit
+import CoreGraphics
 
 nonisolated public struct EarState: Equatable {
 
     public enum Leading: Equatable {
         case none
-        case icon(symbol: String, tint: ThemeToken, fill: ThemeToken)
+        case icon(symbol: String,
+                  tint: ThemeToken,
+                  fill: ThemeToken,
+                  size: CGFloat = 22,
+                  radius: CGFloat = 6,
+                  symbolSize: CGFloat = 11.5)
         /// The brand-gradient chip the music ear falls back to with no artwork.
-        case brandIcon(symbol: String)
-        case artwork(NSImage)
+        case brandIcon(symbol: String,
+                       size: CGFloat = 21,
+                       radius: CGFloat = 5.5,
+                       symbolSize: CGFloat = 11)
+        case artwork(NSImage, size: CGFloat = 21, radius: CGFloat = 5.5)
     }
 
     public enum Trailing: Equatable {
         case none
-        case ring(progress: Double, tint: ThemeToken, track: ThemeToken)
-        case gradientRing(progress: Double, from: ThemeToken, to: ThemeToken, track: ThemeToken)
-        case spinner(tint: ThemeToken, track: ThemeToken)
-        case text(String, tint: ThemeToken)
+        case ring(progress: Double,
+                  tint: ThemeToken,
+                  track: ThemeToken,
+                  size: CGFloat = 20,
+                  lineWidth: CGFloat = 3.2)
+        case gradientRing(progress: Double,
+                          from: ThemeToken,
+                          to: ThemeToken,
+                          track: ThemeToken,
+                          size: CGFloat = 19,
+                          lineWidth: CGFloat = 2.8)
+        case spinner(tint: ThemeToken,
+                     track: ThemeToken,
+                     size: CGFloat = 18,
+                     lineWidth: CGFloat = 2.5)
+        /// Bold 11pt in a capsule — the weather ear's temperature.
+        case text(String, tint: ThemeToken, fill: ThemeToken = .whiteMuted)
+        /// Black 7.5pt in a capsule — the agent ears' REPLY / SUB tags.
         case badge(String, tint: ThemeToken, fill: ThemeToken)
     }
 
@@ -1191,11 +1232,15 @@ final class WeatherModule: NotchModule {
         )
         .map { [weak weather] snapshot, isEnabled, showInEars -> EarState? in
             guard let weather, isEnabled, showInEars, snapshot != nil else { return nil }
+            // symbolSize 12 and the whiteMuted chip are the weather ear's
+            // original values; do not fold them into the defaults.
             return EarState(
                 leading: .icon(symbol: weather.currentSymbolName,
                                tint: .primary,
-                               fill: .whiteMuted),
-                trailing: .text(weather.formattedCurrentTemperature ?? "", tint: .textPrimary),
+                               fill: .whiteMuted,
+                               symbolSize: 12),
+                trailing: .text(weather.formattedCurrentTemperature ?? "",
+                                tint: .textPrimary),
                 priority: NotchConfiguration.earPriorityWeather
             )
         }
@@ -1304,10 +1349,12 @@ final class AgentModule: NotchModule {
                         trailing: .badge("REPLY", tint: .primary, fill: .primaryMuted),
                         priority: priority)
                 case .waitingSubagent:
+                    // The chip and the capsule really do use different alphas
+                    // (0.20 and 0.22) in the original. Keep both.
                     return EarState(
                         leading: .icon(symbol: "arrow.triangle.branch",
                                        tint: .chart3, fill: .chart3Muted),
-                        trailing: .badge("SUB", tint: .chart3, fill: .chart3Muted),
+                        trailing: .badge("SUB", tint: .chart3, fill: .chart3MutedStrong),
                         priority: priority)
                 case .working:
                     return EarState(
@@ -1380,8 +1427,14 @@ final class ScheduleModule: NotchModule {
         Publishers.CombineLatest(schedule.$hasActiveEvent, schedule.$progress)
             .map { hasActiveEvent, progress -> EarState? in
                 guard hasActiveEvent else { return nil }
+                // radius 6.5 and symbolSize 12.5 are the schedule ear's
+                // original values, unlike every other icon chip.
                 return EarState(
-                    leading: .icon(symbol: "calendar", tint: .primary, fill: .primaryMuted),
+                    leading: .icon(symbol: "calendar",
+                                   tint: .primary,
+                                   fill: .primaryMuted,
+                                   radius: 6.5,
+                                   symbolSize: 12.5),
                     trailing: .ring(progress: progress, tint: .primary, track: .primaryMuted),
                     priority: NotchConfiguration.earPrioritySchedule)
             }
@@ -1736,18 +1789,15 @@ The ring progress is sampled when `nowPlaying` republishes rather than at 2 Hz v
 //  in NotchPanelView: every ear the app has ever shown is one of these cases,
 //  so a new feature — or a plugin — contributes data instead of a new branch.
 //
-//  Sizes are normalized here on purpose. The original chains used 18/19/20pt
-//  rings and 21/22pt chips for what are visually the same component.
+//  Every size comes off the case rather than from a constant here. The six
+//  original ears each chose their own chip size, radius, symbol size, ring
+//  diameter and stroke width, and this refactor is verified by comparing
+//  screenshots — so none of them may move.
 //
 
 import SwiftUI
 
 enum EarView {
-
-    static let chipSize: CGFloat = 22
-    static let chipRadius: CGFloat = 6
-    static let ringSize: CGFloat = 20
-    static let ringWidth: CGFloat = 3.0
 
     struct Leading: View {
         let state: EarState.Leading
@@ -1757,41 +1807,38 @@ enum EarView {
             case .none:
                 EmptyView()
 
-            case let .icon(symbol, tint, fill):
+            case let .icon(symbol, tint, fill, size, radius, symbolSize):
                 ZStack {
-                    RoundedRectangle(cornerRadius: chipRadius, style: .continuous)
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
                         .fill(fill.color)
-                        .frame(width: chipSize, height: chipSize)
+                        .frame(width: size, height: size)
                     Image(systemName: symbol)
-                        .font(.system(size: 11.5, weight: .bold))
+                        .font(.system(size: symbolSize, weight: .bold))
                         .foregroundStyle(tint.color)
                 }
 
-            case let .brandIcon(symbol):
+            case let .brandIcon(symbol, size, radius, symbolSize):
                 ZStack {
-                    RoundedRectangle(cornerRadius: chipRadius, style: .continuous)
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
                         .fill(JYLTheme.brandGradientDiagonal)
-                        .frame(width: chipSize, height: chipSize)
+                        .frame(width: size, height: size)
                     Image(systemName: symbol)
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: symbolSize, weight: .bold))
                         .foregroundStyle(JYLTheme.textPrimary)
                 }
 
-            case let .artwork(image):
+            case let .artwork(image, size, radius):
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: chipSize, height: chipSize)
-                    .clipShape(RoundedRectangle(cornerRadius: chipRadius, style: .continuous))
+                    .frame(width: size, height: size)
+                    .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: chipRadius, style: .continuous)
+                        RoundedRectangle(cornerRadius: radius, style: .continuous)
                             .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5)
                     )
             }
         }
-
-        private var chipSize: CGFloat { EarView.chipSize }
-        private var chipRadius: CGFloat { EarView.chipRadius }
     }
 
     struct Trailing: View {
@@ -1802,43 +1849,43 @@ enum EarView {
             case .none:
                 EmptyView()
 
-            case let .ring(progress, tint, track):
-                ring(progress: progress, track: track) {
+            case let .ring(progress, tint, track, size, lineWidth):
+                ring(progress: progress, track: track, size: size, lineWidth: lineWidth) {
                     AnyShapeStyle(tint.color)
                 }
 
-            case let .gradientRing(progress, from, to, track):
-                ring(progress: progress, track: track) {
+            case let .gradientRing(progress, from, to, track, size, lineWidth):
+                ring(progress: progress, track: track, size: size, lineWidth: lineWidth) {
                     AnyShapeStyle(LinearGradient(colors: [from.color, to.color],
                                                  startPoint: .topLeading,
                                                  endPoint: .bottomTrailing))
                 }
 
-            case let .spinner(tint, track):
+            case let .spinner(tint, track, size, lineWidth):
                 TimelineView(.animation) { timeline in
                     let time = timeline.date.timeIntervalSinceReferenceDate
                     let angle = (time.truncatingRemainder(dividingBy: 1.5)) / 1.5 * 360
                     ZStack {
                         Circle()
-                            .stroke(track.color, lineWidth: EarView.ringWidth)
-                            .frame(width: EarView.ringSize, height: EarView.ringSize)
+                            .stroke(track.color, lineWidth: lineWidth)
+                            .frame(width: size, height: size)
                         Circle()
                             .trim(from: 0, to: 0.35)
                             .stroke(tint.color,
-                                    style: StrokeStyle(lineWidth: EarView.ringWidth, lineCap: .round))
+                                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                             .rotationEffect(.degrees(angle))
-                            .frame(width: EarView.ringSize, height: EarView.ringSize)
+                            .frame(width: size, height: size)
                     }
                 }
 
-            case let .text(value, tint):
+            case let .text(value, tint, fill):
                 Text(value)
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .lineLimit(1)
                     .foregroundStyle(tint.color)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 2)
-                    .background(Capsule().fill(ThemeToken.whiteMuted.color))
+                    .background(Capsule().fill(fill.color))
 
             case let .badge(value, tint, fill):
                 Text(value)
@@ -1854,17 +1901,21 @@ enum EarView {
         @ViewBuilder
         private func ring(progress: Double,
                           track: ThemeToken,
+                          size: CGFloat,
+                          lineWidth: CGFloat,
                           style: () -> AnyShapeStyle) -> some View {
             ZStack {
                 Circle()
-                    .stroke(track.color, lineWidth: EarView.ringWidth)
-                    .frame(width: EarView.ringSize, height: EarView.ringSize)
+                    .stroke(track.color, lineWidth: lineWidth)
+                    .frame(width: size, height: size)
                 Circle()
+                    // The 0.04 floor is original: a zero-length trim renders
+                    // nothing, so a just-started track would show a bare track.
                     .trim(from: 0, to: max(0.04, min(1.0, progress)))
                     .stroke(style(),
-                            style: StrokeStyle(lineWidth: EarView.ringWidth, lineCap: .round))
+                            style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                    .frame(width: EarView.ringSize, height: EarView.ringSize)
+                    .frame(width: size, height: size)
             }
         }
     }
@@ -1930,9 +1981,20 @@ Expected: the working shot shows a blue `sparkles` chip on the left and a rotati
 
 Then play something in Music or Spotify and capture `.temp/ear_music.png` — artwork on the left, gradient progress ring on the right, and the ring must advance over ~10 seconds. Enable Weather with "show in ears" and capture `.temp/ear_weather.png`.
 
-- [ ] **Step 5: Sign off the accepted visual deltas**
+- [ ] **Step 5: Confirm the ears are pixel-identical**
 
-Compare `.temp/ear_*.png` against `.temp/before_tabs.png` and the pre-change app. Ring and chip sizes are now uniform by design (see *Accepted visual deltas*). Confirm the change reads as intentional rather than broken. If any ear looks wrong beyond the documented normalization, fix it before committing.
+Every ear must match the pre-change app exactly — chip sizes 21/22pt, radii 5.5/6/6.5pt, symbol
+sizes 11/11.5/12/12.5pt, ring diameters 18/19/20pt, stroke widths 2.5/2.8/3.2pt, and the two
+distinct `#a78bfa` alphas. Crop each `.temp/ear_*.png` to the pill and compare against a capture
+from the previous commit:
+
+```bash
+git stash && xcodebuild -scheme NotchNotch -configuration Debug \
+  -derivedDataPath build/DerivedData build   # capture the "before" shots, then:
+git stash pop
+```
+
+Any visible difference is a bug in this task, not an accepted delta. Fix it before committing.
 
 - [ ] **Step 6: Commit**
 
