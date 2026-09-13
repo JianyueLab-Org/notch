@@ -37,7 +37,7 @@ nonisolated enum NotchConfiguration {
     static let collapsedTopCornerRadius: CGFloat = 6
     static let collapsedBottomCornerRadius: CGFloat = 10
     static let expandedTopCornerRadius: CGFloat = 10
-    static let expandedBottomCornerRadius: CGFloat = 16
+    static let expandedBottomCornerRadius: CGFloat = 18
 
     // MARK: - Hit testing
 

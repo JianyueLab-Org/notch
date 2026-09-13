@@ -578,7 +578,7 @@ struct NotchPanelView: View {
 
     @ViewBuilder
     private var expandedContent: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 7) {
             topBar
 
             ZStack {
@@ -598,11 +598,12 @@ struct NotchPanelView: View {
                     .opacity(activeTab == .clipboard ? 1 : 0)
                     .allowsHitTesting(activeTab == .clipboard)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity)
+            .frame(height: 120)
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 6)
-        .padding(.bottom, 8)
+        .padding(.horizontal, 14)
+        .padding(.top, 7)
+        .padding(.bottom, 14)
         .frame(width: machine.layout.expandedSize.width,
                height: machine.layout.expandedSize.height,
                alignment: .top)
@@ -614,7 +615,7 @@ struct NotchPanelView: View {
 
     private var topBar: some View {
         let notchWidth = machine.layout.geometry.notchRect.width
-        let earWidth = max(100, (machine.layout.expandedSize.width - notchWidth) / 2 - 12)
+        let earWidth = max(100, (machine.layout.expandedSize.width - notchWidth) / 2 - 14)
 
         return HStack(spacing: 0) {
             // Left ear (Navigation buttons, aligned leading)

@@ -16,9 +16,9 @@ struct NowPlayingView: View {
     @ObservedObject private var loc = LocalizationManager.shared
 
     var body: some View {
-        HStack(spacing: 9) {
+        HStack(spacing: 10) {
             artwork
-            VStack(alignment: .leading, spacing: 3.5) {
+            VStack(alignment: .leading, spacing: 3) {
                 if !track.hasTrack, case .needsPermission(let message) = authorization {
                     permissionView(message: message)
                 } else {
@@ -29,8 +29,8 @@ struct NowPlayingView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .jylCard()
     }

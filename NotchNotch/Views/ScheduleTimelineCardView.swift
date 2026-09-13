@@ -15,14 +15,16 @@ struct ScheduleTimelineCardView: View {
     @ObservedObject private var loc = LocalizationManager.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 0) {
             header
+            Spacer(minLength: 3)
             rulerGauge
             timeMarkers
+            Spacer(minLength: 3)
             footer
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .jylCard()
     }

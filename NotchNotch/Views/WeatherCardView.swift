@@ -191,8 +191,8 @@ struct WeatherCardView: View {
                 Spacer(minLength: 0)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
         .frame(width: 220)
         .frame(maxHeight: .infinity)
         .jylCard(cornerRadius: 13)
@@ -271,8 +271,8 @@ struct WeatherCardView: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .jylCard(cornerRadius: 13)
     }
