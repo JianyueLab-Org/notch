@@ -25,7 +25,7 @@ log stream --predicate 'subsystem == "co.jianyuelab.NotchNotch"'
 ```
 
 Categories in `Support/Log.swift`: `lifecycle`, `geometry`, `window`, `hover`, `state`,
-`private-api`, `media`.
+`private-api`, `media`, `location`.
 
 Only one process may hold port 7823, so kill a previously launched copy (`pkill -f NotchNotch`)
 before relaunching or the agent HTTP server silently fails to bind.

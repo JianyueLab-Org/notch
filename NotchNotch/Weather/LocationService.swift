@@ -8,6 +8,17 @@
 
 import Foundation
 import CoreLocation
+import OSLog
+
+public extension Notification.Name {
+    /// Posted on the main actor whenever CoreLocation authorization settles into a new
+    /// state. Auto mode never blocks on the permission prompt — it asks and falls back to
+    /// IP geolocation for that round — so without this nudge the first real GPS fix would
+    /// not land until the next refresh tick, up to an hour after the user clicked "Allow".
+    static let notchLocationAuthorizationChanged = Notification.Name(
+        "co.jianyuelab.NotchNotch.locationAuthorizationChanged"
+    )
+}
 
 public struct ResolvedLocation: Codable, Equatable, Sendable {
     public let latitude: Double
@@ -40,8 +51,13 @@ public enum LocationError: LocalizedError, Sendable, Equatable {
 
 public typealias GPSLocationProviding = @Sendable () async throws -> CLLocation
 
-public final class LocationService: NSObject, CLLocationManagerDelegate, @unchecked Sendable {
+public final class LocationService: @unchecked Sendable {
     public static let shared = LocationService()
+
+    /// How long to wait for a fix once we *are* authorized. Wi-Fi positioning normally
+    /// answers in under a second; anything past this and stale weather beats a stalled
+    /// panel, so we let the IP fallback take over.
+    private static let gpsFixTimeout: TimeInterval = 8.0
 
     private let session: URLSession
     private let customGPSProvider: GPSLocationProviding?
@@ -52,7 +68,6 @@ public final class LocationService: NSObject, CLLocationManagerDelegate, @unchec
     ) {
         self.session = session
         self.customGPSProvider = customGPSProvider
-        super.init()
     }
 
     /// Resolves location based on the selected mode.
@@ -70,8 +85,11 @@ public final class LocationService: NSObject, CLLocationManagerDelegate, @unchec
 
         case .auto:
             do {
-                return try await requestGPSLocation()
+                let resolved = try await requestGPSLocation()
+                Log.location.info("Auto location resolved by CoreLocation")
+                return resolved
             } catch {
+                Log.location.info("CoreLocation unavailable, falling back to IP geolocation")
                 return try await fallbackIPLocation()
             }
         }
@@ -119,7 +137,7 @@ public final class LocationService: NSObject, CLLocationManagerDelegate, @unchec
     }
 
     /// Silent IP-based geolocation fallback.
-    /// Tries ip-api.com, then secondary fallback ipapi.co, and finally defaults to Shanghai.
+    /// Tries ipwho.is, then secondary fallback ipapi.co, and finally defaults to Shanghai.
     public func fallbackIPLocation() async throws -> ResolvedLocation {
         if let primary = await queryPrimaryIPApi() {
             return primary
@@ -129,6 +147,7 @@ public final class LocationService: NSObject, CLLocationManagerDelegate, @unchec
             return secondary
         }
 
+        Log.location.error("Every IP geolocation provider failed; using hardcoded default")
         return ResolvedLocation(latitude: 31.2304, longitude: 121.4737, cityName: "上海")
     }
 
@@ -165,8 +184,7 @@ public final class LocationService: NSObject, CLLocationManagerDelegate, @unchec
         if let customGPSProvider = customGPSProvider {
             clLocation = try await customGPSProvider()
         } else {
-            let fetcher = await GPSLocationFetcher()
-            clLocation = try await fetcher.fetchLocation(timeout: 4.0)
+            clLocation = try await GPSLocationProvider.shared.fetchLocation(timeout: Self.gpsFixTimeout)
         }
 
         let lat = clLocation.coordinate.latitude
@@ -175,25 +193,32 @@ public final class LocationService: NSObject, CLLocationManagerDelegate, @unchec
         return ResolvedLocation(latitude: lat, longitude: lon, cityName: cityName)
     }
 
+    /// ipwho.is — keyless, HTTPS, and city-accurate.
+    ///
+    /// This used to be ip-api.com, which answers 403 to every HTTPS request (their free
+    /// tier is cleartext-only, and App Transport Security forbids that), so the primary
+    /// provider never once returned a result: auto mode has always been running on the
+    /// secondary, whose answers are ISP-registration coarse (a whole prefecture off).
     private func queryPrimaryIPApi() async -> ResolvedLocation? {
-        guard let url = URL(string: "https://ip-api.com/json/?fields=status,city,regionName,lat,lon") else {
+        guard let url = URL(string: "https://ipwho.is/") else {
             return nil
         }
         var request = URLRequest(url: url)
         request.timeoutInterval = 5.0
+        request.setValue("NotchNotch/1.0", forHTTPHeaderField: "User-Agent")
 
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 return nil
             }
-            let decoded = try JSONDecoder().decode(IPApiResponse.self, from: data)
-            guard decoded.status == "success",
-                  let lat = decoded.lat,
-                  let lon = decoded.lon else {
+            let decoded = try JSONDecoder().decode(IPWhoIsResponse.self, from: data)
+            guard decoded.success == true,
+                  let lat = decoded.latitude,
+                  let lon = decoded.longitude else {
                 return nil
             }
-            let city = decoded.city ?? decoded.regionName ?? "本地"
+            let city = decoded.city ?? decoded.region ?? "本地"
             return ResolvedLocation(latitude: lat, longitude: lon, cityName: city)
         } catch {
             return nil
@@ -224,16 +249,6 @@ public final class LocationService: NSObject, CLLocationManagerDelegate, @unchec
             return nil
         }
     }
-
-    // MARK: - CLLocationManagerDelegate
-
-    public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        // Delegate callback available for callers managing an external CLLocationManager
-    }
-
-    public func locationManager(_ manager: CLLocationManager, didFailWithError error: any Error) {
-        // Delegate callback available for callers managing an external CLLocationManager
-    }
 }
 
 // MARK: - API Decodable Models
@@ -249,12 +264,12 @@ private struct GeocodingResponse: Decodable {
     let results: [ResultItem]?
 }
 
-private struct IPApiResponse: Decodable {
-    let status: String?
+private struct IPWhoIsResponse: Decodable {
+    let success: Bool?
     let city: String?
-    let regionName: String?
-    let lat: Double?
-    let lon: Double?
+    let region: String?
+    let latitude: Double?
+    let longitude: Double?
 }
 
 private struct IPApiCoResponse: Decodable {
@@ -264,102 +279,160 @@ private struct IPApiCoResponse: Decodable {
     let longitude: Double?
 }
 
-// MARK: - Single Location Fetcher
+// MARK: - Shared GPS Provider
 
+/// The app's one and only `CLLocationManager`.
+///
+/// It used to be created per request, which is what broke auto mode: on a fresh install
+/// the fetcher called `requestWhenInUseAuthorization()` and `requestLocation()` back to
+/// back, the still-unauthorized `requestLocation()` failed at once, the fetcher tore its
+/// delegate down — and the `locationManagerDidChangeAuthorization` callback that would
+/// have retried the moment the user clicked "Allow" arrived at a dead object. Keeping one
+/// manager alive for the process lifetime is what makes the grant observable at all.
 @MainActor
-private final class GPSLocationFetcher: NSObject, @preconcurrency CLLocationManagerDelegate {
+final class GPSLocationProvider: NSObject, @preconcurrency CLLocationManagerDelegate {
+    static let shared = GPSLocationProvider()
+
+    /// A fix this old is still good enough for a city-level weather lookup, and reusing it
+    /// spares a round trip to locationd on every refresh tick.
+    private static let cachedFixMaxAge: TimeInterval = 10 * 60
+
     private let manager = CLLocationManager()
-    private var continuation: CheckedContinuation<CLLocation, any Error>?
-    private var isCompleted = false
+    private var waiters: [UUID: CheckedContinuation<CLLocation, any Error>] = [:]
+    private var isFixInFlight = false
+    private var lastReportedStatus: CLAuthorizationStatus = .notDetermined
+
+    var authorizationStatus: CLAuthorizationStatus { manager.authorizationStatus }
+
+    /// macOS has no `.authorizedWhenInUse` — `kCLAuthorizationStatusAuthorizedWhenInUse`
+    /// is `API_UNAVAILABLE(macos)`, and the deprecated `.authorized` is a synonym for
+    /// `.authorizedAlways` — so this single comparison covers every granted state.
+    var isAuthorized: Bool { manager.authorizationStatus == .authorizedAlways }
+
+    var isDenied: Bool {
+        let status = manager.authorizationStatus
+        return status == .denied || status == .restricted
+    }
 
     override init() {
         super.init()
         manager.delegate = self
+        // City-level weather does not need a precise fix, and a coarse one resolves from
+        // Wi-Fi alone — no Mac has GPS hardware.
         manager.desiredAccuracy = kCLLocationAccuracyKilometer
+        lastReportedStatus = manager.authorizationStatus
     }
 
-    func fetchLocation(timeout: TimeInterval = 4.0) async throws -> CLLocation {
-        guard CLLocationManager.locationServicesEnabled() else {
+    func fetchLocation(timeout: TimeInterval) async throws -> CLLocation {
+        // `locationServicesEnabled()` talks to locationd and Apple explicitly warns it can
+        // block, so keep it off the main actor — a stalled daemon must not freeze the overlay.
+        let servicesEnabled = await Task.detached { CLLocationManager.locationServicesEnabled() }.value
+        guard servicesEnabled else {
+            Log.location.info("Location services are off system-wide")
             throw LocationError.locationUnavailable
         }
 
-        let status = manager.authorizationStatus
-        if status == .denied || status == .restricted {
+        switch manager.authorizationStatus {
+        case .notDetermined:
+            // The prompt is modal to the *user*, not to us. Waiting on it would stall the
+            // weather refresh for as long as they ignore the dialog, so ask and let this
+            // round fall back to IP; the authorization callback posts
+            // `.notchLocationAuthorizationChanged` and the caller re-resolves immediately.
+            Log.location.info("Location authorization undetermined, requesting")
+            manager.requestWhenInUseAuthorization()
             throw LocationError.locationUnavailable
+
+        case .denied, .restricted:
+            throw LocationError.locationUnavailable
+
+        default:
+            break
         }
 
-        return try await withThrowingTaskGroup(of: CLLocation.self) { group in
-            group.addTask {
-                try await self.requestLocation(status: status)
-            }
-            group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                throw LocationError.locationUnavailable
-            }
-
-            guard let result = try await group.next() else {
-                throw LocationError.locationUnavailable
-            }
-            group.cancelAll()
-            return result
+        if let cached = manager.location,
+           abs(cached.timestamp.timeIntervalSinceNow) < Self.cachedFixMaxAge {
+            return cached
         }
+
+        return try await requestFix(timeout: timeout)
     }
 
-    private func requestLocation(status: CLAuthorizationStatus) async throws -> CLLocation {
-        try await withTaskCancellationHandler {
+    private func requestFix(timeout: TimeInterval) async throws -> CLLocation {
+        let id = UUID()
+
+        // `requestLocation()` has no timeout of its own and simply never calls back when
+        // locationd cannot resolve, so the deadline has to live on our side.
+        let timeoutTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            Log.location.info("GPS fix timed out after \(timeout, privacy: .public)s")
+            self.finish(id, with: .failure(LocationError.locationUnavailable))
+        }
+        defer { timeoutTask.cancel() }
+
+        return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CLLocation, any Error>) in
-                self.continuation = continuation
-                if status == .notDetermined {
-                    self.manager.requestWhenInUseAuthorization()
+                waiters[id] = continuation
+                // Only one `requestLocation()` may be outstanding at a time, so a second
+                // caller joins the first one's fix rather than cancelling it.
+                if !isFixInFlight {
+                    isFixInFlight = true
+                    manager.requestLocation()
                 }
-                self.manager.requestLocation()
             }
         } onCancel: {
             Task { @MainActor in
-                self.complete(with: .failure(LocationError.locationUnavailable))
+                self.finish(id, with: .failure(CancellationError()))
             }
         }
     }
 
-    private func complete(with result: Result<CLLocation, any Error>) {
-        guard !isCompleted else { return }
-        isCompleted = true
-        manager.stopUpdatingLocation()
-        manager.delegate = nil
-
-        switch result {
-        case .success(let loc):
-            continuation?.resume(returning: loc)
-        case .failure(let err):
-            continuation?.resume(throwing: err)
+    private func finish(_ id: UUID, with result: Result<CLLocation, any Error>) {
+        guard let continuation = waiters.removeValue(forKey: id) else { return }
+        if waiters.isEmpty, isFixInFlight {
+            isFixInFlight = false
+            // `stopUpdatingLocation()` is the documented way to cancel an outstanding
+            // `requestLocation()`, so an abandoned fix cannot land on the next caller.
+            manager.stopUpdatingLocation()
         }
-        continuation = nil
+        continuation.resume(with: result)
     }
 
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        if let loc = locations.last {
-            complete(with: .success(loc))
-        } else {
-            complete(with: .failure(LocationError.locationUnavailable))
+    private func finishAll(with result: Result<CLLocation, any Error>) {
+        let pending = waiters
+        waiters.removeAll()
+        isFixInFlight = false
+        for continuation in pending.values {
+            continuation.resume(with: result)
         }
+    }
+
+    // MARK: - CLLocationManagerDelegate
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else {
+            finishAll(with: .failure(LocationError.locationUnavailable))
+            return
+        }
+        Log.location.info("CoreLocation delivered a fix")
+        finishAll(with: .success(location))
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: any Error) {
-        complete(with: .failure(error))
+        Log.location.info("CoreLocation failed: \(error.localizedDescription, privacy: .public)")
+        finishAll(with: .failure(error))
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        let status = self.manager.authorizationStatus
-        #if !os(macOS)
-        let isAuthorized = (status == .authorizedAlways || status == .authorizedWhenInUse)
-        #else
-        let isAuthorized = (status == .authorizedAlways)
-        #endif
+        let status = manager.authorizationStatus
+        guard status != lastReportedStatus else { return }
+        lastReportedStatus = status
+        Log.location.info("Location authorization changed to \(status.rawValue, privacy: .public)")
 
         if status == .denied || status == .restricted {
-            complete(with: .failure(LocationError.locationUnavailable))
-        } else if isAuthorized {
-            self.manager.requestLocation()
+            finishAll(with: .failure(LocationError.locationUnavailable))
         }
+
+        NotificationCenter.default.post(name: .notchLocationAuthorizationChanged, object: nil)
     }
 }

@@ -254,6 +254,8 @@
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "NotchNotch displays your upcoming calendar events and schedule timeline in the notch.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "NotchNotch displays your upcoming calendar events and schedule timeline in the notch.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 JianyueLab LTD. All Rights Reserved";
+				INFOPLIST_KEY_NSLocationUsageDescription = "NotchNotch uses your location to show local weather and forecasts in the notch.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "NotchNotch uses your location to show local weather and forecasts in the notch.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -288,6 +290,8 @@
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "NotchNotch displays your upcoming calendar events and schedule timeline in the notch.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "NotchNotch displays your upcoming calendar events and schedule timeline in the notch.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 JianyueLab LTD. All Rights Reserved";
+				INFOPLIST_KEY_NSLocationUsageDescription = "NotchNotch uses your location to show local weather and forecasts in the notch.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "NotchNotch uses your location to show local weather and forecasts in the notch.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

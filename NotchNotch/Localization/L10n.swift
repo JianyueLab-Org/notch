@@ -98,6 +98,8 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case settingsWeatherLocationManual
     case settingsWeatherLocationInputPlaceholder
     case settingsWeatherLocationSaveBtn
+    case settingsWeatherLocationDenied
+    case settingsWeatherLocationOpenPrivacy
     case settingsWeatherCurrentLocationLabel
     case settingsWeatherLocationNotResolved
     case settingsWeatherUnitsTitle
@@ -233,6 +235,8 @@ public struct L10n {
         .settingsWeatherLocationManual: "指定城市 (手动输入)",
         .settingsWeatherLocationInputPlaceholder: "输入城市名称（如：上海 或 Tokyo）",
         .settingsWeatherLocationSaveBtn: "保存并定位",
+        .settingsWeatherLocationDenied: "系统已拒绝定位权限，自动定位只能退回精度较低的 IP 归属地",
+        .settingsWeatherLocationOpenPrivacy: "前往系统设置",
         .settingsWeatherCurrentLocationLabel: "当前定位城市",
         .settingsWeatherLocationNotResolved: "未获取",
         .settingsWeatherUnitsTitle: "温度单位",
@@ -366,6 +370,8 @@ public struct L10n {
         .settingsWeatherLocationManual: "Custom City (Manual)",
         .settingsWeatherLocationInputPlaceholder: "Enter city name (e.g. Shanghai or Tokyo)",
         .settingsWeatherLocationSaveBtn: "Save & Locate",
+        .settingsWeatherLocationDenied: "Location access is denied, so auto mode can only fall back to a coarse IP lookup",
+        .settingsWeatherLocationOpenPrivacy: "Open System Settings",
         .settingsWeatherCurrentLocationLabel: "Resolved Location",
         .settingsWeatherLocationNotResolved: "Not Resolved",
         .settingsWeatherUnitsTitle: "Temperature Unit",

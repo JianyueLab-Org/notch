@@ -715,6 +715,26 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
 
+                if weather.locationMode == .auto && weather.isLocationPermissionDenied {
+                    HStack {
+                        Text(L10n.tr(.settingsWeatherLocationDenied))
+                            .font(.system(size: 10.5, weight: .regular))
+                            .foregroundStyle(JYLTheme.warning)
+
+                        Spacer()
+
+                        Button(L10n.tr(.settingsWeatherLocationOpenPrivacy)) {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .buttonStyle(.link)
+                    }
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(JYLTheme.warning.opacity(0.08)))
+                }
+
                 if weather.locationMode == .manual {
                     HStack(spacing: 8) {
                         TextField(L10n.tr(.settingsWeatherLocationInputPlaceholder), text: $customCityInput, onCommit: {

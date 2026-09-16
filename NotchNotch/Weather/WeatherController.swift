@@ -46,6 +46,10 @@ public final class WeatherController: ObservableObject {
     @Published public private(set) var isLoading: Bool = false
     @Published public private(set) var lastError: String? = nil
 
+    /// Surfaced in Settings: with location access refused, auto mode still works but
+    /// silently degrades to a coarse IP lookup, and the user has no other way to find out.
+    @Published public private(set) var isLocationPermissionDenied: Bool = false
+
     @Published public var isEnabled: Bool {
         didSet {
             defaults.set(isEnabled, forKey: Keys.weatherEnabled)
@@ -125,6 +129,7 @@ public final class WeatherController: ObservableObject {
 
     private var timerCancellable: AnyCancellable?
     private var wakeCancellable: AnyCancellable?
+    private var authorizationCancellable: AnyCancellable?
     private(set) var isStarted: Bool = false
     private var currentRefreshTask: Task<Void, Never>?
 
@@ -189,6 +194,7 @@ public final class WeatherController: ObservableObject {
         guard !isStarted else { return }
         isStarted = true
         registerWakeObserver()
+        registerAuthorizationObserver()
         guard isEnabled else { return }
         startTimer()
         refresh()
@@ -198,6 +204,8 @@ public final class WeatherController: ObservableObject {
         isStarted = false
         stopTimer()
         unregisterWakeObserver()
+        authorizationCancellable?.cancel()
+        authorizationCancellable = nil
         currentRefreshTask?.cancel()
         currentRefreshTask = nil
         isLoading = false
@@ -355,5 +363,31 @@ public final class WeatherController: ObservableObject {
     private func unregisterWakeObserver() {
         wakeCancellable?.cancel()
         wakeCancellable = nil
+    }
+
+    /// Auto mode asks for location permission and then immediately falls back to IP
+    /// rather than blocking on the prompt, so the accurate fix only arrives if we
+    /// re-resolve the moment the user answers it.
+    private func registerAuthorizationObserver() {
+        authorizationCancellable?.cancel()
+        isLocationPermissionDenied = GPSLocationProvider.shared.isDenied
+        authorizationCancellable = NotificationCenter.default
+            .publisher(for: .notchLocationAuthorizationChanged)
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.isLocationPermissionDenied = GPSLocationProvider.shared.isDenied
+                    guard self.isEnabled, self.locationMode == .auto else { return }
+                    // The refresh that triggered the prompt has already settled for the IP
+                    // fallback; let it finish before starting the one that supersedes it,
+                    // because `refreshTask()` hands back the in-flight task instead of
+                    // queueing a second one.
+                    if let inFlight = self.currentRefreshTask {
+                        inFlight.cancel()
+                        await inFlight.value
+                    }
+                    self.refresh()
+                }
+            }
     }
 }
