@@ -54,8 +54,10 @@ nonisolated enum NotchConfiguration {
 
     // MARK: - Hit testing
 
-    /// Extra horizontal slop around the notch for intentional hover triggering.
-    static let hoverEnterHorizontalMargin: CGFloat = 16
+    /// Side slop for a file drag only. Ordinary hover is flush with the
+    /// collapsed body: the housing meets the menu bar, and slop there opens
+    /// the panel while the cursor is still on a menu-bar item.
+    static let fileDragEnterHorizontalMargin: CGFloat = 16
 
     /// Raises the bottom of the no-drag hover region into the housing.
     /// The housing is the full menu-bar band, and a margin below that band was

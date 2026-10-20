@@ -80,20 +80,20 @@ nonisolated struct NotchLayout: Equatable, Sendable {
                                    width: collapsedSize.width,
                                    height: collapsedSize.height)
 
-        // Enter region: the top of the housing only. The lower lip of the notch
-        // shares a y with the top of the windows underneath it, so counting
-        // that lip (or anything below it) opens the panel on a passing cursor.
-        let hm = NotchConfiguration.hoverEnterHorizontalMargin
+        // Enter region: the collapsed body only. The lower lip shares a y with
+        // the windows underneath, so it is inset; the sides meet the menu bar,
+        // so they are flush. Anything outside that rect is not a hover.
         let inset = min(NotchConfiguration.hoverEnterBottomInset,
                         max(0, collapsedBodyRect.height - 16))
-        enterRegion = CGRect(x: collapsedBodyRect.minX - hm,
+        enterRegion = CGRect(x: collapsedBodyRect.minX,
                              y: collapsedBodyRect.minY + inset,
-                             width: collapsedBodyRect.width + 2 * hm,
+                             width: collapsedBodyRect.width,
                              height: collapsedBodyRect.height - inset + 30)
+        let dragHM = NotchConfiguration.fileDragEnterHorizontalMargin
         let dragDepth = NotchConfiguration.fileDragEnterDepth
-        fileDragEnterRegion = CGRect(x: collapsedBodyRect.minX - hm,
+        fileDragEnterRegion = CGRect(x: collapsedBodyRect.minX - dragHM,
                                      y: collapsedBodyRect.minY - dragDepth,
-                                     width: collapsedBodyRect.width + 2 * hm,
+                                     width: collapsedBodyRect.width + 2 * dragHM,
                                      height: collapsedBodyRect.height + dragDepth + 30)
         expandedBodyRect = CGRect(x: notch.midX - expandedSize.width / 2,
                                   y: screen.maxY - expandedSize.height,
