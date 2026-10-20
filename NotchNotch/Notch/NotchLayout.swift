@@ -27,6 +27,11 @@ nonisolated struct NotchLayout: Equatable, Sendable {
     /// Cursor must enter this to open the panel.
     var enterRegion: CGRect
 
+    /// Same as `enterRegion`, extended downward. Used only while a file drag
+    /// is in progress, so a file aimed at the notch is caught before it has to
+    /// sit on the housing. Ordinary pointer motion keeps using `enterRegion`.
+    var fileDragEnterRegion: CGRect
+
     /// Cursor must leave this to close it again.
     var exitRegion: CGRect
 
@@ -75,15 +80,21 @@ nonisolated struct NotchLayout: Equatable, Sendable {
                                    width: collapsedSize.width,
                                    height: collapsedSize.height)
 
-        // Enter region: snugly surrounds the collapsed body with minimal margin
-        // (16pt horizontal, 12pt downwards) so casual mouse movement near the top
-        // does not trigger accidental openings.
+        // Enter region: the top of the housing only. The lower lip of the notch
+        // shares a y with the top of the windows underneath it, so counting
+        // that lip (or anything below it) opens the panel on a passing cursor.
         let hm = NotchConfiguration.hoverEnterHorizontalMargin
-        let vm = NotchConfiguration.hoverEnterVerticalMargin
+        let inset = min(NotchConfiguration.hoverEnterBottomInset,
+                        max(0, collapsedBodyRect.height - 16))
         enterRegion = CGRect(x: collapsedBodyRect.minX - hm,
-                             y: collapsedBodyRect.minY - vm,
+                             y: collapsedBodyRect.minY + inset,
                              width: collapsedBodyRect.width + 2 * hm,
-                             height: collapsedBodyRect.height + vm + 30)
+                             height: collapsedBodyRect.height - inset + 30)
+        let dragDepth = NotchConfiguration.fileDragEnterDepth
+        fileDragEnterRegion = CGRect(x: collapsedBodyRect.minX - hm,
+                                     y: collapsedBodyRect.minY - dragDepth,
+                                     width: collapsedBodyRect.width + 2 * hm,
+                                     height: collapsedBodyRect.height + dragDepth + 30)
         expandedBodyRect = CGRect(x: notch.midX - expandedSize.width / 2,
                                   y: screen.maxY - expandedSize.height,
                                   width: expandedSize.width,
@@ -113,6 +124,13 @@ nonisolated struct NotchLayout: Equatable, Sendable {
             width: alertBarWidth,
             height: alertBarHeight
         )
+    }
+
+    /// Hit target for the current state. A file drag uses the taller collapsed
+    /// region; once the panel is open both paths share the exit region.
+    func hitRegion(for state: NotchState, fileDrag: Bool) -> CGRect {
+        if state.usesExpandedHitRegion { return exitRegion }
+        return fileDrag ? fileDragEnterRegion : enterRegion
     }
 
     /// Should the overlay window accept a click with the cursor at `point`?

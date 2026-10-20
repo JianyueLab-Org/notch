@@ -73,10 +73,12 @@ final class NotchStateMachine: ObservableObject {
     // MARK: - Input
 
     /// Feed every cursor position here. Cheap enough to call at event rate.
-    func pointerMoved(to location: CGPoint) {
-        let region = state.usesExpandedHitRegion ? layout.exitRegion : layout.enterRegion
+    /// `fileDrag` selects the taller collapsed target; it does not open the
+    /// panel by itself when the pointer is outside that target.
+    func pointerMoved(to location: CGPoint, fileDrag: Bool = false) {
+        let region = layout.hitRegion(for: state, fileDrag: fileDrag)
         if region.contains(location) {
-            pointerIsInside()
+            pointerIsInside(fileDrag: fileDrag)
         } else {
             pointerIsOutside()
         }
@@ -105,7 +107,7 @@ final class NotchStateMachine: ObservableObject {
 
     // MARK: - Transitions
 
-    private func pointerIsInside() {
+    private func pointerIsInside(fileDrag: Bool) {
         // Any re-entry cancels a pending close, whether it is still in the
         // debounce window or already animating shut.
         if collapseDelayTask != nil {
@@ -115,6 +117,17 @@ final class NotchStateMachine: ObservableObject {
 
         switch state {
         case .collapsed, .collapsing:
+            if fileDrag {
+                // The hover dwell is there to ignore a cursor that only flies
+                // across the menu bar. A file drag is already intentional, and
+                // the window cannot take the drop until it leaves the collapsed
+                // click-through state.
+                expandDwellTask?.cancel()
+                expandDwellTask = nil
+                transition(to: .expanding, animation: NotchConfiguration.expandAnimation)
+                settle(to: .expanded, after: NotchConfiguration.expandSettleDuration)
+                return
+            }
             guard expandDwellTask == nil else { return }
             expandDwellTask = Task { [weak self] in
                 try? await Task.sleep(for: NotchConfiguration.hoverExpandDwellDelay)

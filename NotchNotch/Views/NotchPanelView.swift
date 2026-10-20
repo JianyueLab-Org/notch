@@ -139,6 +139,9 @@ struct NotchPanelView: View {
                 withAnimation(.easeInOut(duration: 0.12)) {
                     activeTab = .shelf
                 }
+                if !machine.state.isVisiblyExpanded {
+                    machine.expandImmediately()
+                }
             }
         }
         .onChange(of: isDraggingFile) { isDragging in

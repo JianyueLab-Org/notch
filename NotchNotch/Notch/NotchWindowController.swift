@@ -12,6 +12,11 @@ import OSLog
 import Combine
 import SwiftUI
 
+private struct ActiveFileDrag {
+    var urls: [URL]
+    var inside: Bool
+}
+
 @MainActor
 final class NotchWindowController {
 
@@ -39,6 +44,15 @@ final class NotchWindowController {
     /// recompute it when the state changes without the mouse moving.
     private var lastPointer: CGPoint = .zero
 
+    /// `NSPasteboard.drag.changeCount` while no button is down. A file drag
+    /// bumps it; a plain click does not, so a stale pasteboard cannot open the
+    /// panel on the next mouse-down.
+    private var idleDragChangeCount = NSPasteboard(name: .drag).changeCount
+    private var latchedFileDrag: (changeCount: Int, urls: [URL])?
+    private var activeFileDrag: ActiveFileDrag?
+    private var lastFileDrag = false
+    private var wasDragging = false
+
     init() {
         let screen = NotchGeometry.preferredScreen()
         let detected = screen.map { NotchGeometry.detect(on: $0) }
@@ -58,11 +72,8 @@ final class NotchWindowController {
         observeScreenChanges()
 
         lastPointer = NSEvent.mouseLocation
-        let monitor = NotchHoverMonitor { [weak self] location, _ in
-            guard let self else { return }
-            self.lastPointer = location
-            self.stateMachine.pointerMoved(to: location)
-            self.updateInteractivity(for: self.stateMachine.state)
+        let monitor = NotchHoverMonitor { [weak self] location, isDragging in
+            self?.handlePointer(location, isDragging: isDragging)
         }
         monitor.start()
         hoverMonitor = monitor
@@ -235,12 +246,126 @@ final class NotchWindowController {
     /// open or showing alerts. `NotchLayout.acceptsClick(at:in:isShowingAlert:)` documents why this cannot be
     /// solved with a `hitTest(_:)` override.
     private func updateInteractivity(for state: NotchState) {
-        let accepts = stateMachine.layout.acceptsClick(
+        // Collapsed, the window is click-through, so AppKit will never deliver
+        // `draggingEntered` for a file that is merely approaching the notch.
+        // While that drag is inside the extended region, accept events so the
+        // drop can land. Anywhere else stays click-through.
+        let inFileDrag = lastFileDrag && stateMachine.layout.hitRegion(for: state, fileDrag: true).contains(lastPointer)
+        let accepts = inFileDrag || stateMachine.layout.acceptsClick(
             at: lastPointer,
             in: state,
             isShowingAlert: isAlertShowing
         )
         window?.setInteractive(accepts)
+    }
+
+    private func handlePointer(_ location: CGPoint, isDragging: Bool) {
+        lastPointer = location
+        if !isDragging {
+            if wasDragging {
+                finishFileDrag(at: location)
+            }
+            wasDragging = false
+            lastFileDrag = false
+            stateMachine.pointerMoved(to: location, fileDrag: false)
+            updateInteractivity(for: stateMachine.state)
+            return
+        }
+
+        wasDragging = true
+        let urls = latchFileDragURLs()
+        lastFileDrag = urls != nil
+        stateMachine.pointerMoved(to: location, fileDrag: lastFileDrag)
+        updateInteractivity(for: stateMachine.state)
+        if let urls {
+            noteFileDragMoved(urls, at: location)
+        }
+    }
+
+    /// Reads the drag pasteboard at most once per drag. Empty types are not
+    /// cached: Finder fills the pasteboard a frame or two after the drag starts.
+    private func latchFileDragURLs() -> [URL]? {
+        let pasteboard = NSPasteboard(name: .drag)
+        let changeCount = pasteboard.changeCount
+        guard changeCount != idleDragChangeCount else { return nil }
+        if let latchedFileDrag {
+            if latchedFileDrag.changeCount != changeCount {
+                // Escape, or a second drag replacing this one, clears the
+                // pasteboard. Do not commit the files we snapshotted.
+                self.latchedFileDrag = nil
+                idleDragChangeCount = changeCount
+                cancelActiveFileDrag()
+                return nil
+            }
+            return latchedFileDrag.urls.isEmpty ? nil : latchedFileDrag.urls
+        }
+
+        let urls = Self.readFileURLs(from: pasteboard)
+        if !urls.isEmpty {
+            latchedFileDrag = (changeCount, urls)
+            return urls
+        }
+        if let types = pasteboard.types, !types.isEmpty,
+           !types.contains(.fileURL), !types.contains(Self.filenamesPasteboardType) {
+            latchedFileDrag = (changeCount, [])
+        }
+        return nil
+    }
+
+    private func noteFileDragMoved(_ urls: [URL], at location: CGPoint) {
+        let inside = stateMachine.layout.hitRegion(for: stateMachine.state, fileDrag: true).contains(location)
+        if activeFileDrag == nil {
+            activeFileDrag = ActiveFileDrag(urls: urls, inside: false)
+        } else {
+            activeFileDrag?.urls = urls
+        }
+        guard let wasInside = activeFileDrag?.inside, wasInside != inside else { return }
+        activeFileDrag?.inside = inside
+        if inside {
+            Log.hover.notice("hover: file drag entered")
+            NotificationCenter.default.post(name: .notchFileDragEntered, object: nil)
+        } else {
+            NotificationCenter.default.post(name: .notchFileDragExited, object: nil)
+        }
+    }
+
+    private func cancelActiveFileDrag() {
+        guard let active = activeFileDrag else { return }
+        activeFileDrag = nil
+        if active.inside {
+            NotificationCenter.default.post(name: .notchFileDragExited, object: nil)
+        }
+    }
+
+    private func finishFileDrag(at location: CGPoint) {
+        idleDragChangeCount = NSPasteboard(name: .drag).changeCount
+        latchedFileDrag = nil
+        guard let active = activeFileDrag else { return }
+        activeFileDrag = nil
+        let inside = stateMachine.layout.hitRegion(for: stateMachine.state, fileDrag: true).contains(location)
+        if inside {
+            NotificationCenter.default.post(name: .notchFileDropped, object: active.urls)
+        } else if active.inside {
+            NotificationCenter.default.post(name: .notchFileDragExited, object: nil)
+        }
+    }
+
+    private static let filenamesPasteboardType = NSPasteboard.PasteboardType("NSFilenamesPboardType")
+
+    private static func readFileURLs(from pasteboard: NSPasteboard) -> [URL] {
+        var urls: [URL] = []
+        if let items = pasteboard.pasteboardItems {
+            for item in items {
+                guard let value = item.string(forType: .fileURL),
+                      let url = URL(string: value), url.isFileURL else { continue }
+                urls.append(url)
+            }
+        }
+        if !urls.isEmpty { return urls }
+        if let paths = pasteboard.propertyList(forType: filenamesPasteboardType) as? [String] {
+            return paths.map { URL(fileURLWithPath: $0) }
+        }
+        return []
     }
 
     private func observeScreenChanges() {

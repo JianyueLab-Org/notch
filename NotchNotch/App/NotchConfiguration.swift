@@ -54,10 +54,17 @@ nonisolated enum NotchConfiguration {
 
     // MARK: - Hit testing
 
-    /// Extra slop around the notch for intentional hover triggering.
-    /// Snug 16pt horizontally and 12pt downwards to prevent accidental triggers.
+    /// Extra horizontal slop around the notch for intentional hover triggering.
     static let hoverEnterHorizontalMargin: CGFloat = 16
-    static let hoverEnterVerticalMargin: CGFloat = 12
+
+    /// Raises the bottom of the no-drag hover region into the housing.
+    /// The housing is the full menu-bar band, and a margin below that band was
+    /// opening the panel while the cursor was still under the notch.
+    static let hoverEnterBottomInset: CGFloat = 12
+
+    /// How far below the bottom of the notch a file drag is still caught.
+    /// Measured from the housing, not from the hover region above.
+    static let fileDragEnterDepth: CGFloat = 84
 
     /// Slop around the *expanded* panel. Deliberately larger than the enter
     /// margin: this is the hysteresis that stops the panel flickering when the
