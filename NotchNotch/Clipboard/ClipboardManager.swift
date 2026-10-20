@@ -57,9 +57,11 @@ final class ClipboardManager: ObservableObject {
     static let maxItemsOptions: [Int] = [5, 10, 15, 20]
     static let defaultMaxItems: Int = 10
     static let maxItemsKey = "co.jianyuelab.NotchNotch.clipboardMaxItems"
+    static let monitoringEnabledKey = "co.jianyuelab.NotchNotch.clipboardMonitoringEnabled"
 
     @Published private(set) var items: [ClipboardItem] = []
     @Published private(set) var maxItems: Int = defaultMaxItems
+    @Published private(set) var isMonitoringEnabled: Bool = true
 
     private var lastChangeCount: Int = -1
     private var pollTimer: Timer?
@@ -79,8 +81,34 @@ final class ClipboardManager: ObservableObject {
             UserDefaults.standard.set(Self.defaultMaxItems, forKey: Self.maxItemsKey)
         }
 
+        if UserDefaults.standard.object(forKey: Self.monitoringEnabledKey) != nil {
+            self.isMonitoringEnabled = UserDefaults.standard.bool(forKey: Self.monitoringEnabledKey)
+        } else {
+            self.isMonitoringEnabled = true
+        }
+
         loadPersisted()
-        startMonitoring()
+        if FileManager.default.fileExists(atPath: persistenceURL.path) {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: persistenceURL.path)
+        }
+        if isMonitoringEnabled {
+            startMonitoring()
+        }
+    }
+
+    func setMonitoringEnabled(_ enabled: Bool) {
+        isMonitoringEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.monitoringEnabledKey)
+        if enabled {
+            startMonitoring()
+        } else {
+            stopMonitoring()
+        }
+    }
+
+    func stopMonitoring() {
+        pollTimer?.invalidate()
+        pollTimer = nil
     }
 
     func startMonitoring() {
@@ -103,6 +131,7 @@ final class ClipboardManager: ObservableObject {
     }
 
     func pollPasteboard() {
+        guard isMonitoringEnabled else { return }
         let currentCount = NSPasteboard.general.changeCount
         guard currentCount != lastChangeCount else { return }
         lastChangeCount = currentCount
@@ -171,7 +200,7 @@ final class ClipboardManager: ObservableObject {
     private func recordCurrentPasteboardIfAvailable() {
         if let text = NSPasteboard.general.string(forType: .string),
            !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            record(text: text, bundleId: "com.apple.Safari", appName: "Safari")
+            record(text: text, bundleId: nil, appName: nil)
         }
     }
 
@@ -194,5 +223,7 @@ final class ClipboardManager: ObservableObject {
     private func savePersisted() {
         guard let data = try? JSONEncoder().encode(items) else { return }
         try? data.write(to: persistenceURL, options: .atomic)
+        // The history holds whatever the user copied, including secrets.
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: persistenceURL.path)
     }
 }

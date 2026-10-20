@@ -219,16 +219,17 @@ struct DropShelfView: View {
     }
 
     private func handleAirDropDrop(providers: [NSItemProvider]) -> Bool {
-        var urls: [URL] = []
+        let found = DroppedURLBuffer()
         let group = DispatchGroup()
         for provider in providers {
             group.enter()
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                if let url { urls.append(url) }
+                if let url { found.append(url) }
                 group.leave()
             }
         }
         group.notify(queue: .main) {
+            let urls = found.values
             if !urls.isEmpty, let service = NSSharingService(named: .sendViaAirDrop) {
                 service.perform(withItems: urls)
             }
@@ -237,21 +238,41 @@ struct DropShelfView: View {
     }
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
-        var foundURLs: [URL] = []
+        let found = DroppedURLBuffer()
         let group = DispatchGroup()
         for provider in providers {
             group.enter()
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                if let url { foundURLs.append(url) }
+                if let url { found.append(url) }
                 group.leave()
             }
         }
         group.notify(queue: .main) {
-            if !foundURLs.isEmpty {
-                self.shelf.addURLs(foundURLs)
+            let urls = found.values
+            if !urls.isEmpty {
+                self.shelf.addURLs(urls)
             }
         }
         return true
+    }
+}
+
+/// `NSItemProvider` completions arrive on arbitrary queues. The buffer is the only
+/// shared mutable state those callbacks touch.
+nonisolated final class DroppedURLBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [URL] = []
+
+    func append(_ url: URL) {
+        lock.lock()
+        storage.append(url)
+        lock.unlock()
+    }
+
+    var values: [URL] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
     }
 }
 

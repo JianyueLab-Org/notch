@@ -14,15 +14,16 @@ public enum WeatherServiceError: LocalizedError, Sendable, Equatable {
     case networkError(String)
 
     public var errorDescription: String? {
+        let code = LocalizationManager.currentLanguageCode()
         switch self {
         case .invalidURL:
-            return "无效的天气请求地址"
+            return L10n.string(for: .weatherErrorInvalidURL, languageCode: code)
         case .invalidResponse(let statusCode):
-            return "天气服务响应异常（状态码：\(statusCode)）"
+            return L10n.format(key: .weatherErrorStatus, languageCode: code, statusCode)
         case .decodingError(let details):
-            return "解析天气数据失败：\(details)"
+            return L10n.format(key: .weatherErrorDecoding, languageCode: code, details)
         case .networkError(let details):
-            return "网络请求失败：\(details)"
+            return L10n.format(key: .weatherErrorNetwork, languageCode: code, details)
         }
     }
 }

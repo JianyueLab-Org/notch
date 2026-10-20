@@ -27,10 +27,11 @@ enum ScheduleAlertType: Equatable {
         }
     }
 
+    @MainActor
     var badgeText: String {
         switch self {
-        case .startsSoon(_, _, let minutes): return "\(minutes) 分钟后开始"
-        case .endsSoon(_, _, let minutes): return "还有 \(minutes) 分钟结束"
+        case .startsSoon(_, _, let minutes): return L10n.tr(.scheduleStartsInBadge, minutes)
+        case .endsSoon(_, _, let minutes): return L10n.tr(.scheduleEndsInBadge, minutes)
         }
     }
 
@@ -156,6 +157,22 @@ final class ScheduleController: ObservableObject {
             }
             .store(in: &cancellables)
 
+        NSWorkspace.shared.notificationCenter
+            .publisher(for: NSWorkspace.didWakeNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.fetchEvents()
+            }
+            .store(in: &cancellables)
+
+        LocalizationManager.shared.$activeCode
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.fetchEvents()
+            }
+            .store(in: &cancellables)
+
         // Refresh every 15 seconds to keep relative minutes and progress up to date
         Timer.publish(every: 15, on: .main, in: .common)
             .autoconnect()
@@ -178,7 +195,7 @@ final class ScheduleController: ObservableObject {
             case .authorized:
                 isAuthorized = true
                 fetchEvents()
-            case .restricted, .denied:
+            case .restricted, .denied, .writeOnly:
                 handlePermissionDenied()
             @unknown default:
                 break
@@ -195,8 +212,10 @@ final class ScheduleController: ObservableObject {
             requestPermission()
         case .restricted, .denied:
             handlePermissionDenied()
-        @unknown default:
-            break
+        default:
+            // Includes macOS 14 `.writeOnly`, which this fallback switch cannot name
+            // while the deployment target is still macOS 13.
+            handlePermissionDenied()
         }
     }
 
@@ -225,12 +244,21 @@ final class ScheduleController: ObservableObject {
         let status = EKEventStore.authorizationStatus(for: .event)
         #if compiler(>=5.9)
         if #available(macOS 14.0, *) {
-            guard status == .fullAccess || status == .authorized else { return }
+            guard status == .fullAccess || status == .authorized else {
+                handlePermissionDenied()
+                return
+            }
         } else {
-            guard status == .authorized else { return }
+            guard status == .authorized else {
+                handlePermissionDenied()
+                return
+            }
         }
         #else
-        guard status == .authorized else { return }
+        guard status == .authorized else {
+            handlePermissionDenied()
+            return
+        }
         #endif
 
         let now = Date()
@@ -259,7 +287,7 @@ final class ScheduleController: ObservableObject {
 
         if let current {
             hasActiveEvent = true
-            currentEventTitle = current.title ?? "Untitled Event"
+            currentEventTitle = current.title ?? L10n.tr(.scheduleUntitled)
             currentEventStartDate = current.startDate
             currentEventEndDate = current.endDate
 
@@ -269,9 +297,9 @@ final class ScheduleController: ObservableObject {
 
             let remaining = max(0, current.endDate.timeIntervalSince(now))
             if elapsed < 300 {
-                currentEventStatus = "Starting now · \(formatDuration(total))"
+                currentEventStatus = L10n.tr(.scheduleStartingNow, formatDuration(total))
             } else {
-                currentEventStatus = "In progress · \(formatDuration(remaining)) left"
+                currentEventStatus = L10n.tr(.scheduleInProgressLeft, formatDuration(remaining))
             }
 
             // Compute divider tick if current event ends within the [-15min, +45min] window
@@ -284,26 +312,26 @@ final class ScheduleController: ObservableObject {
             }
 
             if let nextEvent = todayEvents.first(where: { $0.startDate >= current.endDate }) {
-                nextEventTitle = nextEvent.title ?? "Untitled Event"
+                nextEventTitle = nextEvent.title ?? L10n.tr(.scheduleUntitled)
                 nextEventStartDate = nextEvent.startDate
                 nextEventEndDate = nextEvent.endDate
                 let until = max(0, nextEvent.startDate.timeIntervalSince(now))
-                nextEventTime = "in \(formatDuration(until))"
+                nextEventTime = L10n.tr(.scheduleInDuration, formatDuration(until))
             } else {
-                nextEventTitle = "No more events"
-                nextEventTime = "today"
+                nextEventTitle = L10n.tr(.scheduleNoMoreEvents)
+                nextEventTime = L10n.tr(.scheduleToday)
                 nextEventStartDate = nil
                 nextEventEndDate = nil
             }
         } else if let next {
             hasActiveEvent = false
             progress = 0.0
-            currentEventTitle = next.title ?? "Untitled Event"
+            currentEventTitle = next.title ?? L10n.tr(.scheduleUntitled)
             currentEventStartDate = next.startDate
             currentEventEndDate = next.endDate
 
             let until = max(0, next.startDate.timeIntervalSince(now))
-            currentEventStatus = "Starts in \(formatDuration(until)) · \(formatClock(next.startDate))"
+            currentEventStatus = L10n.tr(.scheduleStartsAt, formatDuration(until), formatClock(next.startDate))
 
             // Compute divider tick if next event starts within the window
             let startMinutes = next.startDate.timeIntervalSince(now) / 60.0
@@ -316,14 +344,14 @@ final class ScheduleController: ObservableObject {
 
             let afterNext = todayEvents.first(where: { $0.startDate >= next.endDate })
             if let after = afterNext {
-                nextEventTitle = after.title ?? "Untitled Event"
+                nextEventTitle = after.title ?? L10n.tr(.scheduleUntitled)
                 nextEventStartDate = after.startDate
                 nextEventEndDate = after.endDate
                 let afterUntil = max(0, after.startDate.timeIntervalSince(now))
-                nextEventTime = "in \(formatDuration(afterUntil))"
+                nextEventTime = L10n.tr(.scheduleInDuration, formatDuration(afterUntil))
             } else {
-                nextEventTitle = "No more events"
-                nextEventTime = "today"
+                nextEventTitle = L10n.tr(.scheduleNoMoreEvents)
+                nextEventTime = L10n.tr(.scheduleToday)
                 nextEventStartDate = nil
                 nextEventEndDate = nil
             }
@@ -332,8 +360,8 @@ final class ScheduleController: ObservableObject {
             progress = 0.0
             currentEventTitle = "No Scheduled Events"
             currentEventStatus = todayEvents.isEmpty ? "Calendar is clear" : "No more events today"
-            nextEventTitle = "All Clear"
-            nextEventTime = "today"
+            nextEventTitle = L10n.tr(.scheduleAllClear)
+            nextEventTime = L10n.tr(.scheduleToday)
             dividerIndex = nil
             currentEventStartDate = nil
             currentEventEndDate = nil
@@ -405,29 +433,31 @@ final class ScheduleController: ObservableObject {
         for event in events {
             guard let title = event.title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
 
-            // 1. Starts soon: within [targetSec - 60, targetSec + 60]
+            // Fire once from the lead time until the event actually starts. A ±60s
+            // window around one poll misses the alert when the Mac was asleep.
             if remindBeforeStart {
                 let targetSec = Double(startReminderMinutes * 60)
                 let startDiff = event.startDate.timeIntervalSince(now)
-                if startDiff >= (targetSec - 60) && startDiff <= (targetSec + 60) {
+                if startDiff > 0 && startDiff <= targetSec + 60 {
                     let key = "\(title)_\(Int(event.startDate.timeIntervalSince1970))_start_\(startReminderMinutes)"
                     if !sentReminderKeys.contains(key) {
                         sentReminderKeys.insert(key)
-                        triggerAlert(.startsSoon(title: title, date: event.startDate, minutes: startReminderMinutes))
+                        let minutesLeft = max(1, Int((startDiff / 60).rounded(.up)))
+                        triggerAlert(.startsSoon(title: title, date: event.startDate, minutes: minutesLeft))
                         break
                     }
                 }
             }
 
-            // 2. Ends soon: within [targetSec - 60, targetSec + 60] for active event
             if remindBeforeEnd {
                 let targetSec = Double(endReminderMinutes * 60)
                 let endDiff = event.endDate.timeIntervalSince(now)
-                if event.startDate <= now && endDiff >= (targetSec - 60) && endDiff <= (targetSec + 60) {
+                if event.startDate <= now && endDiff > 0 && endDiff <= targetSec + 60 {
                     let key = "\(title)_\(Int(event.startDate.timeIntervalSince1970))_end_\(endReminderMinutes)"
                     if !sentReminderKeys.contains(key) {
                         sentReminderKeys.insert(key)
-                        triggerAlert(.endsSoon(title: title, date: event.endDate, minutes: endReminderMinutes))
+                        let minutesLeft = max(1, Int((endDiff / 60).rounded(.up)))
+                        triggerAlert(.endsSoon(title: title, date: event.endDate, minutes: minutesLeft))
                         break
                     }
                 }
@@ -477,12 +507,14 @@ final class ScheduleController: ObservableObject {
     func formatDuration(_ interval: TimeInterval) -> String {
         let minutes = max(1, Int(interval) / 60)
         if minutes < 60 {
-            return "\(minutes)m"
-        } else {
-            let hours = minutes / 60
-            let remMin = minutes % 60
-            return remMin == 0 ? "\(hours)hr" : "\(hours)hr \(remMin)m"
+            return L10n.tr(.scheduleDurationMinutes, minutes)
         }
+        let hours = minutes / 60
+        let remMin = minutes % 60
+        if remMin == 0 {
+            return L10n.tr(.scheduleDurationHours, hours)
+        }
+        return L10n.tr(.scheduleDurationHoursMinutes, hours, remMin)
     }
 
     private func formatClock(_ date: Date) -> String {

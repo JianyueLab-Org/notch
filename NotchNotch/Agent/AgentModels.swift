@@ -32,12 +32,13 @@ enum AgentState: String, Codable, Equatable, Sendable {
     }
 
     var shortTag: String {
+        let isZh = LocalizationManager.shared.isChinese
         switch self {
-        case .working: return "BUSY"
-        case .waitingUser: return "REPLY"
-        case .waitingSubagent: return "SUB"
-        case .completed: return "DONE"
-        case .idle: return "IDLE"
+        case .working: return isZh ? "忙碌" : "BUSY"
+        case .waitingUser: return isZh ? "回复" : "REPLY"
+        case .waitingSubagent: return isZh ? "子项" : "SUB"
+        case .completed: return isZh ? "完成" : "DONE"
+        case .idle: return isZh ? "空闲" : "IDLE"
         }
     }
 

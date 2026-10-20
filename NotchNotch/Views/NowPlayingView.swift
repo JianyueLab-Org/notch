@@ -89,11 +89,11 @@ struct NowPlayingView: View {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(JYLTheme.warning)
-                Text("Permission Needed")
+                Text(L10n.tr(.mediaPermissionNeeded))
                     .font(.system(size: 11.5, weight: .bold, design: .rounded))
                     .foregroundStyle(JYLTheme.textPrimary)
             }
-            Text(message.contains("Music") ? "Allow Music in Automation" : "Allow Spotify in Automation")
+            Text(message.contains("Music") ? L10n.tr(.mediaAllowMusicAutomation) : L10n.tr(.mediaAllowSpotifyAutomation))
                 .font(.system(size: 9.5, weight: .medium, design: .rounded))
                 .foregroundStyle(JYLTheme.textSecondary)
                 .lineLimit(1)
@@ -103,7 +103,7 @@ struct NowPlayingView: View {
                     Button {
                         onRequestAuthorization()
                     } label: {
-                        Text("Grant")
+                        Text(L10n.tr(.mediaGrant))
                             .font(.system(size: 9, weight: .semibold, design: .rounded))
                             .foregroundStyle(JYLTheme.textPrimary)
                             .padding(.horizontal, 7)
@@ -121,7 +121,7 @@ struct NowPlayingView: View {
                     }
                 } label: {
                     HStack(spacing: 3) {
-                        Text("Settings")
+                        Text(L10n.tr(.mediaOpenSettings))
                             .font(.system(size: 9, weight: .semibold, design: .rounded))
                         Image(systemName: "arrow.up.forward.app")
                             .font(.system(size: 7.5))
@@ -144,11 +144,11 @@ struct NowPlayingView: View {
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(JYLTheme.textPrimary)
                 .lineLimit(1)
-            Text(track.artist.isEmpty ? "Music / Spotify" : track.artist)
+            Text(track.artist.isEmpty ? L10n.tr(.mediaIdleApps) : track.artist)
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(JYLTheme.textSecondary)
                 .lineLimit(1)
-            Text(track.album.isEmpty ? (track.title.isEmpty ? "Ready to play" : track.artist) : track.album)
+            Text(track.album.isEmpty ? (track.title.isEmpty ? L10n.tr(.mediaReadyToPlay) : track.artist) : track.album)
                 .font(.system(size: 9.5, weight: .regular, design: .rounded))
                 .foregroundStyle(JYLTheme.textMuted)
                 .lineLimit(1)

@@ -35,7 +35,21 @@ public final class LocalizationManager: ObservableObject {
 
     public static let shared = LocalizationManager()
 
-    private static let languageKey = "co.jianyuelab.NotchNotch.appLanguage"
+    private nonisolated static let languageKey = "co.jianyuelab.NotchNotch.appLanguage"
+
+    /// Language code for strings built off the main actor. Matches `activeCode`.
+    public nonisolated static func currentLanguageCode() -> String {
+        let raw = UserDefaults.standard.string(forKey: languageKey) ?? AppLanguage.system.rawValue
+        switch AppLanguage(rawValue: raw) ?? .system {
+        case .zhHans:
+            return "zh-Hans"
+        case .en:
+            return "en"
+        case .system:
+            let preferred = Locale.preferredLanguages.first ?? "en"
+            return preferred.lowercased().hasPrefix("zh") ? "zh-Hans" : "en"
+        }
+    }
 
     @Published public var language: AppLanguage {
         didSet {

@@ -34,17 +34,21 @@ public struct ResolvedLocation: Codable, Equatable, Sendable {
 
 public enum LocationError: LocalizedError, Sendable, Equatable {
     case cityNotFound(String)
+    case cityRequired
     case locationUnavailable
     case networkError(String)
 
     public var errorDescription: String? {
+        let code = LocalizationManager.currentLanguageCode()
         switch self {
         case .cityNotFound(let city):
-            return "未找到城市：\(city)"
+            return L10n.format(key: .locationErrorCityNotFound, languageCode: code, city)
+        case .cityRequired:
+            return L10n.string(for: .locationErrorCityRequired, languageCode: code)
         case .locationUnavailable:
-            return "无法获取位置信息"
+            return L10n.string(for: .locationErrorUnavailable, languageCode: code)
         case .networkError(let message):
-            return "网络错误：\(message)"
+            return L10n.format(key: .locationErrorNetwork, languageCode: code, message)
         }
     }
 }
@@ -79,7 +83,7 @@ public final class LocationService: @unchecked Sendable {
         case .manual:
             let trimmed = customCity.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty {
-                return try await fallbackIPLocation()
+                throw LocationError.cityRequired
             }
             return try await geocode(city: trimmed)
 
@@ -97,8 +101,9 @@ public final class LocationService: @unchecked Sendable {
 
     /// Geocodes a city name into coordinates using Open-Meteo Geocoding API.
     public func geocode(city: String) async throws -> ResolvedLocation {
+        let language = LocalizationManager.currentLanguageCode().hasPrefix("zh") ? "zh" : "en"
         guard let encodedCity = city.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://geocoding-api.open-meteo.com/v1/search?name=\(encodedCity)&count=1&language=zh&format=json") else {
+              let url = URL(string: "https://geocoding-api.open-meteo.com/v1/search?name=\(encodedCity)&count=1&language=\(language)&format=json") else {
             throw LocationError.networkError("Invalid city query: \(city)")
         }
 
@@ -137,7 +142,7 @@ public final class LocationService: @unchecked Sendable {
     }
 
     /// Silent IP-based geolocation fallback.
-    /// Tries ipwho.is, then secondary fallback ipapi.co, and finally defaults to Shanghai.
+    /// Tries ipwho.is, then ipapi.co. Throws when both fail.
     public func fallbackIPLocation() async throws -> ResolvedLocation {
         if let primary = await queryPrimaryIPApi() {
             return primary
@@ -147,8 +152,8 @@ public final class LocationService: @unchecked Sendable {
             return secondary
         }
 
-        Log.location.error("Every IP geolocation provider failed; using hardcoded default")
-        return ResolvedLocation(latitude: 31.2304, longitude: 121.4737, cityName: "上海")
+        Log.location.error("Every IP geolocation provider failed")
+        throw LocationError.locationUnavailable
     }
 
     /// Reverse geocodes coordinates to a readable locality name.
@@ -172,9 +177,12 @@ public final class LocationService: @unchecked Sendable {
                 }
             }
         } catch {
-            // Silently fallback to "本地"
+            // Reverse geocoding failed; the caller still has coordinates.
         }
-        return "本地"
+        return L10n.string(
+            for: .locationLocalityUnknown,
+            languageCode: LocalizationManager.currentLanguageCode()
+        )
     }
 
     // MARK: - Internal / Private Helpers
@@ -218,7 +226,7 @@ public final class LocationService: @unchecked Sendable {
                   let lon = decoded.longitude else {
                 return nil
             }
-            let city = decoded.city ?? decoded.region ?? "本地"
+            let city = decoded.city ?? decoded.region ?? Self.unknownLocality
             return ResolvedLocation(latitude: lat, longitude: lon, cityName: city)
         } catch {
             return nil
@@ -243,11 +251,15 @@ public final class LocationService: @unchecked Sendable {
                   let lon = decoded.longitude else {
                 return nil
             }
-            let city = decoded.city ?? decoded.region ?? "本地"
+            let city = decoded.city ?? decoded.region ?? Self.unknownLocality
             return ResolvedLocation(latitude: lat, longitude: lon, cityName: city)
         } catch {
             return nil
         }
+    }
+
+    private static var unknownLocality: String {
+        L10n.string(for: .locationLocalityUnknown, languageCode: LocalizationManager.currentLanguageCode())
     }
 }
 

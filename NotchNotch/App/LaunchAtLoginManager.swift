@@ -3,6 +3,7 @@
 //  NotchNotch
 //
 
+import AppKit
 import Foundation
 import ServiceManagement
 import Combine
@@ -15,8 +16,17 @@ final class LaunchAtLoginManager: ObservableObject {
     @Published private(set) var isEnabled: Bool = false
     @Published private(set) var requiresApproval: Bool = false
 
+    private var activationCancellable: AnyCancellable?
+
     private init() {
         refreshStatus()
+        activationCancellable = NotificationCenter.default
+            .publisher(for: NSApplication.didBecomeActiveNotification)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.refreshStatus()
+                }
+            }
     }
 
     func refreshStatus() {
@@ -32,7 +42,8 @@ final class LaunchAtLoginManager: ObservableObject {
                     try SMAppService.mainApp.register()
                 }
             } else {
-                if SMAppService.mainApp.status == .enabled {
+                let status = SMAppService.mainApp.status
+                if status == .enabled || status == .requiresApproval {
                     try SMAppService.mainApp.unregister()
                 }
             }

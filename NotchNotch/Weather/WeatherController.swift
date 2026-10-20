@@ -63,6 +63,11 @@ public final class WeatherController: ObservableObject {
                 currentRefreshTask?.cancel()
                 currentRefreshTask = nil
                 isLoading = false
+                currentSnapshot = nil
+                currentLocation = nil
+                lastError = nil
+                defaults.removeObject(forKey: Keys.weatherCachedSnapshot)
+                defaults.removeObject(forKey: Keys.weatherCachedLocation)
             }
         }
     }
@@ -185,6 +190,13 @@ public final class WeatherController: ObservableObject {
             self.currentLocation = try? JSONDecoder().decode(ResolvedLocation.self, from: locationData)
         } else {
             self.currentLocation = nil
+        }
+
+        if !isEnabled {
+            currentSnapshot = nil
+            currentLocation = nil
+            defaults.removeObject(forKey: Keys.weatherCachedSnapshot)
+            defaults.removeObject(forKey: Keys.weatherCachedLocation)
         }
     }
 

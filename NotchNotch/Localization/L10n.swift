@@ -25,12 +25,23 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case weatherFetching
     case weatherRetry
     case weatherRefresh
+    case weatherErrorInvalidURL
+    case weatherErrorStatus
+    case weatherErrorDecoding
+    case weatherErrorNetwork
 
     // MARK: - Media Player Card
     case mediaNotPlaying
     case mediaUnknownTrack
     case mediaUnknownArtist
     case mediaPlayerTitle
+    case mediaPermissionNeeded
+    case mediaAllowMusicAutomation
+    case mediaAllowSpotifyAutomation
+    case mediaGrant
+    case mediaOpenSettings
+    case mediaIdleApps
+    case mediaReadyToPlay
 
     // MARK: - Schedule Timeline Card
     case scheduleNoEvents
@@ -39,6 +50,19 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case scheduleRemaining
     case scheduleElapsed
     case scheduleAllDay
+    case scheduleStartsInBadge
+    case scheduleEndsInBadge
+    case scheduleStartingNow
+    case scheduleInProgressLeft
+    case scheduleStartsAt
+    case scheduleInDuration
+    case scheduleNoMoreEvents
+    case scheduleToday
+    case scheduleUntitled
+    case scheduleAllClear
+    case scheduleDurationMinutes
+    case scheduleDurationHours
+    case scheduleDurationHoursMinutes
 
     // MARK: - Drop Shelf
     case shelfEmptyTitle
@@ -60,6 +84,9 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case agentWorking
     case agentJumpToTerminal
     case agentAlertDismiss
+    case agentListenerReady
+    case agentListenerStarting
+    case agentListenerFailed
 
     // MARK: - Menu Bar Extra
     case menuOpenPanel
@@ -111,6 +138,11 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case settingsWeatherInterval60
     case settingsWeatherRefreshBtn
     case settingsWeatherLastUpdatedLabel
+    case locationErrorCityNotFound
+    case locationErrorCityRequired
+    case locationErrorUnavailable
+    case locationErrorNetwork
+    case locationLocalityUnknown
 
     // MARK: - Settings Agent
     case settingsAgentMasterTitle
@@ -127,12 +159,15 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case settingsClipboardRetentionDesc
     case settingsClipboardClearBtn
     case settingsClipboardHistoryCount
+    case settingsClipboardMonitoringTitle
+    case settingsClipboardMonitoringDesc
 
     // MARK: - Settings About
     case settingsAboutVersion
     case settingsAboutCopyright
     case settingsAboutLicense
     case settingsAboutSourceCode
+    case settingsAboutVersionValue
 
     // MARK: - Common Badges & Actions
     case commonEnabled
@@ -144,7 +179,7 @@ public enum L10nKey: String, CaseIterable, Sendable {
 
 public struct L10n {
 
-    private static let zhDictionary: [L10nKey: String] = [
+    private nonisolated static let zhDictionary: [L10nKey: String] = [
         // Navigation Tabs
         .tabOverview: "概览",
         .tabWeather: "天气",
@@ -162,12 +197,23 @@ public struct L10n {
         .weatherFetching: "获取天气信息中...",
         .weatherRetry: "点击重试",
         .weatherRefresh: "刷新天气",
+        .weatherErrorInvalidURL: "无效的天气请求地址",
+        .weatherErrorStatus: "天气服务响应异常（状态码：%d）",
+        .weatherErrorDecoding: "解析天气数据失败：%@",
+        .weatherErrorNetwork: "网络请求失败：%@",
 
         // Media Player
         .mediaNotPlaying: "未在播放媒体",
         .mediaUnknownTrack: "未知曲目",
         .mediaUnknownArtist: "未知艺术家",
         .mediaPlayerTitle: "媒体播放器",
+        .mediaPermissionNeeded: "需要授权",
+        .mediaAllowMusicAutomation: "请在自动化中允许音乐",
+        .mediaAllowSpotifyAutomation: "请在自动化中允许 Spotify",
+        .mediaGrant: "授权",
+        .mediaOpenSettings: "设置",
+        .mediaIdleApps: "音乐 / Spotify",
+        .mediaReadyToPlay: "准备播放",
 
         // Schedule Timeline
         .scheduleNoEvents: "今日暂无后续日程",
@@ -176,6 +222,19 @@ public struct L10n {
         .scheduleRemaining: "剩余 %@",
         .scheduleElapsed: "已进行 %@",
         .scheduleAllDay: "全天日程",
+        .scheduleStartsInBadge: "%d 分钟后开始",
+        .scheduleEndsInBadge: "还有 %d 分钟结束",
+        .scheduleStartingNow: "即将开始 · %@",
+        .scheduleInProgressLeft: "进行中 · 剩余 %@",
+        .scheduleStartsAt: "%@ 后开始 · %@",
+        .scheduleInDuration: "%@ 后",
+        .scheduleNoMoreEvents: "没有更多日程",
+        .scheduleToday: "今天",
+        .scheduleUntitled: "未命名日程",
+        .scheduleAllClear: "今天没有了",
+        .scheduleDurationMinutes: "%d分",
+        .scheduleDurationHours: "%d小时",
+        .scheduleDurationHoursMinutes: "%d小时 %d分",
 
         // Drop Shelf
         .shelfEmptyTitle: "拖放文件暂存于此",
@@ -197,6 +256,9 @@ public struct L10n {
         .agentWorking: "AI 运行中",
         .agentJumpToTerminal: "跳转终端",
         .agentAlertDismiss: "忽略",
+        .agentListenerReady: "运行中 · 7823",
+        .agentListenerStarting: "正在绑定 · 7823",
+        .agentListenerFailed: "端口 7823 绑定失败",
 
         // Menu Bar Extra
         .menuOpenPanel: "展开刘海面板",
@@ -248,6 +310,11 @@ public struct L10n {
         .settingsWeatherInterval60: "1 小时",
         .settingsWeatherRefreshBtn: "立即刷新数据",
         .settingsWeatherLastUpdatedLabel: "上次更新",
+        .locationErrorCityNotFound: "未找到城市：%@",
+        .locationErrorCityRequired: "请先填写城市",
+        .locationErrorUnavailable: "无法获取位置",
+        .locationErrorNetwork: "网络错误：%@",
+        .locationLocalityUnknown: "本地",
 
         // Settings Agent
         .settingsAgentMasterTitle: "AI Agent 监控",
@@ -264,12 +331,15 @@ public struct L10n {
         .settingsClipboardRetentionDesc: "自动记录复制的历史文本条目，超过限制时自动淘汰旧记录",
         .settingsClipboardClearBtn: "清空剪贴板历史",
         .settingsClipboardHistoryCount: "已记录 %d 条历史条目",
+        .settingsClipboardMonitoringTitle: "记录剪贴板",
+        .settingsClipboardMonitoringDesc: "关闭后停止采集。已保存的历史仍留在本机，可手动清空。",
 
         // Settings About
         .settingsAboutVersion: "版本",
         .settingsAboutCopyright: "版权所有 © 2026 JianyueLab LTD.",
         .settingsAboutLicense: "开源许可证",
         .settingsAboutSourceCode: "源代码仓库",
+        .settingsAboutVersionValue: "版本 %@（macOS）",
 
         // Common Badges
         .commonEnabled: "已启用",
@@ -279,7 +349,7 @@ public struct L10n {
         .commonClear: "清除"
     ]
 
-    private static let enDictionary: [L10nKey: String] = [
+    private nonisolated static let enDictionary: [L10nKey: String] = [
         // Navigation Tabs
         .tabOverview: "Overview",
         .tabWeather: "Weather",
@@ -297,12 +367,23 @@ public struct L10n {
         .weatherFetching: "Fetching weather data...",
         .weatherRetry: "Retry",
         .weatherRefresh: "Refresh Weather",
+        .weatherErrorInvalidURL: "Invalid weather request",
+        .weatherErrorStatus: "Weather service error (status %d)",
+        .weatherErrorDecoding: "Could not read the weather data: %@",
+        .weatherErrorNetwork: "Network request failed: %@",
 
         // Media Player
         .mediaNotPlaying: "Not Playing",
         .mediaUnknownTrack: "Unknown Track",
         .mediaUnknownArtist: "Unknown Artist",
         .mediaPlayerTitle: "Media Player",
+        .mediaPermissionNeeded: "Permission Needed",
+        .mediaAllowMusicAutomation: "Allow Music in Automation",
+        .mediaAllowSpotifyAutomation: "Allow Spotify in Automation",
+        .mediaGrant: "Grant",
+        .mediaOpenSettings: "Settings",
+        .mediaIdleApps: "Music / Spotify",
+        .mediaReadyToPlay: "Ready to play",
 
         // Schedule Timeline
         .scheduleNoEvents: "No upcoming events today",
@@ -311,6 +392,19 @@ public struct L10n {
         .scheduleRemaining: "%@ left",
         .scheduleElapsed: "%@ elapsed",
         .scheduleAllDay: "All-day event",
+        .scheduleStartsInBadge: "Starts in %d min",
+        .scheduleEndsInBadge: "%d min left",
+        .scheduleStartingNow: "Starting now · %@",
+        .scheduleInProgressLeft: "In progress · %@ left",
+        .scheduleStartsAt: "Starts in %@ · %@",
+        .scheduleInDuration: "in %@",
+        .scheduleNoMoreEvents: "No more events",
+        .scheduleToday: "today",
+        .scheduleUntitled: "Untitled Event",
+        .scheduleAllClear: "All Clear",
+        .scheduleDurationMinutes: "%dm",
+        .scheduleDurationHours: "%dhr",
+        .scheduleDurationHoursMinutes: "%dhr %dm",
 
         // Drop Shelf
         .shelfEmptyTitle: "Drag & drop files here",
@@ -332,6 +426,9 @@ public struct L10n {
         .agentWorking: "Agent Working",
         .agentJumpToTerminal: "Jump to Terminal",
         .agentAlertDismiss: "Dismiss",
+        .agentListenerReady: "Running · Port 7823",
+        .agentListenerStarting: "Binding · Port 7823",
+        .agentListenerFailed: "Port 7823 failed to bind",
 
         // Menu Bar Extra
         .menuOpenPanel: "Open Notch Panel",
@@ -383,6 +480,11 @@ public struct L10n {
         .settingsWeatherInterval60: "1 Hour",
         .settingsWeatherRefreshBtn: "Refresh Now",
         .settingsWeatherLastUpdatedLabel: "Last Updated",
+        .locationErrorCityNotFound: "City not found: %@",
+        .locationErrorCityRequired: "Enter a city first",
+        .locationErrorUnavailable: "Location is unavailable",
+        .locationErrorNetwork: "Network error: %@",
+        .locationLocalityUnknown: "Local",
 
         // Settings Agent
         .settingsAgentMasterTitle: "AI Agent Monitoring",
@@ -399,12 +501,15 @@ public struct L10n {
         .settingsClipboardRetentionDesc: "Automatically record clipboard entries and discard oldest when exceeded",
         .settingsClipboardClearBtn: "Clear Clipboard History",
         .settingsClipboardHistoryCount: "%d items recorded",
+        .settingsClipboardMonitoringTitle: "Record Clipboard",
+        .settingsClipboardMonitoringDesc: "Turning this off stops capture. Saved history stays on this Mac until you clear it.",
 
         // Settings About
         .settingsAboutVersion: "Version",
         .settingsAboutCopyright: "Copyright © 2026 JianyueLab LTD.",
         .settingsAboutLicense: "License",
         .settingsAboutSourceCode: "Source Repository",
+        .settingsAboutVersionValue: "Version %@ (macOS)",
 
         // Common Badges
         .commonEnabled: "Enabled",
@@ -429,7 +534,7 @@ public struct L10n {
         return String(format: format, arguments: args)
     }
 
-    public static func string(for key: L10nKey, languageCode: String) -> String {
+    public nonisolated static func string(for key: L10nKey, languageCode: String) -> String {
         if languageCode.hasPrefix("zh") {
             return zhDictionary[key] ?? enDictionary[key] ?? key.rawValue
         } else {
@@ -437,7 +542,7 @@ public struct L10n {
         }
     }
 
-    public static func format(key: L10nKey, languageCode: String, _ args: CVarArg...) -> String {
+    public nonisolated static func format(key: L10nKey, languageCode: String, _ args: CVarArg...) -> String {
         let format = string(for: key, languageCode: languageCode)
         return String(format: format, arguments: args)
     }

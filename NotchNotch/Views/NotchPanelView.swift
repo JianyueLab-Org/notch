@@ -224,7 +224,7 @@ struct NotchPanelView: View {
     // MARK: - File Drop Support
 
     private func handleFileDrop(providers: [NSItemProvider]) -> Bool {
-        var foundURLs: [URL] = []
+        let foundURLs = DroppedURLBuffer()
         let group = DispatchGroup()
 
         for provider in providers {
@@ -239,8 +239,9 @@ struct NotchPanelView: View {
 
         group.notify(queue: .main) {
             self.isDraggingFile = false
-            if !foundURLs.isEmpty {
-                self.shelf.addURLs(foundURLs)
+            let urls = foundURLs.values
+            if !urls.isEmpty {
+                self.shelf.addURLs(urls)
                 withAnimation(.easeInOut(duration: 0.12)) {
                     self.activeTab = .shelf
                 }
@@ -371,7 +372,7 @@ struct NotchPanelView: View {
                 }
             }
         } else if agentController.isWaitingUser {
-            Text("REPLY")
+            Text(AgentState.waitingUser.shortTag)
                 .font(.system(size: 7.5, weight: .black, design: .rounded))
                 .lineLimit(1)
                 .foregroundStyle(JYLTheme.primary)
@@ -379,7 +380,7 @@ struct NotchPanelView: View {
                 .padding(.vertical, 2)
                 .background(Capsule().fill(JYLTheme.primaryMuted))
         } else if agentController.isWaitingSubagent {
-            Text("SUB")
+            Text(AgentState.waitingSubagent.shortTag)
                 .font(.system(size: 7.5, weight: .black, design: .rounded))
                 .lineLimit(1)
                 .foregroundStyle(JYLTheme.chart3)

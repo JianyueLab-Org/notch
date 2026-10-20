@@ -85,8 +85,17 @@ final class CompositeNowPlayingSource: NowPlayingSource {
 
     private func update(index: Int, track: NowPlaying?) {
         latest[index] = track
-        // Priority 1: Backend that is actively playing audio
-        let playingWinner = latest.indices.first { latest[$0]?.isPlaying == true && latest[$0]?.hasTrack == true }
+        // Priority 1: Backend that is actively playing audio.
+        // Accessibility marks every Control Center match as playing, with no duration
+        // and a zero rate. That guess must not beat an earlier backend that has the track.
+        let playingWinner = latest.indices.first { index in
+            guard let track = latest[index], track.isPlaying, track.hasTrack else { return false }
+            if track.playbackRate == 0, track.duration <= 0,
+               latest[..<index].contains(where: { $0?.hasTrack == true }) {
+                return false
+            }
+            return true
+        }
         // Priority 2: Backend that has any track info
         let trackWinner = latest.indices.first { latest[$0]?.hasTrack == true }
 

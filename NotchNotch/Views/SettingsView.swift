@@ -1233,12 +1233,12 @@ struct SettingsView: View {
 
                             Spacer()
 
-                            Text(loc.isChinese ? "运行中 · 7823 端口" : "Running · Port 7823")
+                            Text(agentListenerStatusText)
                                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                                .foregroundStyle(JYLTheme.success)
+                                .foregroundStyle(agentController.listenerStatus == .failed ? JYLTheme.warning : (agentController.listenerStatus == .ready ? JYLTheme.success : JYLTheme.textSecondary))
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 2)
-                                .background(Capsule().fill(JYLTheme.success.opacity(0.15)))
+                                .background(Capsule().fill((agentController.listenerStatus == .failed ? JYLTheme.warning : JYLTheme.success).opacity(0.15)))
                         }
 
                         Text(loc.isChinese ? "本地监听 127.0.0.1:7823/event，接收 Claude Code、Antigravity 毫秒级生命周期事件" : "Listening on 127.0.0.1:7823/event for millisecond lifecycle events from Claude Code and Antigravity")
@@ -1476,8 +1476,69 @@ struct SettingsView: View {
 
     // MARK: - Clipboard Tab
 
+    private var agentListenerStatusText: String {
+        switch agentController.listenerStatus {
+        case .ready:
+            return L10n.tr(.agentListenerReady)
+        case .failed:
+            return L10n.tr(.agentListenerFailed)
+        case .starting, .stopped:
+            return L10n.tr(.agentListenerStarting)
+        }
+    }
+
     private var clipboardSection: some View {
         VStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .center) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(JYLTheme.neutral800)
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "doc.on.clipboard")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(clipboard.isMonitoringEnabled ? JYLTheme.primary : JYLTheme.textSecondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text(L10n.tr(.settingsClipboardMonitoringTitle))
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(JYLTheme.textPrimary)
+
+                            Text(clipboard.isMonitoringEnabled ? L10n.tr(.commonEnabled) : L10n.tr(.commonDisabled))
+                                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                .foregroundStyle(clipboard.isMonitoringEnabled ? JYLTheme.primary : JYLTheme.textMuted)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(clipboard.isMonitoringEnabled ? JYLTheme.primary.opacity(0.15) : JYLTheme.neutral800))
+                        }
+
+                        Text(L10n.tr(.settingsClipboardMonitoringDesc))
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(JYLTheme.textSecondary)
+                    }
+
+                    Spacer()
+
+                    Toggle("", isOn: Binding(
+                        get: { clipboard.isMonitoringEnabled },
+                        set: { clipboard.setMonitoringEnabled($0) }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                }
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(JYLTheme.neutral900.opacity(0.7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(JYLTheme.border.opacity(0.6), lineWidth: 0.8)
+                    )
+            )
+
             // Card 1: Max items selector
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top) {
@@ -1645,8 +1706,12 @@ struct SettingsView: View {
                     .foregroundStyle(JYLTheme.textPrimary)
 
                 let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-                Text("Version \(version) (macOS)")
+                Text(L10n.tr(.settingsAboutVersionValue, version))
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(JYLTheme.textMuted)
+
+                Text(L10n.tr(.settingsAboutCopyright))
+                    .font(.system(size: 11, weight: .regular))
                     .foregroundStyle(JYLTheme.textMuted)
 
                 Text(loc.isChinese ? "MacBook Pro 刘海专属生产力增强面板" : "Productivity notch overlay for MacBook Pro")

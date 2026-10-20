@@ -88,10 +88,18 @@ nonisolated enum DarwinProcessHelper {
         task.arguments = ["list-clients", "-F", "#{client_pid}"]
         let pipe = Pipe()
         task.standardOutput = pipe
+        let finished = DispatchGroup()
+        finished.enter()
+        task.terminationHandler = { _ in finished.leave() }
         do {
             try task.run()
+            // A stuck tmux server would otherwise block whoever asked to focus the session.
+            if finished.wait(timeout: .now() + 2) == .timedOut {
+                task.terminate()
+                finished.wait()
+                return nil
+            }
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            task.waitUntilExit()
             if let str = String(data: data, encoding: .utf8) {
                 for line in str.components(separatedBy: .newlines) {
                     if let clientPid = Int(line.trimmingCharacters(in: .whitespaces)), clientPid > 1 {
@@ -101,7 +109,9 @@ nonisolated enum DarwinProcessHelper {
                     }
                 }
             }
-        } catch {}
+        } catch {
+            finished.leave()
+        }
 
         return nil
     }
@@ -119,6 +129,13 @@ nonisolated enum DarwinProcessHelper {
             cur = parent.ppid
         }
         return nil
+    }
+
+    /// `kill(pid, 0)` probes liveness. `EPERM` still means the process exists.
+    static func isProcessAlive(_ pid: pid_t) -> Bool {
+        guard pid > 0 else { return false }
+        if kill(pid, 0) == 0 { return true }
+        return errno == EPERM
     }
 
     /// Fallback search among running GUI applications for common terminal or editor emulators.
@@ -168,6 +185,25 @@ struct DiscoveredAgentData: Sendable {
     let inferredState: AgentState
 }
 
+/// Skip the scanner's own grep and this app. A client whose arguments mention
+/// the repo name is still an agent and must not be filtered out.
+private nonisolated func isAgentScanNoise(comm: String, args: String) -> Bool {
+    if comm == "grep" || comm == "rg" || comm.hasSuffix("/grep") || comm.hasSuffix("/rg") {
+        return true
+    }
+    if args == "grep" || args == "rg" || args.hasPrefix("grep ") || args.hasPrefix("rg ") {
+        return true
+    }
+    return comm.contains("notchnotch")
+}
+
+enum AgentListenerStatus: Equatable {
+    case stopped
+    case starting
+    case ready
+    case failed
+}
+
 @MainActor
 final class AgentHarnessController: ObservableObject {
 
@@ -181,11 +217,18 @@ final class AgentHarnessController: ObservableObject {
     @Published var activeSession: AgentSession?
     @Published var currentAlert: AgentAlert?
     @Published var isShowingAlert: Bool = false
+    @Published private(set) var listenerStatus: AgentListenerStatus = .stopped
 
     private let httpServer = AgentHTTPServer()
     private var dismissTimer: Timer?
     private var processPollTimer: Timer?
+    private var sessionPruneTimer: Timer?
     private var isScanning: Bool = false
+    /// Consecutive low-CPU samples per scanned session. One quiet poll is not "needs input".
+    private var quietPollsBySession: [String: Int] = [:]
+    private static let quietPollsBeforeWaiting = 3
+    private static let httpIdleLimit: TimeInterval = 15 * 60
+    private static let completedSessionLimit: TimeInterval = 90
 
     var hasActiveAlert: Bool {
         isMonitoringEnabled && isShowingAlert && currentAlert != nil
@@ -236,7 +279,20 @@ final class AgentHarnessController: ObservableObject {
                 self?.handleIncomingData(data)
             }
         }
+        httpServer.onListenerEvent = { [weak self] event in
+            Task { @MainActor in
+                guard let self, self.isMonitoringEnabled else { return }
+                switch event {
+                case .ready:
+                    self.listenerStatus = .ready
+                case .failed:
+                    self.listenerStatus = .failed
+                }
+            }
+        }
+        listenerStatus = .starting
         httpServer.start(port: 7823)
+        startSessionPruneTimer()
     }
 
     func handleIncomingData(_ data: Data) {
@@ -409,10 +465,52 @@ final class AgentHarnessController: ObservableObject {
 
     private func stopAll() {
         stopProcessPolling()
+        sessionPruneTimer?.invalidate()
+        sessionPruneTimer = nil
         httpServer.stop()
+        listenerStatus = .stopped
         dismissAlert()
         sessions.removeAll()
+        quietPollsBySession.removeAll()
         activeSession = nil
+    }
+
+    private func startSessionPruneTimer() {
+        sessionPruneTimer?.invalidate()
+        sessionPruneTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.pruneStaleSessions()
+            }
+        }
+    }
+
+    /// HTTP sessions have no process-snapshot exit. A dead pid, a finished turn,
+    /// or a hook that never writes again must not pin the island on REPLY.
+    private func pruneStaleSessions() {
+        let now = Date()
+        var removed = false
+        for (key, session) in sessions where session.source == .httpHook {
+            let dead = session.pid.map { !DarwinProcessHelper.isProcessAlive(pid_t($0)) } ?? false
+            let idle = now.timeIntervalSince(session.lastUpdated)
+            // A live process that is still waiting for the user stays on the island.
+            // Sessions with no pid, and finished turns, do not.
+            let expired = dead
+                || (session.state == .completed && idle > Self.completedSessionLimit)
+                || (session.pid == nil && idle > Self.httpIdleLimit)
+            guard expired else { continue }
+            sessions.removeValue(forKey: key)
+            quietPollsBySession.removeValue(forKey: key)
+            if activeSession?.id == key {
+                activeSession = nil
+            }
+            if currentAlert?.sessionId == key {
+                dismissAlert()
+            }
+            removed = true
+        }
+        if removed {
+            updateActiveSession()
+        }
     }
 
     private func stopProcessPolling() {
@@ -515,6 +613,12 @@ final class AgentHarnessController: ObservableObject {
         let ps = Process()
         ps.executableURL = URL(fileURLWithPath: "/bin/ps")
         ps.arguments = ["-eo", "pid,ppid,%cpu,state,tty,comm,args"]
+        // `%cpu` follows LC_NUMERIC. `Double` only accepts a dot, so a comma locale drops every row.
+        var environment = ProcessInfo.processInfo.environment
+        environment["LC_ALL"] = "C"
+        environment["LANG"] = "C"
+        environment["LC_NUMERIC"] = "C"
+        ps.environment = environment
         let pipe = Pipe()
         ps.standardOutput = pipe
 
@@ -559,9 +663,10 @@ final class AgentHarnessController: ObservableObject {
             guard parts.count >= 6 else { continue }
             let args = String(trimmed[charIndex...]).trimmingCharacters(in: .whitespaces)
 
+            let cpuText = parts[2].replacingOccurrences(of: ",", with: ".")
             guard let pid = Int(parts[0]),
                   let ppid = Int(parts[1]),
-                  let cpu = Double(parts[2]) else { continue }
+                  let cpu = Double(cpuText) else { continue }
 
             rawEntries.append(ProcessRawEntry(
                 pid: pid,
@@ -580,7 +685,7 @@ final class AgentHarnessController: ObservableObject {
             let lowerComm = entry.comm.lowercased()
             let lowerArgs = entry.args.lowercased()
 
-            if lowerArgs.contains("grep") || lowerArgs.contains("notchnotch") {
+            if isAgentScanNoise(comm: lowerComm, args: lowerArgs) {
                 continue
             }
 
@@ -672,11 +777,23 @@ final class AgentHarnessController: ObservableObject {
                 existing.cpuPercent = item.totalCpu
                 existing.lastUpdated = Date()
 
-                if existing.state != item.inferredState {
-                    existing.state = item.inferredState
-                    Log.lifecycle.notice("Agent \(item.name) state inferred: \(previousState.rawValue) -> \(item.inferredState.rawValue)")
+                var inferred = item.inferredState
+                if previousState == .working && inferred == .waitingUser {
+                    let samples = (quietPollsBySession[item.key] ?? 0) + 1
+                    quietPollsBySession[item.key] = samples
+                    if samples < Self.quietPollsBeforeWaiting {
+                        inferred = .working
+                    }
+                } else if inferred == .working {
+                    quietPollsBySession[item.key] = 0
+                }
 
-                    if previousState == .working && item.inferredState == .waitingUser {
+                if existing.state != inferred {
+                    existing.state = inferred
+                    Log.lifecycle.notice("Agent \(item.name) state inferred: \(previousState.rawValue) -> \(inferred.rawValue)")
+
+                    if previousState == .working && inferred == .waitingUser {
+                        quietPollsBySession[item.key] = 0
                         triggerAlert(
                             AgentAlert(
                                 sessionId: item.key,
@@ -691,6 +808,9 @@ final class AgentHarnessController: ObservableObject {
                             autoDismissAfter: 7.0
                         )
                     }
+                }
+                if inferred == .working && previousState.isWaiting && isShowingAlert && currentAlert?.sessionId == item.key {
+                    dismissAlert()
                 }
                 sessions[item.key] = existing
             } else {
@@ -715,6 +835,7 @@ final class AgentHarnessController: ObservableObject {
         for (key, session) in sessions where key.hasPrefix("proc-") {
             if !activeKeys.contains(key) {
                 sessions.removeValue(forKey: key)
+                quietPollsBySession.removeValue(forKey: key)
                 if activeSession?.id == key {
                     activeSession = nil
                 }
