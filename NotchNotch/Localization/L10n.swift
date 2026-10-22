@@ -318,7 +318,7 @@ public struct L10n {
 
         // Settings Agent
         .settingsAgentMasterTitle: "AI Agent 监控",
-        .settingsAgentMasterDesc: "实时感知终端中 Claude Code、Antigravity、Codex 等智能体生命周期",
+        .settingsAgentMasterDesc: "实时感知终端中 Claude Code、Antigravity、Codex、Grok 等智能体生命周期",
         .settingsAgentScanTitle: "本地进程轮询扫描",
         .settingsAgentScanDesc: "无 Webhook 钩子时自动扫描系统进程树中的活跃 CLI 代理",
         .settingsAgentHookTitle: "Agent Webhook 挂载指令",
@@ -488,7 +488,7 @@ public struct L10n {
 
         // Settings Agent
         .settingsAgentMasterTitle: "AI Agent Monitoring",
-        .settingsAgentMasterDesc: "Track local CLI agents like Claude Code, Antigravity, and Codex in real time",
+        .settingsAgentMasterDesc: "Track local CLI agents like Claude Code, Antigravity, Codex, and Grok in real time",
         .settingsAgentScanTitle: "Background Process Scanning",
         .settingsAgentScanDesc: "Scan process trees for active agent sessions when webhook is not connected",
         .settingsAgentHookTitle: "Agent Webhook Command",

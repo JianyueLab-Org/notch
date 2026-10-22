@@ -197,6 +197,64 @@ private nonisolated func isAgentScanNoise(comm: String, args: String) -> Bool {
     return comm.contains("notchnotch")
 }
 
+/// Grok and Codex are recognised from the executable name, not from a substring
+/// of the whole command line. `ps comm` is truncated to 16 characters, so a
+/// path like `~/.codex/.../bin/codex` shows up there as `/Users/jhl/.code`;
+/// the full argv0 is the first token of `args`. Shell wrappers that only
+/// mention the name inside a script (Grok's `__grok_*` shim) must not match.
+private nonisolated func detectedExecutableAgent(comm: String, args: String) -> String? {
+    let names = candidateExecutableNames(comm: comm, args: args)
+    for name in names {
+        switch name {
+        case "grok":
+            return "Grok"
+        case "codex":
+            // The managed app-server stays up with no tty and would pin the
+            // island on REPLY. Match the argument, not the install path:
+            // `~/.codex/.../app-server-daemon/bin/codex` is still the CLI.
+            if commandArguments(args).contains("app-server") { return nil }
+            return "Codex"
+        default:
+            break
+        }
+    }
+    return nil
+}
+
+private nonisolated func candidateExecutableNames(comm: String, args: String) -> [String] {
+    let tokens = args.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+    var names: [String] = []
+    if !comm.isEmpty { names.append(commandBasename(comm)) }
+    if let first = tokens.first { names.append(commandBasename(first)) }
+
+    let launchers: Set<String> = ["node", "nodejs", "python", "python3", "bun", "deno", "npx", "bunx", "pnpm", "yarn"]
+    let launched = names.contains { launchers.contains($0) }
+    if launched {
+        for token in tokens.dropFirst() {
+            if token.hasPrefix("-") { continue }
+            names.append(commandBasename(token))
+            break
+        }
+    }
+    return names
+}
+
+/// Tokens after argv0. `ps` args begins with the executable, whose path may
+/// contain `app-server` without the process being the managed server.
+private nonisolated func commandArguments(_ args: String) -> [String] {
+    args.split(whereSeparator: { $0.isWhitespace }).dropFirst().map { $0.lowercased() }
+}
+
+private nonisolated func commandBasename(_ token: String) -> String {
+    let last = token.split(separator: "/").last.map(String.init) ?? token
+    var name = last.lowercased()
+    for suffix in [".js", ".mjs", ".cjs", ".exe"] where name.hasSuffix(suffix) {
+        name.removeLast(suffix.count)
+        break
+    }
+    return name
+}
+
 enum AgentListenerStatus: Equatable {
     case stopped
     case starting
@@ -689,6 +747,12 @@ final class AgentHarnessController: ObservableObject {
                 continue
             }
 
+            // Grok / Codex: executable basename only. See `detectedExecutableAgent`.
+            if let name = detectedExecutableAgent(comm: lowerComm, args: lowerArgs) {
+                discoveredAgents.append((name, entry.pid, entry.ppid, entry.cpu, entry.tty, entry.args))
+                continue
+            }
+
             // 1. Claude Code / Claude CLI
             if lowerComm.contains("claude") || lowerArgs.contains("claude") {
                 if !lowerArgs.contains("--chrome-native-host") {
@@ -706,19 +770,13 @@ final class AgentHarnessController: ObservableObject {
                 continue
             }
 
-            // 3. Codex CLI
-            if lowerComm == "codex" || lowerArgs.contains("codex ") || lowerArgs.hasPrefix("codex") {
-                discoveredAgents.append(("Codex", entry.pid, entry.ppid, entry.cpu, entry.tty, entry.args))
-                continue
-            }
-
-            // 4. OpenCode CLI
+            // 3. OpenCode CLI
             if lowerComm == "opencode" || lowerArgs.contains("opencode") || lowerArgs.contains("open-code") {
                 discoveredAgents.append(("OpenCode", entry.pid, entry.ppid, entry.cpu, entry.tty, entry.args))
                 continue
             }
 
-            // 5. Aider CLI
+            // 4. Aider CLI
             if lowerComm == "aider" || lowerArgs.contains("aider ") || lowerArgs.hasPrefix("aider") {
                 discoveredAgents.append(("Aider", entry.pid, entry.ppid, entry.cpu, entry.tty, entry.args))
                 continue

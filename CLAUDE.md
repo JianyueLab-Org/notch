@@ -148,8 +148,8 @@ Two ingestion paths into `AgentHarnessController`:
    Recognised keys: `state`, `agent`, `event`, `session_id`, `cwd`, `title`, `terminal`, `pid`.
    `state` matching is deliberately fuzzy (`waitinguser`/`waiting_user`/`reply`/`action` all map to
    `.waitingUser`) so different CLI hook scripts can post without a shared schema.
-2. Process polling — `ps` snapshot parsing that recognises Claude Code, Antigravity, Codex, OpenCode
-   and Aider, then climbs the kernel PPID tree (`proc_pidinfo`/`proc_bsdinfo`, with a tmux special
+2. Process polling — `ps` snapshot parsing that recognises Claude Code, Antigravity, Codex, Grok,
+   OpenCode and Aider, then climbs the kernel PPID tree (`proc_pidinfo`/`proc_bsdinfo`, with a tmux special
    case) to find the hosting GUI terminal so the alert can focus it.
 
 Both are toggleable; when monitoring is off nothing is started at all.

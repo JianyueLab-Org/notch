@@ -33,7 +33,7 @@ A refined MacBook Pro notch companion panel for macOS. Transforms the hardware n
   - Configurable advance reminders (5, 10, 15, 30 minutes before start / 5, 10, 15 minutes before end).
 
 - **AI Agent Lifecycle Integration**:
-  - Real-time detection of local CLI agents: **Claude Code**, **Antigravity**, **Codex**, **OpenCode**, and **Aider**.
+  - Real-time detection of local CLI agents: **Claude Code**, **Antigravity**, **Codex**, **Grok**, **OpenCode**, and **Aider**.
   - Lightweight embedded HTTP server (`127.0.0.1:7823/event`) for millisecond-level lifecycle webhook ingestion.
   - Deep ancestor process tree analysis to automatically locate and focus the parent terminal window (Ghostty, Zed ACP, iTerm, Terminal, Warp, VS Code).
   - Fully toggleable in Settings with zero background overhead when disabled.

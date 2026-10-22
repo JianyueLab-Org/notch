@@ -1241,7 +1241,7 @@ struct SettingsView: View {
                                 .background(Capsule().fill((agentController.listenerStatus == .failed ? JYLTheme.warning : JYLTheme.success).opacity(0.15)))
                         }
 
-                        Text(loc.isChinese ? "本地监听 127.0.0.1:7823/event，接收 Claude Code、Antigravity 毫秒级生命周期事件" : "Listening on 127.0.0.1:7823/event for millisecond lifecycle events from Claude Code and Antigravity")
+                        Text(loc.isChinese ? "本地监听 127.0.0.1:7823/event，接收 Claude Code、Antigravity、Codex、Grok 毫秒级生命周期事件" : "Listening on 127.0.0.1:7823/event for millisecond lifecycle events from Claude Code, Antigravity, Codex, and Grok")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }
@@ -1354,7 +1354,7 @@ struct SettingsView: View {
                                 .background(Capsule().fill(agentController.sessions.isEmpty ? JYLTheme.neutral800 : JYLTheme.primary.opacity(0.15)))
                         }
 
-                        Text(loc.isChinese ? "支持回溯父进程树定位终端（Claude Code、Antigravity、Zed ACP、Codex、Aider）" : "Traces process tree to locate terminal (Claude Code, Antigravity, Zed ACP, Codex, Aider)")
+                        Text(loc.isChinese ? "支持回溯父进程树定位终端（Claude Code、Antigravity、Zed ACP、Codex、Grok、Aider）" : "Traces process tree to locate terminal (Claude Code, Antigravity, Zed ACP, Codex, Grok, Aider)")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }

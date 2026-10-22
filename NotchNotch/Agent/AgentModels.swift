@@ -80,7 +80,7 @@ enum AgentSource: String, Codable, Equatable, Sendable {
 
 struct AgentSession: Identifiable, Equatable, Sendable {
     let id: String
-    var agent: String           // e.g. "Claude", "Antigravity", "Codex", "OpenCode", "Aider"
+    var agent: String           // e.g. "Claude", "Antigravity", "Codex", "Grok", "OpenCode", "Aider"
     var state: AgentState
     var event: String           // e.g. "PreToolUse", "Notification", "Stop"
     var title: String           // Prompt or task summary
