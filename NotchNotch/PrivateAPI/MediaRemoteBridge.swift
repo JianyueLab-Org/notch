@@ -126,30 +126,69 @@ nonisolated enum MediaRemoteBridge {
 
     static func nowPlayingInfo() async -> RawNowPlayingInfo {
         guard let getInfo else { return RawNowPlayingInfo() }
-        return await withCheckedContinuation { continuation in
+        return await reply(orAfterTimeout: RawNowPlayingInfo()) { resume in
             getInfo(DispatchQueue.global()) { dictionary in
-                continuation.resume(returning: RawNowPlayingInfo(
-                    dictionary: (dictionary as? [String: Any]) ?? [:]))
+                resume(RawNowPlayingInfo(dictionary: (dictionary as? [String: Any]) ?? [:]))
             }
         }
     }
 
     static func isPlaying() async -> Bool {
         guard let getIsPlaying else { return false }
-        return await withCheckedContinuation { continuation in
+        return await reply(orAfterTimeout: false) { resume in
             getIsPlaying(DispatchQueue.global()) { playing in
-                continuation.resume(returning: playing)
+                resume(playing)
             }
         }
     }
 
     static func nowPlayingClientBundleIdentifier() async -> String? {
         guard let getClient, let clientBundleID else { return nil }
-        return await withCheckedContinuation { continuation in
+        return await reply(orAfterTimeout: nil) { resume in
             getClient(DispatchQueue.global()) { client in
-                let identifier = client.flatMap { clientBundleID($0)?.takeUnretainedValue() as String? }
-                continuation.resume(returning: identifier)
+                resume(client.flatMap { clientBundleID($0)?.takeUnretainedValue() as String? })
             }
+        }
+    }
+
+    /// MediaRemote is not obliged to call back — a wedged `mediaremoted` simply
+    /// never does — and an unresumed continuation leaks the awaiting task for
+    /// good. So every read races its callback against a timeout, and whichever
+    /// comes second is ignored.
+    private static func reply<T: Sendable>(
+        orAfterTimeout fallback: T,
+        _ request: (@escaping @Sendable (T) -> Void) -> Void
+    ) async -> T {
+        await withCheckedContinuation { continuation in
+            let once = ResumeOnce(continuation)
+            let (seconds, attoseconds) = NotchConfiguration.mediaRemoteReplyTimeout.components
+            let timeout = Double(seconds) + Double(attoseconds) / 1e18
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
+                if once.resume(returning: fallback) {
+                    Log.media.error("media: MediaRemote did not reply in time")
+                }
+            }
+            request { once.resume(returning: $0) }
+        }
+    }
+
+    private final class ResumeOnce<T: Sendable>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<T, Never>?
+
+        init(_ continuation: CheckedContinuation<T, Never>) {
+            self.continuation = continuation
+        }
+
+        /// True if this call was the one that resumed.
+        @discardableResult
+        func resume(returning value: T) -> Bool {
+            lock.lock()
+            let pending = continuation
+            continuation = nil
+            lock.unlock()
+            pending?.resume(returning: value)
+            return pending != nil
         }
     }
 

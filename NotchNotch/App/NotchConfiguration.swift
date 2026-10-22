@@ -97,6 +97,18 @@ nonisolated enum NotchConfiguration {
     /// how long we wait before asking again. See MediaRemoteNowPlayingSource.
     static let artworkRetryDelay: Duration = .milliseconds(250)
 
+    /// Retries per track before accepting that MediaRemote has no artwork bytes.
+    static let artworkRetryLimit = 4
+
+    /// How long a MediaRemote read waits for its callback before giving up.
+    static let mediaRemoteReplyTimeout: Duration = .seconds(2)
+
+    /// AppleScript `with timeout` for the Spotify/Music backends, in seconds.
+    static let appleScriptTimeoutSeconds = 3
+
+    /// Delay after a brightness key before reading the new level for the HUD.
+    static let brightnessKeyReadDelay: Duration = .milliseconds(80)
+
     /// How often the Spotify backend re-reads state. The view extrapolates the
     /// playhead between polls, so this only needs to be often enough to catch
     /// track changes and seeks — not to animate the progress bar.

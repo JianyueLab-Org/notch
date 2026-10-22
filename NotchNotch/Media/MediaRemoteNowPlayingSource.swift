@@ -27,6 +27,15 @@ final class MediaRemoteNowPlayingSource: NowPlayingSource {
     private var refreshTask: Task<Void, Never>?
     private var artworkRetryTask: Task<Void, Never>?
 
+    /// Bumped by every `refresh`. A refresh spans three awaits and can be
+    /// overtaken by a newer one (or by the artwork retry); only the latest
+    /// may publish, or an older snapshot lands last and wins.
+    private var refreshGeneration = 0
+
+    /// Which track the artwork retries are counting for, and how many have run.
+    private var artworkRetryKey: String?
+    private var artworkRetryCount = 0
+
     /// Artwork arrives late (see `refresh`), so we hold the last decoded image
     /// keyed by MediaRemote's artwork identifier and reuse it until the
     /// identifier actually changes. This is also what stops us re-decoding a
@@ -92,7 +101,12 @@ final class MediaRemoteNowPlayingSource: NowPlayingSource {
     }
 
     private func refresh() async {
+        refreshGeneration += 1
+        let generation = refreshGeneration
+        func isCurrent() -> Bool { generation == refreshGeneration && !Task.isCancelled }
+
         let info = await MediaRemoteBridge.nowPlayingInfo()
+        guard isCurrent() else { return }
         guard !info.isEmpty else {
             artworkCache = nil
             logTrackChange(nil)
@@ -103,6 +117,7 @@ final class MediaRemoteNowPlayingSource: NowPlayingSource {
         async let playingValue = MediaRemoteBridge.isPlaying()
         async let bundleValue = MediaRemoteBridge.nowPlayingClientBundleIdentifier()
         let (playing, bundle) = await (playingValue, bundleValue)
+        guard isCurrent() else { return }
 
         let identifier = info.artworkIdentifier
         let artwork = resolveArtwork(data: info.artworkData, identifier: identifier)
@@ -112,9 +127,10 @@ final class MediaRemoteNowPlayingSource: NowPlayingSource {
         // MIME type but NOT the bytes — those show up on a later call, a few
         // hundred milliseconds on. So an update with no bytes must never be
         // read as "this track has no artwork"; we keep the identifier and come
-        // back for it once.
-        if artwork == nil, identifier != nil {
-            scheduleArtworkRetry()
+        // back for it — a bounded number of times, because some players never
+        // deliver the bytes at all.
+        if artwork == nil, let identifier {
+            scheduleArtworkRetry(for: "\(info.title ?? "")|\(identifier)")
         }
 
         let rate = info.playbackRate ?? (playing ? 1 : 0)
@@ -151,7 +167,13 @@ final class MediaRemoteNowPlayingSource: NowPlayingSource {
         }
     }
 
-    private func scheduleArtworkRetry() {
+    private func scheduleArtworkRetry(for key: String) {
+        if artworkRetryKey != key {
+            artworkRetryKey = key
+            artworkRetryCount = 0
+        }
+        guard artworkRetryCount < NotchConfiguration.artworkRetryLimit else { return }
+        artworkRetryCount += 1
         artworkRetryTask?.cancel()
         artworkRetryTask = Task { [weak self] in
             try? await Task.sleep(for: NotchConfiguration.artworkRetryDelay)

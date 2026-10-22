@@ -23,14 +23,23 @@ final class MusicScriptingSource: NowPlayingSource {
     var isAvailable: Bool { Self.isMusicRunning && !authorization.isBlocked }
 
     private var pollTask: Task<Void, Never>?
-    private var script: NSAppleScript?
-    private var artworkScript: NSAppleScript?
-    private var artworkCache: (trackId: String, image: NSImage)?
+    /// Keyed by the track id the artwork script itself read, not the one that
+    /// triggered the fetch, so a skip mid-fetch cannot attach the wrong cover.
+    /// `image == nil` is a cached miss for an artless track.
+    private var artworkCache: (trackId: String, image: NSImage?)?
     private var artworkTask: Task<Void, Never>?
+    private var artworkFetchingId: String?
     private var lastLoggedTitle: String??
 
+    /// See SpotifyScriptingSource: overlapping ticks fold into one re-read.
+    private var isReading = false
+    private var rereadRequested = false
+
+    /// `isTerminated` matters during Cmd-Q: an Apple event sent while Music is
+    /// quitting would relaunch it.
     private static var isMusicRunning: Bool {
-        !NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).isEmpty
+        NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+            .contains { !$0.isTerminated }
     }
 
     // MARK: - Lifecycle
@@ -55,6 +64,7 @@ final class MusicScriptingSource: NowPlayingSource {
         pollTask = nil
         artworkTask?.cancel()
         artworkTask = nil
+        artworkFetchingId = nil
         Log.media.notice("media: Music scripting source stopped")
     }
 
@@ -65,10 +75,15 @@ final class MusicScriptingSource: NowPlayingSource {
         case .nextTrack: "next track"
         case .previousTrack: "previous track"
         }
-        _ = run("tell application id \"\(Self.bundleIdentifier)\" to \(verb)")
+        let source = Self.guarded("tell application id \"\(Self.bundleIdentifier)\" to \(verb)")
         Task { [weak self] in
+            let outcome = await AppleScriptExecutor.shared.run(source)
+            guard let self else { return }
+            if case .failure(let code, let message) = outcome {
+                self.handleFailure(code: code, message: message)
+            }
             try? await Task.sleep(for: .milliseconds(250))
-            await self?.tick()
+            await self.tick()
         }
     }
 
@@ -87,25 +102,51 @@ final class MusicScriptingSource: NowPlayingSource {
     // MARK: - Polling
 
     private func tick() async {
+        guard !isReading else {
+            rereadRequested = true
+            return
+        }
+        isReading = true
+        defer { isReading = false }
+        repeat {
+            rereadRequested = false
+            await read()
+        } while rereadRequested && !Task.isCancelled
+    }
+
+    private func read() async {
         guard Self.isMusicRunning else {
             report(nil)
             return
         }
 
-        guard let descriptor = run(Self.readScript) else { return }
-        report(makeTrack(from: descriptor))
-    }
-
-    private func setNeedsPermission(_ message: String) {
-        let next = NowPlayingAuthorization.needsPermission(message)
-        if authorization != next {
-            authorization = next
-            Log.media.notice("media: Music automation not granted — \(message, privacy: .public)")
+        switch await AppleScriptExecutor.shared.run(Self.readScript) {
+        case .success(let reply):
+            markGranted()
+            report(makeTrack(from: reply))
+        case .failure(let code, let message):
+            handleFailure(code: code, message: message)
+            // A failed read means we no longer know what is playing; never
+            // leave the last good track on screen.
+            report(nil)
         }
-        report(nil)
     }
 
-    private static let readScript = """
+    /// Never launch Music and never wait on it for the default two minutes.
+    /// The `is running` check is inside the script because Music can quit
+    /// between our Swift-side check and the event.
+    private static func guarded(_ body: String) -> String {
+        """
+        if application id "\(bundleIdentifier)" is running then
+            with timeout of \(NotchConfiguration.appleScriptTimeoutSeconds) seconds
+                \(body)
+            end timeout
+        end if
+        return {}
+        """
+    }
+
+    private static let readScript = guarded("""
     tell application id "\(bundleIdentifier)"
         set ps to "stopped"
         try
@@ -135,74 +176,58 @@ final class MusicScriptingSource: NowPlayingSource {
             return {"", "", "", "0", "0", playbackStatus, ""}
         end try
     end tell
-    """
+    """)
 
-    private static let rawArtworkScript = """
+    /// Returns the id alongside the bytes so the caller can check the track
+    /// did not change between the read and this fetch.
+    private static let rawArtworkScript = guarded("""
     tell application id "\(bundleIdentifier)"
         try
             set t to current track
+            set trId to (id of t) as text
             if (count of artworks of t) > 0 then
-                return raw data of artwork 1 of t
+                return {trId, raw data of artwork 1 of t}
             end if
+            return {trId, ""}
         end try
-        return ""
+        return {}
     end tell
-    """
+    """)
 
-    private func run(_ source: String) -> NSAppleEventDescriptor? {
-        let compiled: NSAppleScript?
-        if source == Self.readScript {
-            if script == nil { script = NSAppleScript(source: source) }
-            compiled = script
-        } else if source == Self.rawArtworkScript {
-            if artworkScript == nil { artworkScript = NSAppleScript(source: source) }
-            compiled = artworkScript
-        } else {
-            compiled = NSAppleScript(source: source)
-        }
-        guard let compiled else { return nil }
-
-        var error: NSDictionary?
-        let result = compiled.executeAndReturnError(&error)
-        if let error {
-            handle(error)
-            return nil
-        }
+    private func markGranted() {
         if authorization != .granted {
             authorization = .granted
         }
-        return result
     }
 
-    private func handle(_ error: NSDictionary) {
-        let code = error[NSAppleScript.errorNumber] as? Int ?? 0
+    private func handleFailure(code: Int, message: String) {
         switch code {
-        case -1743:
+        case -1743, -1744:
             if !authorization.isBlocked {
-                authorization = .needsPermission(
-                    "Allow NotchNotch to control Music in System Settings › Privacy & Security › Automation.")
-                Log.media.error("media: Music automation denied (-1743)")
+                authorization = .needsPermission(.musicAutomation)
+                Log.media.error("media: Music automation denied (\(code, privacy: .public))")
             }
         case -600, -609:
-            report(nil)
+            break
+        case -1712:
+            Log.media.error("media: Music AppleScript timed out")
         default:
-            Log.media.error("media: Music AppleScript error \(code, privacy: .public)")
+            Log.media.error("media: Music AppleScript error \(code, privacy: .public): \(message, privacy: .public)")
         }
     }
 
     // MARK: - Parsing
 
-    private func makeTrack(from descriptor: NSAppleEventDescriptor) -> NowPlaying? {
-        func field(_ index: Int) -> String {
-            descriptor.atIndex(index)?.stringValue ?? ""
-        }
-        let title = field(1)
-        let artist = field(2)
-        let album = field(3)
-        let duration = Double(field(4)) ?? 0
-        let position = Double(field(5)) ?? 0
-        let state = field(6)
-        let trackId = field(7)
+    private func makeTrack(from reply: AppleScriptReply) -> NowPlaying? {
+        // The guard wrapper returns an empty list when Music is not running.
+        guard reply.strings.count >= 7 else { return nil }
+        let title = reply.string(at: 0)
+        let artist = reply.string(at: 1)
+        let album = reply.string(at: 2)
+        let duration = Double(reply.string(at: 3)) ?? 0
+        let position = Double(reply.string(at: 4)) ?? 0
+        let state = reply.string(at: 5)
+        let trackId = reply.string(at: 6)
 
         guard !title.isEmpty || !artist.isEmpty else { return nil }
 
@@ -228,16 +253,26 @@ final class MusicScriptingSource: NowPlayingSource {
     }
 
     private func fetchArtworkIfNeeded(trackId: String) {
-        guard artworkCache?.trackId != trackId else { return }
+        guard artworkCache?.trackId != trackId, artworkFetchingId != trackId else { return }
         artworkTask?.cancel()
+        artworkFetchingId = trackId
         artworkTask = Task { [weak self] in
-            guard let self else { return }
-            guard let desc = self.run(Self.rawArtworkScript) else { return }
-            let data = desc.data
-            guard !data.isEmpty, let image = NSImage(data: data) else { return }
-            guard !Task.isCancelled else { return }
-            self.artworkCache = (trackId, image)
-            await self.tick()
+            let outcome = await AppleScriptExecutor.shared.run(Self.rawArtworkScript)
+            guard !Task.isCancelled, let self else { return }
+            self.artworkFetchingId = nil
+            guard case .success(let reply) = outcome, reply.strings.count >= 2 else {
+                // Script failure: cache the miss for the requested track so the
+                // fetch is not repeated every poll.
+                self.artworkCache = (trackId, nil)
+                return
+            }
+            let fetchedId = reply.string(at: 0)
+            let data = reply.data[1]
+            let image = data.isEmpty ? nil : NSImage(data: data)
+            self.artworkCache = (fetchedId, image)
+            if image != nil || fetchedId != trackId {
+                await self.tick()
+            }
         }
     }
 

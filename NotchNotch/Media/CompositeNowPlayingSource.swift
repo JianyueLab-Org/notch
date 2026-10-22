@@ -36,8 +36,9 @@ final class CompositeNowPlayingSource: NowPlayingSource {
 
     var authorization: NowPlayingAuthorization {
         // If something is actually producing a track, there is nothing to ask
-        // the user for — never nag about a permission we do not need.
-        if activeIndex != nil { return .granted }
+        // the user for — never nag about a permission we do not need. A
+        // blocked backend never counts as producing one.
+        if let activeIndex, !children[activeIndex].authorization.isBlocked { return .granted }
         // Otherwise surface the highest-priority actionable request.
         for child in children where child.authorization.isBlocked {
             return child.authorization
@@ -84,7 +85,9 @@ final class CompositeNowPlayingSource: NowPlayingSource {
     // MARK: - Merge
 
     private func update(index: Int, track: NowPlaying?) {
-        latest[index] = track
+        // A backend that has lost its permission cannot vouch for the last
+        // track it saw, so it drops out of the merge entirely.
+        latest[index] = children[index].authorization.isBlocked ? nil : track
         // Priority 1: Backend that is actively playing audio.
         // Accessibility marks every Control Center match as playing, with no duration
         // and a zero rate. That guess must not beat an earlier backend that has the track.
@@ -106,21 +109,29 @@ final class CompositeNowPlayingSource: NowPlayingSource {
             Log.media.notice("media: active backend -> \(name, privacy: .public)")
         }
         if var bestTrack = winner.flatMap({ latest[$0] }) {
-            if bestTrack.artwork == nil {
-                for other in latest where other?.title == bestTrack.title && other?.artwork != nil {
-                    bestTrack.artwork = other?.artwork
-                    break
-                }
+            let sameTrack = latest.compactMap { $0 }.filter { Self.isSameTrack($0, bestTrack) }
+            if bestTrack.artwork == nil, let artwork = sameTrack.lazy.compactMap(\.artwork).first {
+                bestTrack.artwork = artwork
             }
-            if bestTrack.duration <= 0 {
-                for other in latest where other?.title == bestTrack.title && (other?.duration ?? 0) > 0 {
-                    bestTrack.duration = other?.duration ?? 0
-                    break
-                }
+            if bestTrack.duration <= 0, let duration = sameTrack.lazy.map(\.duration).first(where: { $0 > 0 }) {
+                bestTrack.duration = duration
             }
             onChange?(bestTrack)
         } else {
             onChange?(nil)
         }
+    }
+
+    /// Backfill is only safe between reports of the same track. Title alone
+    /// is not enough — covers and live versions share titles — so the artist
+    /// must match too, and the album when both sides know it.
+    private static func isSameTrack(_ lhs: NowPlaying, _ rhs: NowPlaying) -> Bool {
+        func normalised(_ text: String) -> String {
+            text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
+        guard normalised(lhs.title) == normalised(rhs.title),
+              normalised(lhs.artist) == normalised(rhs.artist) else { return false }
+        let (lhsAlbum, rhsAlbum) = (normalised(lhs.album), normalised(rhs.album))
+        return lhsAlbum.isEmpty || rhsAlbum.isEmpty || lhsAlbum == rhsAlbum
     }
 }

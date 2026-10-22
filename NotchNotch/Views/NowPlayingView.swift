@@ -19,8 +19,8 @@ struct NowPlayingView: View {
         HStack(spacing: 10) {
             artwork
             VStack(alignment: .leading, spacing: 3) {
-                if !track.hasTrack, case .needsPermission(let message) = authorization {
-                    permissionView(message: message)
+                if !track.hasTrack, case .needsPermission(let permission) = authorization {
+                    permissionView(permission)
                 } else {
                     titles
                     progressBar
@@ -83,7 +83,15 @@ struct NowPlayingView: View {
         .shadow(color: .black.opacity(0.35), radius: 4, y: 1.5)
     }
 
-    private func permissionView(message: String) -> some View {
+    private func permissionHint(_ permission: NowPlayingPermission) -> String {
+        switch permission {
+        case .musicAutomation: L10n.tr(.mediaAllowMusicAutomation)
+        case .spotifyAutomation: L10n.tr(.mediaAllowSpotifyAutomation)
+        case .accessibility: loc.isChinese ? "请在辅助功能中允许 NotchNotch" : "Allow NotchNotch in Accessibility"
+        }
+    }
+
+    private func permissionView(_ permission: NowPlayingPermission) -> some View {
         VStack(alignment: .leading, spacing: 2.5) {
             HStack(spacing: 4) {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -93,7 +101,7 @@ struct NowPlayingView: View {
                     .font(.system(size: 11.5, weight: .bold, design: .rounded))
                     .foregroundStyle(JYLTheme.textPrimary)
             }
-            Text(message.contains("Music") ? L10n.tr(.mediaAllowMusicAutomation) : L10n.tr(.mediaAllowSpotifyAutomation))
+            Text(permissionHint(permission))
                 .font(.system(size: 9.5, weight: .medium, design: .rounded))
                 .foregroundStyle(JYLTheme.textSecondary)
                 .lineLimit(1)
@@ -116,7 +124,7 @@ struct NowPlayingView: View {
                 }
 
                 Button {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+                    if let url = permission.settingsURL {
                         NSWorkspace.shared.open(url)
                     }
                 } label: {

@@ -34,14 +34,19 @@ final class SystemMediaHUDController: ObservableObject {
     @Published var brightness: Float = 0.75
 
     private var dismissTimer: Timer?
-    private var pollTimer: Timer?
     private var hasInitialized: Bool = false
+
+    private var brightnessKeyMonitors: [Any] = []
+    private var brightnessReadTask: Task<Void, Never>?
 
     private var getBrightnessFn: DisplayServicesGetBrightnessType?
     private var setBrightnessFn: DisplayServicesSetBrightnessType?
 
     private var defaultAudioDeviceID: AudioDeviceID = 0
-    private var volumeListenerBlock: AudioObjectPropertyListenerBlock?
+    /// Every listener installed on an output device, kept so the exact same
+    /// block can be removed from that device when the default changes —
+    /// CoreAudio matches listeners by block identity.
+    private var deviceListeners: [(device: AudioDeviceID, address: AudioObjectPropertyAddress, block: AudioObjectPropertyListenerBlock)] = []
 
     var displayPercentage: Int {
         let val = currentType == .volume ? volume : brightness
@@ -80,8 +85,7 @@ final class SystemMediaHUDController: ObservableObject {
         setupAudioMonitoring()
         readCurrentValues()
 
-        // Start background polling for brightness changes
-        startBrightnessPolling()
+        installBrightnessKeyMonitors()
 
         // Enable HUD display after brief startup grace period
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
@@ -126,8 +130,6 @@ final class SystemMediaHUDController: ObservableObject {
                 self?.readVolume()
             }
         }
-
-        installVolumeListener()
     }
 
     private func updateDefaultAudioDevice() {
@@ -154,43 +156,67 @@ final class SystemMediaHUDController: ObservableObject {
         }
     }
 
+    /// Idempotent: drops whatever was installed on the previous device first,
+    /// so a device switch never leaves listeners behind or doubles them up.
     private func installVolumeListener() {
+        removeVolumeListeners()
         guard defaultAudioDeviceID != 0 else { return }
-
-        var volAddress = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyVolumeScalar,
-            mScope: kAudioDevicePropertyScopeOutput,
-            mElement: kAudioObjectPropertyElementMain
-        )
 
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             Task { @MainActor in
                 self?.handleVolumeChanged()
             }
         }
-        self.volumeListenerBlock = block
+        for var address in volumeAddresses() + [Self.muteAddress] where AudioObjectHasProperty(defaultAudioDeviceID, &address) {
+            if AudioObjectAddPropertyListenerBlock(defaultAudioDeviceID, &address, DispatchQueue.main, block) == noErr {
+                deviceListeners.append((defaultAudioDeviceID, address, block))
+            }
+        }
+    }
 
-        _ = AudioObjectAddPropertyListenerBlock(
-            defaultAudioDeviceID,
-            &volAddress,
-            DispatchQueue.main,
-            block
+    private func removeVolumeListeners() {
+        // Removes from the device each listener was added to, which is the
+        // previous default by the time a device switch calls this.
+        for (device, address, block) in deviceListeners {
+            var address = address
+            _ = AudioObjectRemovePropertyListenerBlock(device, &address, DispatchQueue.main, block)
+        }
+        deviceListeners.removeAll()
+    }
+
+    // MARK: - Volume addresses
+
+    private static let muteAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyMute,
+        mScope: kAudioDevicePropertyScopeOutput,
+        mElement: kAudioObjectPropertyElementMain
+    )
+
+    private static func volumeScalarAddress(element: AudioObjectPropertyElement) -> AudioObjectPropertyAddress {
+        AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyVolumeScalar,
+            mScope: kAudioDevicePropertyScopeOutput,
+            mElement: element
         )
+    }
 
-        var muteAddress = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyMute,
+    /// Where this device's volume lives, best first. The virtual main volume
+    /// is what the system volume keys drive and covers devices that only have
+    /// per-channel volume; the main element and then the stereo channels are
+    /// the fallbacks for devices that do not publish it.
+    private func volumeAddresses() -> [AudioObjectPropertyAddress] {
+        let device = defaultAudioDeviceID
+        var virtualMain = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
             mScope: kAudioDevicePropertyScopeOutput,
             mElement: kAudioObjectPropertyElementMain
         )
-
-        _ = AudioObjectAddPropertyListenerBlock(
-            defaultAudioDeviceID,
-            &muteAddress,
-            DispatchQueue.main
-        ) { [weak self] _, _ in
-            Task { @MainActor in
-                self?.handleVolumeChanged()
-            }
+        if AudioObjectHasProperty(device, &virtualMain) { return [virtualMain] }
+        var main = Self.volumeScalarAddress(element: kAudioObjectPropertyElementMain)
+        if AudioObjectHasProperty(device, &main) { return [main] }
+        return [1, 2].map { Self.volumeScalarAddress(element: $0) }.filter { address in
+            var address = address
+            return AudioObjectHasProperty(device, &address)
         }
     }
 
@@ -204,17 +230,16 @@ final class SystemMediaHUDController: ObservableObject {
     private func readVolume() {
         guard defaultAudioDeviceID != 0 else { return }
 
-        var vol = Float32(0)
-        var size = UInt32(MemoryLayout.size(ofValue: vol))
-        var volAddress = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyVolumeScalar,
-            mScope: kAudioDevicePropertyScopeOutput,
-            mElement: kAudioObjectPropertyElementMain
-        )
-
-        let status = AudioObjectGetPropertyData(defaultAudioDeviceID, &volAddress, 0, nil, &size, &vol)
-        if status == 0 {
-            self.volume = max(0, min(1.0, vol))
+        // Per-channel devices report the average of their channels.
+        let levels = volumeAddresses().compactMap { address -> Float32? in
+            var address = address
+            var vol = Float32(0)
+            var size = UInt32(MemoryLayout.size(ofValue: vol))
+            let status = AudioObjectGetPropertyData(defaultAudioDeviceID, &address, 0, nil, &size, &vol)
+            return status == 0 ? vol : nil
+        }
+        if !levels.isEmpty {
+            self.volume = max(0, min(1.0, levels.reduce(0, +) / Float32(levels.count)))
         }
 
         var mute: UInt32 = 0
@@ -234,10 +259,21 @@ final class SystemMediaHUDController: ObservableObject {
     private func readBrightness() {
         guard let getFn = getBrightnessFn else { return }
         var current: Float = 0
-        let res = getFn(CGMainDisplayID(), &current)
+        let res = getFn(Self.builtInDisplayID(), &current)
         if res == 0 {
             self.brightness = max(0, min(1.0, current))
         }
+    }
+
+    /// Brightness belongs to the built-in panel. `CGMainDisplayID` is the
+    /// menu-bar display, which is an external monitor whenever one is set as
+    /// main. Falls back to it only on Macs without a built-in display.
+    private static func builtInDisplayID() -> CGDirectDisplayID {
+        var count: UInt32 = 0
+        guard CGGetOnlineDisplayList(0, nil, &count) == .success, count > 0 else { return CGMainDisplayID() }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetOnlineDisplayList(count, &displays, &count) == .success else { return CGMainDisplayID() }
+        return displays.prefix(Int(count)).first { CGDisplayIsBuiltin($0) != 0 } ?? CGMainDisplayID()
     }
 
     func setVolumeLevel(_ newVolume: Float) {
@@ -245,15 +281,11 @@ final class SystemMediaHUDController: ObservableObject {
         self.volume = clamped
 
         guard defaultAudioDeviceID != 0 else { return }
-        var vol = Float32(clamped)
-        let size = UInt32(MemoryLayout.size(ofValue: vol))
-        var volAddress = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyVolumeScalar,
-            mScope: kAudioDevicePropertyScopeOutput,
-            mElement: kAudioObjectPropertyElementMain
-        )
-
-        _ = AudioObjectSetPropertyData(defaultAudioDeviceID, &volAddress, 0, nil, size, &vol)
+        for var address in volumeAddresses() {
+            var vol = Float32(clamped)
+            let size = UInt32(MemoryLayout.size(ofValue: vol))
+            _ = AudioObjectSetPropertyData(defaultAudioDeviceID, &address, 0, nil, size, &vol)
+        }
         triggerHUD(type: .volume)
     }
 
@@ -262,7 +294,7 @@ final class SystemMediaHUDController: ObservableObject {
         self.brightness = clamped
 
         guard let setFn = setBrightnessFn else { return }
-        _ = setFn(CGMainDisplayID(), clamped)
+        _ = setFn(Self.builtInDisplayID(), clamped)
         triggerHUD(type: .brightness)
     }
 
@@ -278,29 +310,60 @@ final class SystemMediaHUDController: ObservableObject {
         }
     }
 
-    private func startBrightnessPolling() {
-        pollTimer?.invalidate()
-        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.pollBrightness()
-            }
+    // MARK: - Brightness keys
+
+    /// NX_KEYTYPE_BRIGHTNESS_UP / _DOWN from IOKit's `ev_keymap.h`.
+    private static let brightnessKeyTypes: Set<Int> = [2, 3]
+    /// Virtual key codes some keyboards send for brightness instead (F14/F15).
+    private static let brightnessKeyCodes: Set<UInt16> = [144, 145]
+
+    /// The brightness HUD answers a brightness key and nothing else. Polling
+    /// the level popped it for auto-brightness and idle dimming, which change
+    /// the same value without the user asking.
+    private func installBrightnessKeyMonitors() {
+        let mask: NSEvent.EventTypeMask = [.systemDefined, .keyDown]
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] event in
+            // AppKit delivers these on the main thread.
+            MainActor.assumeIsolated { self?.handleBrightnessKey(event) }
+        }) {
+            brightnessKeyMonitors.append(global)
         }
-        RunLoop.main.add(timer, forMode: .common)
-        self.pollTimer = timer
+        if let local = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] event in
+            MainActor.assumeIsolated { self?.handleBrightnessKey(event) }
+            return event
+        }) {
+            brightnessKeyMonitors.append(local)
+        }
     }
 
-    private func pollBrightness() {
-        guard let getFn = getBrightnessFn else { return }
-        var current: Float = 0
-        let res = getFn(CGMainDisplayID(), &current)
-        guard res == 0 else { return }
+    private func handleBrightnessKey(_ event: NSEvent) {
+        let isBrightnessKey: Bool
+        switch event.type {
+        case .systemDefined:
+            // Subtype 8 is an IOKit special key; data1 packs the key type in
+            // the high word and 0x0A (down) / 0x0B (up) in the next byte.
+            guard event.subtype.rawValue == 8 else { return }
+            let keyType = (event.data1 & 0xFFFF_0000) >> 16
+            let isDown = (event.data1 & 0xFF00) >> 8 == 0x0A
+            isBrightnessKey = isDown && Self.brightnessKeyTypes.contains(keyType)
+        case .keyDown:
+            isBrightnessKey = Self.brightnessKeyCodes.contains(event.keyCode)
+        default:
+            isBrightnessKey = false
+        }
+        guard isBrightnessKey, hasInitialized else { return }
 
-        let clamped = max(0, min(1.0, current))
-        if abs(clamped - self.brightness) > 0.015 {
-            self.brightness = clamped
-            if hasInitialized {
-                triggerHUD(type: .brightness)
-            }
+        // The system applies the step a moment after the key and eases into
+        // it, so read once to show the HUD and again once it has settled.
+        brightnessReadTask?.cancel()
+        brightnessReadTask = Task { [weak self] in
+            try? await Task.sleep(for: NotchConfiguration.brightnessKeyReadDelay)
+            guard !Task.isCancelled, let self else { return }
+            self.readBrightness()
+            self.triggerHUD(type: .brightness)
+            try? await Task.sleep(for: NotchConfiguration.brightnessKeyReadDelay * 4)
+            guard !Task.isCancelled else { return }
+            self.readBrightness()
         }
     }
 

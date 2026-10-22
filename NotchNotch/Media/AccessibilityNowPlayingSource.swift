@@ -24,8 +24,7 @@ final class AccessibilityNowPlayingSource: NowPlayingSource {
 
     var onChange: ((NowPlaying?) -> Void)?
 
-    private(set) var authorization: NowPlayingAuthorization = .needsPermission(
-        "NotchNotch needs Accessibility access to read what's playing and to control it.")
+    private(set) var authorization: NowPlayingAuthorization = .needsPermission(.accessibility)
 
     var isAvailable: Bool { authorization == .granted }
 
@@ -90,7 +89,7 @@ final class AccessibilityNowPlayingSource: NowPlayingSource {
         let trusted = AXIsProcessTrusted()
         let next: NowPlayingAuthorization = trusted
             ? .granted
-            : .needsPermission("NotchNotch needs Accessibility access to read what's playing and to control it.")
+            : .needsPermission(.accessibility)
         guard next != authorization else { return }
         authorization = next
         Log.media.notice("media: accessibility authorization -> \(trusted ? "granted" : "denied", privacy: .public)")
@@ -111,16 +110,21 @@ final class AccessibilityNowPlayingSource: NowPlayingSource {
             return nil
         }
         let controlCenter = AXUIElementCreateApplication(app.processIdentifier)
-        guard let item = findNowPlayingElement(under: controlCenter) else {
+        guard let (_, text) = findNowPlayingElement(under: controlCenter) else {
             return nil
         }
-        return makeTrack(from: item)
+        return makeTrack(from: text)
     }
 
     /// Control Center exposes its menu bar modules as children of the app
     /// element. We look for the one that identifies itself as now-playing,
     /// falling back to a description match for localisations that rename it.
-    private nonisolated static func findNowPlayingElement(under root: AXUIElement) -> AXUIElement? {
+    ///
+    /// A keyword match alone is not enough: the module's own label ("Now
+    /// Playing", "正在播放") or a button carries the keyword too, and would
+    /// otherwise become the track title. The match must also carry text that
+    /// is not just that label; if it does not, its children are searched.
+    private nonisolated static func findNowPlayingElement(under root: AXUIElement) -> (AXUIElement, String)? {
         var queue = [root]
         var head = 0
         while head < queue.count && head < 400 {
@@ -132,24 +136,36 @@ final class AccessibilityNowPlayingSource: NowPlayingSource {
             let title = string(element, kAXTitleAttribute) ?? ""
             let value = string(element, kAXValueAttribute) ?? ""
             let haystack = "\(identifier) \(description) \(title) \(value)".lowercased()
-            if haystack.contains("nowplaying") || haystack.contains("now playing") || haystack.contains("播放") || haystack.contains("再生") {
+            if labelKeywords.contains(where: { haystack.contains($0) }), let text = trackText(of: element) {
                 Log.media.notice("media: AX matched element: \(identifier, privacy: .public)")
-                return element
+                return (element, text)
             }
             queue.append(contentsOf: children(of: element))
         }
         return nil
     }
 
-    private nonisolated static func makeTrack(from element: AXUIElement) -> NowPlaying? {
-        let title = string(element, kAXTitleAttribute) ?? ""
-        let description = string(element, kAXDescriptionAttribute) ?? ""
-        let value = string(element, kAXValueAttribute) ?? ""
-        let help = string(element, kAXHelpAttribute) ?? ""
+    /// Longest first, so "正在播放" is stripped whole before "播放" is.
+    private nonisolated static let labelKeywords = ["now playing", "nowplaying", "正在播放", "播放", "再生中", "再生"]
 
-        let candidates = [value, description, title, help].filter { !$0.isEmpty }
-        guard let text = candidates.first else { return nil }
+    /// True when `text` is only the module label — a keyword plus at most
+    /// punctuation — rather than a track.
+    private nonisolated static func isLabel(_ text: String) -> Bool {
+        var rest = text.lowercased()
+        for keyword in labelKeywords {
+            rest = rest.replacingOccurrences(of: keyword, with: "")
+        }
+        return rest.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)).isEmpty
+    }
 
+    /// The first attribute that reads as a track: non-empty, not the label.
+    private nonisolated static func trackText(of element: AXUIElement) -> String? {
+        let candidates = [kAXValueAttribute, kAXDescriptionAttribute, kAXTitleAttribute, kAXHelpAttribute]
+            .compactMap { string(element, $0) }
+        return candidates.first { !$0.isEmpty && !isLabel($0) }
+    }
+
+    private nonisolated static func makeTrack(from text: String) -> NowPlaying? {
         // Control Center writes "Title — Artist" (em dash) in most locales,
         // or "Title - Artist" (hyphen) in others.
         let parts: [String]

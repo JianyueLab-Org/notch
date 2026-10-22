@@ -33,14 +33,25 @@ final class SpotifyScriptingSource: NowPlayingSource {
     var isAvailable: Bool { Self.isSpotifyRunning && !authorization.isBlocked }
 
     private var pollTask: Task<Void, Never>?
-    private var script: NSAppleScript?
-    private var artworkCache: (url: String, image: NSImage)?
+    /// `image == nil` is a cached miss, so a failing URL is not re-downloaded
+    /// on every poll.
+    private var artworkCache: (url: String, image: NSImage?)?
     private var artworkTask: Task<Void, Never>?
+    private var artworkFetchingURL: String?
     private var lastLoggedTitle: String??
     private var didLogRawDuration = false
 
+    /// A read is a cross-process round trip that can take up to the script
+    /// timeout. Extra ticks (commands, artwork arrival) arriving meanwhile are
+    /// folded into one re-read instead of queueing behind it.
+    private var isReading = false
+    private var rereadRequested = false
+
+    /// `isTerminated` matters during Cmd-Q: the app is still listed while it
+    /// quits, and an Apple event sent then would relaunch it.
     private static var isSpotifyRunning: Bool {
-        !NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).isEmpty
+        NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+            .contains { !$0.isTerminated }
     }
 
     // MARK: - Lifecycle
@@ -63,6 +74,7 @@ final class SpotifyScriptingSource: NowPlayingSource {
     func stop() {
         pollTask?.cancel(); pollTask = nil
         artworkTask?.cancel(); artworkTask = nil
+        artworkFetchingURL = nil
         Log.media.notice("media: Spotify scripting source stopped")
     }
 
@@ -73,17 +85,22 @@ final class SpotifyScriptingSource: NowPlayingSource {
         case .nextTrack: "next track"
         case .previousTrack: "previous track"
         }
-        _ = run("tell application id \"\(Self.bundleIdentifier)\" to \(verb)")
-        // Spotify updates its state a beat after the command lands.
+        let source = Self.guarded("tell application id \"\(Self.bundleIdentifier)\" to \(verb)")
         Task { [weak self] in
+            let outcome = await AppleScriptExecutor.shared.run(source)
+            guard let self else { return }
+            if case .failure(let code, let message) = outcome {
+                self.handleFailure(code: code, message: message)
+            }
+            // Spotify updates its state a beat after the command lands.
             try? await Task.sleep(for: .milliseconds(250))
-            await self?.tick()
+            await self.tick()
         }
     }
 
-    /// Raise the system consent dialog deliberately. This one *does* block
-    /// while the dialog is up, which is acceptable because it only happens on
-    /// an explicit button press rather than on a background poll.
+    /// Raise the system consent dialog deliberately. The Apple event that
+    /// triggers it runs on the script queue, so the overlay stays live while
+    /// the dialog is up.
     func requestAuthorization() {
         guard Self.isSpotifyRunning else {
             Log.media.notice("media: cannot request Spotify automation — Spotify is not running")
@@ -99,23 +116,48 @@ final class SpotifyScriptingSource: NowPlayingSource {
     // MARK: - Polling
 
     private func tick() async {
+        guard !isReading else {
+            rereadRequested = true
+            return
+        }
+        isReading = true
+        defer { isReading = false }
+        repeat {
+            rereadRequested = false
+            await read()
+        } while rereadRequested && !Task.isCancelled
+    }
+
+    private func read() async {
         guard Self.isSpotifyRunning else {
             report(nil)
             return
         }
 
-        guard let descriptor = run(Self.readScript) else { return }
-        let track = makeTrack(from: descriptor)
-        report(track)
+        switch await AppleScriptExecutor.shared.run(Self.readScript) {
+        case .success(let reply):
+            markGranted()
+            report(makeTrack(from: reply))
+        case .failure(let code, let message):
+            handleFailure(code: code, message: message)
+            // Never leave the last good track on screen: a failed read means
+            // we no longer know what is playing.
+            report(nil)
+        }
     }
 
-    private func setNeedsPermission(_ message: String) {
-        let next = NowPlayingAuthorization.needsPermission(message)
-        if authorization != next {
-            authorization = next
-            Log.media.notice("media: Spotify automation not granted — \(message, privacy: .public)")
-        }
-        report(nil)
+    /// Wraps a script so it neither launches Spotify nor waits on it for the
+    /// default two minutes. The `is running` check is inside the script
+    /// because Spotify can quit between our Swift-side check and the event.
+    private static func guarded(_ body: String) -> String {
+        """
+        if application id "\(bundleIdentifier)" is running then
+            with timeout of \(NotchConfiguration.appleScriptTimeoutSeconds) seconds
+                \(body)
+            end timeout
+        end if
+        return {}
+        """
     }
 
     /// A list is returned rather than a delimited string so that a track name
@@ -123,7 +165,7 @@ final class SpotifyScriptingSource: NowPlayingSource {
     ///
     /// `player state` is compared against the enum constants instead of being
     /// coerced with `as text`, which is not reliable across Spotify builds.
-    private static let readScript = """
+    private static let readScript = guarded("""
     tell application id "\(bundleIdentifier)"
         set ps to "stopped"
         try
@@ -152,70 +194,49 @@ final class SpotifyScriptingSource: NowPlayingSource {
             return {"", "", "", "0", "0", playbackStatus, ""}
         end try
     end tell
-    """
+    """)
 
-    private func run(_ source: String) -> NSAppleEventDescriptor? {
-        // NSAppleScript is main-thread-only and blocks on the Apple event round
-        // trip. It is a handful of milliseconds against a healthy Spotify, which
-        // is why this is not offloaded — but it is also why the polling interval
-        // is lazy rather than per-frame.
-        let compiled: NSAppleScript?
-        if source == Self.readScript {
-            if script == nil { script = NSAppleScript(source: source) }
-            compiled = script
-        } else {
-            compiled = NSAppleScript(source: source)
-        }
-        guard let compiled else { return nil }
-
-        var error: NSDictionary?
-        let result = compiled.executeAndReturnError(&error)
-        if let error {
-            handle(error)
-            return nil
-        }
+    private func markGranted() {
         if authorization != .granted {
             authorization = .granted
             Log.media.notice("media: Spotify automation permitted")
         }
-        return result
     }
 
-    private func handle(_ error: NSDictionary) {
-        let code = error[NSAppleScript.errorNumber] as? Int ?? 0
+    private func handleFailure(code: Int, message: String) {
         switch code {
-        case -1743:
+        case -1743, -1744:
             // errAEEventNotPermitted — the user declined Automation, or has not
             // been asked yet and the prompt was suppressed.
             if !authorization.isBlocked {
-                authorization = .needsPermission(
-                    "Allow NotchNotch to control Spotify in System Settings › Privacy & Security › Automation.")
-                Log.media.error("media: Spotify automation denied (-1743) — falling back")
+                authorization = .needsPermission(.spotifyAutomation)
+                Log.media.error("media: Spotify automation denied (\(code, privacy: .public)) — falling back")
             }
         case -600, -609:
             // Spotify quit between our running-check and the event.
-            report(nil)
+            break
+        case -1712:
+            Log.media.error("media: Spotify AppleScript timed out")
         default:
             Log.media.error("""
                 media: Spotify AppleScript error \(code, privacy: .public): \
-                \(error[NSAppleScript.errorMessage] as? String ?? "?", privacy: .public)
+                \(message, privacy: .public)
                 """)
         }
     }
 
     // MARK: - Parsing
 
-    private func makeTrack(from descriptor: NSAppleEventDescriptor) -> NowPlaying? {
-        func field(_ index: Int) -> String {
-            descriptor.atIndex(index)?.stringValue ?? ""
-        }
-        let title = field(1)
-        let artist = field(2)
-        let album = field(3)
-        let rawDuration = Double(field(4)) ?? 0
-        let position = Double(field(5)) ?? 0
-        let state = field(6)
-        let artworkURL = field(7)
+    private func makeTrack(from reply: AppleScriptReply) -> NowPlaying? {
+        // The guard wrapper returns an empty list when Spotify is not running.
+        guard reply.strings.count >= 7 else { return nil }
+        let title = reply.string(at: 0)
+        let artist = reply.string(at: 1)
+        let album = reply.string(at: 2)
+        let rawDuration = Double(reply.string(at: 3)) ?? 0
+        let position = Double(reply.string(at: 4)) ?? 0
+        let state = reply.string(at: 5)
+        let artworkURL = reply.string(at: 6)
 
         guard !title.isEmpty || !artist.isEmpty else { return nil }
 
@@ -228,8 +249,9 @@ final class SpotifyScriptingSource: NowPlayingSource {
         let duration = Self.normalisedDuration(rawDuration, position: position)
 
         if !artworkURL.isEmpty { fetchArtworkIfNeeded(artworkURL) }
+        let artwork = artworkCache?.url == artworkURL ? artworkCache?.image : nil
 
-        Log.media.notice("media: Spotify parsed '\(title, privacy: .public)' isPlaying=\(isPlaying, privacy: .public) state='\(state, privacy: .public)' hasArtwork=\(self.artworkCache?.url == artworkURL, privacy: .public)")
+        Log.media.notice("media: Spotify parsed '\(title, privacy: .public)' isPlaying=\(isPlaying, privacy: .public) state='\(state, privacy: .public)' hasArtwork=\(artwork != nil, privacy: .public)")
 
         return NowPlaying(
             title: title,
@@ -243,7 +265,7 @@ final class SpotifyScriptingSource: NowPlayingSource {
             // polls exactly as it does for any other backend.
             playbackRate: isPlaying ? 1 : 0,
             artworkIdentifier: artworkURL.isEmpty ? nil : artworkURL,
-            artwork: artworkCache?.url == artworkURL ? artworkCache?.image : nil,
+            artwork: artwork,
             clientBundleIdentifier: Self.bundleIdentifier)
     }
 
@@ -261,24 +283,32 @@ final class SpotifyScriptingSource: NowPlayingSource {
     // MARK: - Artwork
 
     private func fetchArtworkIfNeeded(_ urlString: String) {
-        guard artworkCache?.url != urlString, let url = URL(string: urlString) else { return }
+        guard artworkCache?.url != urlString, artworkFetchingURL != urlString else { return }
+        guard let url = URL(string: urlString) else {
+            artworkCache = (urlString, nil)
+            return
+        }
         artworkTask?.cancel()
+        artworkFetchingURL = urlString
         artworkTask = Task { [weak self] in
+            var image: NSImage?
             do {
                 let (data, _) = try await URLSession.shared.data(from: url)
-                guard let image = NSImage(data: data),
-                      !Task.isCancelled,
-                      let self else {
+                image = NSImage(data: data)
+                if image == nil {
                     Log.media.error("media: Spotify failed to decode artwork image from \(urlString, privacy: .public)")
-                    return
+                } else {
+                    Log.media.notice("media: Spotify successfully fetched artwork (\(data.count, privacy: .public) bytes)")
                 }
-                Log.media.notice("media: Spotify successfully fetched artwork (\(data.count, privacy: .public) bytes)")
-                self.artworkCache = (urlString, image)
-                // Re-emit so the panel picks the artwork up now that it exists.
-                await self.tick()
             } catch {
                 Log.media.error("media: Spotify artwork download failed: \(error.localizedDescription, privacy: .public)")
             }
+            guard !Task.isCancelled, let self else { return }
+            self.artworkFetchingURL = nil
+            // A miss is cached too, so the URL is not retried every poll.
+            self.artworkCache = (urlString, image)
+            // Re-emit so the panel picks the artwork up now that it exists.
+            if image != nil { await self.tick() }
         }
     }
 
