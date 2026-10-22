@@ -1241,7 +1241,7 @@ struct SettingsView: View {
                                 .background(Capsule().fill((agentController.listenerStatus == .failed ? JYLTheme.warning : JYLTheme.success).opacity(0.15)))
                         }
 
-                        Text(loc.isChinese ? "本地监听 127.0.0.1:7823/event，接收 Claude Code、Antigravity、Codex、Grok 毫秒级生命周期事件" : "Listening on 127.0.0.1:7823/event for millisecond lifecycle events from Claude Code, Antigravity, Codex, and Grok")
+                        Text(loc.isChinese ? "本地监听 127.0.0.1:7823/event，接收 Hook 脚本（如 Claude Code Hooks）推送的生命周期事件。Codex 与 Grok 仅通过进程扫描识别。" : "Listening on 127.0.0.1:7823/event for lifecycle events posted by hook scripts, such as Claude Code hooks. Codex and Grok are detected by process scanning only.")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(JYLTheme.textSecondary)
                     }

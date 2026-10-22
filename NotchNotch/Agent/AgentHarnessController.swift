@@ -96,7 +96,8 @@ nonisolated enum DarwinProcessHelper {
             // A stuck tmux server would otherwise block whoever asked to focus the session.
             if finished.wait(timeout: .now() + 2) == .timedOut {
                 task.terminate()
-                finished.wait()
+                // SIGTERM can be ignored too; never wait on it unbounded.
+                _ = finished.wait(timeout: .now() + 0.5)
                 return nil
             }
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
@@ -138,24 +139,38 @@ nonisolated enum DarwinProcessHelper {
         return errno == EPERM
     }
 
+    /// Terminals and editors the fallback may activate, in preference order.
+    /// `terminal` arrives in an unauthenticated HTTP body, so it only picks from
+    /// this list, by exact bundle id or name, and never names an arbitrary app.
+    private static let knownTerminals: [(bundleID: String, names: [String])] = [
+        ("com.mitchellh.ghostty", ["ghostty"]),
+        ("dev.zed.Zed", ["zed"]),
+        ("com.googlecode.iterm2", ["iterm2", "iterm"]),
+        ("com.apple.Terminal", ["terminal"]),
+        ("dev.warp.Warp-Stable", ["warp"]),
+        ("com.todesktop.230313mzl4w4u92", ["cursor"]),
+        ("com.microsoft.VSCode", ["visual studio code", "code", "vscode"]),
+        ("net.kovidgoyal.kitty", ["kitty"]),
+        ("org.alacritty", ["alacritty"]),
+        ("com.github.wez.wezterm", ["wezterm"]),
+    ]
+
     /// Fallback search among running GUI applications for common terminal or editor emulators.
     static func fallbackTerminalApp(hint: String = "") -> NSRunningApplication? {
         let running = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }
-        if !hint.isEmpty {
-            if let app = running.first(where: {
-                $0.localizedName?.localizedCaseInsensitiveContains(hint) == true ||
-                $0.bundleIdentifier?.localizedCaseInsensitiveContains(hint) == true
-            }) {
-                return app
-            }
+        func runningApp(_ bundleID: String) -> NSRunningApplication? {
+            running.first { $0.bundleIdentifier?.caseInsensitiveCompare(bundleID) == .orderedSame }
         }
 
-        let candidates = ["ghostty", "zed", "iterm", "terminal", "warp", "cursor", "visual studio code"]
-        for c in candidates {
-            if let app = running.first(where: {
-                $0.localizedName?.localizedCaseInsensitiveContains(c) == true ||
-                $0.bundleIdentifier?.localizedCaseInsensitiveContains(c) == true
-            }) {
+        let wanted = hint.trimmingCharacters(in: .whitespaces).lowercased()
+        if !wanted.isEmpty,
+           let entry = knownTerminals.first(where: { $0.bundleID.lowercased() == wanted || $0.names.contains(wanted) }),
+           let app = runningApp(entry.bundleID) {
+            return app
+        }
+
+        for entry in knownTerminals {
+            if let app = runningApp(entry.bundleID) {
                 return app
             }
         }
@@ -165,16 +180,6 @@ nonisolated enum DarwinProcessHelper {
 
 // MARK: - Process Snapshot Parser
 
-struct ProcessRawEntry {
-    let pid: Int
-    let ppid: Int
-    let cpu: Double
-    let state: String
-    let tty: String
-    let comm: String
-    let args: String
-}
-
 struct DiscoveredAgentData: Sendable {
     let key: String
     let name: String
@@ -183,76 +188,6 @@ struct DiscoveredAgentData: Sendable {
     let terminalName: String
     let totalCpu: Double
     let inferredState: AgentState
-}
-
-/// Skip the scanner's own grep and this app. A client whose arguments mention
-/// the repo name is still an agent and must not be filtered out.
-private nonisolated func isAgentScanNoise(comm: String, args: String) -> Bool {
-    if comm == "grep" || comm == "rg" || comm.hasSuffix("/grep") || comm.hasSuffix("/rg") {
-        return true
-    }
-    if args == "grep" || args == "rg" || args.hasPrefix("grep ") || args.hasPrefix("rg ") {
-        return true
-    }
-    return comm.contains("notchnotch")
-}
-
-/// Grok and Codex are recognised from the executable name, not from a substring
-/// of the whole command line. `ps comm` is truncated to 16 characters, so a
-/// path like `~/.codex/.../bin/codex` shows up there as `/Users/jhl/.code`;
-/// the full argv0 is the first token of `args`. Shell wrappers that only
-/// mention the name inside a script (Grok's `__grok_*` shim) must not match.
-private nonisolated func detectedExecutableAgent(comm: String, args: String) -> String? {
-    let names = candidateExecutableNames(comm: comm, args: args)
-    for name in names {
-        switch name {
-        case "grok":
-            return "Grok"
-        case "codex":
-            // The managed app-server stays up with no tty and would pin the
-            // island on REPLY. Match the argument, not the install path:
-            // `~/.codex/.../app-server-daemon/bin/codex` is still the CLI.
-            if commandArguments(args).contains("app-server") { return nil }
-            return "Codex"
-        default:
-            break
-        }
-    }
-    return nil
-}
-
-private nonisolated func candidateExecutableNames(comm: String, args: String) -> [String] {
-    let tokens = args.split(whereSeparator: { $0.isWhitespace }).map(String.init)
-    var names: [String] = []
-    if !comm.isEmpty { names.append(commandBasename(comm)) }
-    if let first = tokens.first { names.append(commandBasename(first)) }
-
-    let launchers: Set<String> = ["node", "nodejs", "python", "python3", "bun", "deno", "npx", "bunx", "pnpm", "yarn"]
-    let launched = names.contains { launchers.contains($0) }
-    if launched {
-        for token in tokens.dropFirst() {
-            if token.hasPrefix("-") { continue }
-            names.append(commandBasename(token))
-            break
-        }
-    }
-    return names
-}
-
-/// Tokens after argv0. `ps` args begins with the executable, whose path may
-/// contain `app-server` without the process being the managed server.
-private nonisolated func commandArguments(_ args: String) -> [String] {
-    args.split(whereSeparator: { $0.isWhitespace }).dropFirst().map { $0.lowercased() }
-}
-
-private nonisolated func commandBasename(_ token: String) -> String {
-    let last = token.split(separator: "/").last.map(String.init) ?? token
-    var name = last.lowercased()
-    for suffix in [".js", ".mjs", ".cjs", ".exe"] where name.hasSuffix(suffix) {
-        name.removeLast(suffix.count)
-        break
-    }
-    return name
 }
 
 enum AgentListenerStatus: Equatable {
@@ -284,8 +219,12 @@ final class AgentHarnessController: ObservableObject {
     private var isScanning: Bool = false
     /// Consecutive low-CPU samples per scanned session. One quiet poll is not "needs input".
     private var quietPollsBySession: [String: Int] = [:]
+    /// Hook session id -> pid whose terminal lookup has started. One lookup per pair.
+    private var terminalLookups: [String: Int] = [:]
+    /// cwd and hosting terminal per scanned session. Resolving the terminal can
+    /// shell out to tmux, so it happens once per process, not on every poll.
+    private var processDetailsCache: [String: (cwd: String, terminal: String)] = [:]
     private static let quietPollsBeforeWaiting = 3
-    private static let httpIdleLimit: TimeInterval = 15 * 60
     private static let completedSessionLimit: TimeInterval = 90
 
     var hasActiveAlert: Bool {
@@ -331,25 +270,31 @@ final class AgentHarnessController: ObservableObject {
 
     // MARK: - HTTP Ingestion
 
+    /// Safe to call while already running: a bound listener keeps `.ready`, and
+    /// the server re-reports it instead of leaving the status on "starting".
     private func setupHTTPServer() {
-        httpServer.onDataReceived = { [weak self] data in
-            Task { @MainActor in
-                self?.handleIncomingData(data)
-            }
+        if listenerStatus != .ready {
+            listenerStatus = .starting
         }
-        httpServer.onListenerEvent = { [weak self] event in
-            Task { @MainActor in
-                guard let self, self.isMonitoringEnabled else { return }
-                switch event {
-                case .ready:
-                    self.listenerStatus = .ready
-                case .failed:
-                    self.listenerStatus = .failed
+        httpServer.start(
+            port: 7823,
+            onData: { [weak self] data in
+                Task { @MainActor in
+                    self?.handleIncomingData(data)
+                }
+            },
+            onEvent: { [weak self] event in
+                Task { @MainActor in
+                    guard let self, self.isMonitoringEnabled else { return }
+                    switch event {
+                    case .ready:
+                        self.listenerStatus = .ready
+                    case .failed:
+                        self.listenerStatus = .failed
+                    }
                 }
             }
-        }
-        listenerStatus = .starting
-        httpServer.start(port: 7823)
+        )
         startSessionPruneTimer()
     }
 
@@ -365,17 +310,24 @@ final class AgentHarnessController: ObservableObject {
         let rawState = dict["state"] as? String ?? "Working"
         let agent = dict["agent"] as? String ?? "Agent"
         let event = dict["event"] as? String ?? ""
-        let existingSessionId = sessions.keys.first(where: {
-            sessions[$0]?.agent.caseInsensitiveCompare(agent) == .orderedSame
-        })
-        let sessionId = dict["session_id"] as? String ?? (existingSessionId ?? "default-\(agent)")
+        let sessionId: String
+        if let provided = dict["session_id"] as? String, !provided.isEmpty {
+            // `proc-` keys belong to the process scanner, which deletes them when the process goes.
+            sessionId = provided.hasPrefix("proc-") ? "hook-\(provided)" : provided
+        } else {
+            // No id: continue this agent's most recently updated hook session.
+            // Dictionary order is arbitrary, and a scanned session is not ours to take over.
+            sessionId = sessions.values
+                .filter { !$0.id.hasPrefix("proc-") && $0.agent.caseInsensitiveCompare(agent) == .orderedSame }
+                .max(by: { $0.lastUpdated < $1.lastUpdated })?
+                .id ?? "default-\(agent)"
+        }
         let cwd = dict["cwd"] as? String ?? ""
         let title = dict["title"] as? String ?? ""
         let terminal = dict["terminal"] as? String ?? ""
-        let pid = dict["pid"] as? Int
+        let pid = Self.validatedPID(dict["pid"])
 
         let lowerState = rawState.lowercased()
-        let lowerTitle = title.lowercased()
         let lowerEvent = event.lowercased()
 
         let resolvedState: AgentState
@@ -384,23 +336,12 @@ final class AgentHarnessController: ObservableObject {
         } else if lowerState == "waitinguser" || lowerState == "waiting_user" || lowerState == "reply" || lowerState == "waiting_reply" || lowerState == "action" {
             resolvedState = .waitingUser
         } else if lowerState == "waiting" || event == "Notification" {
-            // Differentiate based on title or event details
-            if lowerTitle.contains("subagent") || lowerTitle.contains("invoke_subagent") || lowerTitle.contains("task") || lowerEvent.contains("subagent") {
-                resolvedState = .waitingSubagent
-            } else {
-                resolvedState = .waitingUser
-            }
+            // `title` is free text for display; only `state` and `event` decide state.
+            resolvedState = lowerEvent.contains("subagent") ? .waitingSubagent : .waitingUser
         } else if lowerState == "ended" || lowerState == "completed" || event == "Stop" || event == "SessionEnd" {
             resolvedState = .completed
         } else if lowerState == "working" || lowerState == "auto" || event == "PreToolUse" || event == "UserPromptSubmit" {
-            // If PreToolUse is specifically launching a subagent or asking a question
-            if lowerTitle.contains("invoke_subagent") || lowerTitle.contains("subagent") {
-                resolvedState = .waitingSubagent
-            } else if lowerTitle.contains("ask_question") || lowerTitle.contains("question") {
-                resolvedState = .waitingUser
-            } else {
-                resolvedState = .working
-            }
+            resolvedState = .working
         } else {
             resolvedState = .idle
         }
@@ -419,7 +360,8 @@ final class AgentHarnessController: ObservableObject {
             lastUpdated: Date()
         )
 
-        let previousState = session.state
+        // nil for a new session: its first waiting event is a transition too.
+        let previousState: AgentState? = sessions[sessionId]?.state
         session.state = resolvedState
         session.event = event
         session.source = .httpHook
@@ -429,17 +371,18 @@ final class AgentHarnessController: ObservableObject {
         if let pid { session.pid = pid }
         session.lastUpdated = Date()
 
-        if session.terminal.isEmpty, let pid = session.pid, let app = DarwinProcessHelper.findGUIApp(for: pid_t(pid)) {
-            session.terminal = app.localizedName ?? ""
-        }
-
         sessions[sessionId] = session
+        if session.terminal.isEmpty, let pid = session.pid, terminalLookups[sessionId] != pid {
+            terminalLookups[sessionId] = pid
+            resolveTerminal(sessionId: sessionId, pid: pid)
+        }
+        evictExcessHookSessions(keeping: sessionId)
         updateActiveSession()
 
         Log.lifecycle.notice("Agent event: \(agent) [\(sessionId)] -> \(resolvedState.rawValue) (event: \(event))")
 
-        // Trigger notch prompt / alert when state requires attention or finishes
-        if resolvedState == .waitingUser {
+        // Alert on a transition only. A hook that repeats the same state must not re-beep.
+        if resolvedState == .waitingUser && previousState != .waitingUser {
             // Needs user reply (permission, question, interactive input)
             let alertTitle = title.isEmpty ? "Reply Needed" : title
             triggerAlert(
@@ -456,7 +399,7 @@ final class AgentHarnessController: ObservableObject {
                 autoDismissAfter: 7.0
             )
             NSSound.beep()
-        } else if resolvedState == .waitingSubagent {
+        } else if resolvedState == .waitingSubagent && previousState != .waitingSubagent {
             // Subagent execution in background - subtle alert without audio beep
             let alertTitle = title.isEmpty ? "Subagent Active" : title
             triggerAlert(
@@ -472,7 +415,7 @@ final class AgentHarnessController: ObservableObject {
                 ),
                 autoDismissAfter: 3.5
             )
-        } else if resolvedState == .completed && (previousState == .working || previousState.isWaiting) {
+        } else if resolvedState == .completed && (previousState == .working || previousState?.isWaiting == true) {
             // Turn completed
             let alertTitle = title.isEmpty ? "Task Completed" : title
             triggerAlert(
@@ -490,6 +433,53 @@ final class AgentHarnessController: ObservableObject {
             )
         } else if resolvedState == .working && isShowingAlert && currentAlert?.state.isWaiting == true && currentAlert?.sessionId == sessionId {
             // User provided input or subagent finished and agent resumed working; dismiss alert
+            dismissAlert()
+        }
+    }
+
+    /// `pid_t` is 32-bit, so an out-of-range JSON number must be rejected, not
+    /// trapped on. 0 and 1 are the kernel and launchd, never an agent.
+    private static func validatedPID(_ value: Any?) -> Int? {
+        guard let raw = value as? Int, let pid = Int32(exactly: raw), pid > 1 else { return nil }
+        return Int(pid)
+    }
+
+    /// Climbing the process tree can shell out to tmux and wait on it, so it
+    /// runs off the main actor.
+    private func resolveTerminal(sessionId: String, pid: Int) {
+        guard let pid32 = pid_t(exactly: pid) else { return }
+        Task.detached(priority: .utility) { [weak self] in
+            guard let name = DarwinProcessHelper.findGUIApp(for: pid32)?.localizedName, !name.isEmpty else { return }
+            await self?.applyResolvedTerminal(name, sessionId: sessionId, pid: pid)
+        }
+    }
+
+    private func applyResolvedTerminal(_ name: String, sessionId: String, pid: Int) {
+        guard var session = sessions[sessionId], session.pid == pid, session.terminal.isEmpty else { return }
+        session.terminal = name
+        sessions[sessionId] = session
+        updateActiveSession()
+    }
+
+    /// Any local process can mint session ids, so hook sessions are capped.
+    private func evictExcessHookSessions(keeping keep: String) {
+        let hookSessions = sessions.values.filter { $0.source == .httpHook && $0.id != keep }
+        let excess = hookSessions.count + 1 - NotchConfiguration.agentMaxHookSessions
+        guard excess > 0 else { return }
+        for session in hookSessions.sorted(by: { $0.lastUpdated < $1.lastUpdated }).prefix(excess) {
+            removeSession(session.id)
+        }
+    }
+
+    private func removeSession(_ key: String) {
+        sessions.removeValue(forKey: key)
+        quietPollsBySession.removeValue(forKey: key)
+        terminalLookups.removeValue(forKey: key)
+        processDetailsCache.removeValue(forKey: key)
+        if activeSession?.id == key {
+            activeSession = nil
+        }
+        if currentAlert?.sessionId == key {
             dismissAlert()
         }
     }
@@ -530,6 +520,8 @@ final class AgentHarnessController: ObservableObject {
         dismissAlert()
         sessions.removeAll()
         quietPollsBySession.removeAll()
+        terminalLookups.removeAll()
+        processDetailsCache.removeAll()
         activeSession = nil
     }
 
@@ -548,22 +540,17 @@ final class AgentHarnessController: ObservableObject {
         let now = Date()
         var removed = false
         for (key, session) in sessions where session.source == .httpHook {
-            let dead = session.pid.map { !DarwinProcessHelper.isProcessAlive(pid_t($0)) } ?? false
+            let dead = session.pid
+                .flatMap { pid_t(exactly: $0) }
+                .map { !DarwinProcessHelper.isProcessAlive($0) } ?? false
             let idle = now.timeIntervalSince(session.lastUpdated)
-            // A live process that is still waiting for the user stays on the island.
-            // Sessions with no pid, and finished turns, do not.
+            // A live pid is not enough: an interrupted agent sends no Stop and would
+            // stay BUSY or REPLY forever. Once dropped, process scanning infers it.
             let expired = dead
                 || (session.state == .completed && idle > Self.completedSessionLimit)
-                || (session.pid == nil && idle > Self.httpIdleLimit)
+                || idle > NotchConfiguration.agentHookInactivityTimeout
             guard expired else { continue }
-            sessions.removeValue(forKey: key)
-            quietPollsBySession.removeValue(forKey: key)
-            if activeSession?.id == key {
-                activeSession = nil
-            }
-            if currentAlert?.sessionId == key {
-                dismissAlert()
-            }
+            removeSession(key)
             removed = true
         }
         if removed {
@@ -618,17 +605,20 @@ final class AgentHarnessController: ObservableObject {
     func focusSession(_ session: AgentSession) {
         dismissAlert()
 
-        // 1. First attempt: climb kernel PPID tree to find hosting regular GUI app (Ghostty, Zed, Terminal, etc.)
-        if let pid = session.pid {
-            if let app = DarwinProcessHelper.findGUIApp(for: pid_t(pid)) {
-                app.activate(options: [.activateIgnoringOtherApps])
-                return
+        let pid = session.pid.flatMap { pid_t(exactly: $0) }
+        let hint = session.terminal
+        // The tree climb can wait on tmux, so it runs off the main actor.
+        Task.detached(priority: .userInitiated) {
+            // 1. First attempt: climb kernel PPID tree to find hosting regular GUI app (Ghostty, Zed, Terminal, etc.)
+            let hostPid = pid.flatMap { DarwinProcessHelper.findGUIApp(for: $0)?.processIdentifier }
+            await MainActor.run {
+                if let hostPid, let app = NSRunningApplication(processIdentifier: hostPid) {
+                    app.activate(options: [.activateIgnoringOtherApps])
+                    return
+                }
+                // 2. Fallback: activate by terminal name hint or the first running known terminal
+                DarwinProcessHelper.fallbackTerminalApp(hint: hint)?.activate(options: [.activateIgnoringOtherApps])
             }
-        }
-
-        // 2. Fallback: activate by terminal name hint or frontmost terminal application
-        if let app = DarwinProcessHelper.fallbackTerminalApp(hint: session.terminal) {
-            app.activate(options: [.activateIgnoringOtherApps])
         }
     }
 
@@ -653,18 +643,23 @@ final class AgentHarnessController: ObservableObject {
         }
     }
 
+    /// Highest-priority state wins; within a state, the most recently updated
+    /// session. Dictionary order is arbitrary and would make the pick flicker.
     private func updateActiveSession() {
-        if let waitingUser = sessions.values.first(where: { $0.state == .waitingUser }) {
-            activeSession = waitingUser
-        } else if let waitingSubagent = sessions.values.first(where: { $0.state == .waitingSubagent }) {
-            activeSession = waitingSubagent
-        } else if let working = sessions.values.first(where: { $0.state == .working }) {
-            activeSession = working
-        } else if let completed = sessions.values.first(where: { $0.state == .completed }) {
-            activeSession = completed
-        } else {
-            activeSession = sessions.values.first
+        let byRecency = sessions.values.sorted {
+            $0.lastUpdated != $1.lastUpdated ? $0.lastUpdated > $1.lastUpdated : $0.id < $1.id
         }
+        for state in [AgentState.waitingUser, .waitingSubagent, .working, .completed] {
+            if let match = byRecency.first(where: { $0.state == state }) {
+                activeSession = match
+                return
+            }
+        }
+        activeSession = byRecency.first
+    }
+
+    private func processDetailsSnapshot() -> [String: (cwd: String, terminal: String)] {
+        processDetailsCache
     }
 
     nonisolated private func pollAgentProcessesBackground() async {
@@ -686,14 +681,18 @@ final class AgentHarnessController: ObservableObject {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             ps.waitUntilExit()
             guard let output = String(data: data, encoding: .utf8) else { return }
-            let (discovered, activeKeys) = parseProcessSnapshot(output: output)
+            let cachedDetails = await processDetailsSnapshot()
+            let (discovered, activeKeys) = parseProcessSnapshot(output: output, cachedDetails: cachedDetails)
             await applySnapshotResult(discovered: discovered, activeKeys: activeKeys)
         } catch {
             Log.lifecycle.error("Failed to run ps for agent detection: \(error.localizedDescription)")
         }
     }
 
-    nonisolated private func parseProcessSnapshot(output: String) -> ([DiscoveredAgentData], Set<String>) {
+    nonisolated private func parseProcessSnapshot(
+        output: String,
+        cachedDetails: [String: (cwd: String, terminal: String)]
+    ) -> ([DiscoveredAgentData], Set<String>) {
         var rawEntries: [ProcessRawEntry] = []
         let lines = output.components(separatedBy: .newlines)
 
@@ -737,80 +736,36 @@ final class AgentHarnessController: ObservableObject {
             ))
         }
 
-        var discoveredAgents: [(name: String, pid: Int, ppid: Int, cpu: Double, tty: String, args: String)] = []
-
-        for entry in rawEntries {
-            let lowerComm = entry.comm.lowercased()
-            let lowerArgs = entry.args.lowercased()
-
-            if isAgentScanNoise(comm: lowerComm, args: lowerArgs) {
-                continue
-            }
-
-            // Grok / Codex: executable basename only. See `detectedExecutableAgent`.
-            if let name = detectedExecutableAgent(comm: lowerComm, args: lowerArgs) {
-                discoveredAgents.append((name, entry.pid, entry.ppid, entry.cpu, entry.tty, entry.args))
-                continue
-            }
-
-            // 1. Claude Code / Claude CLI
-            if lowerComm.contains("claude") || lowerArgs.contains("claude") {
-                if !lowerArgs.contains("--chrome-native-host") {
-                    let name = (lowerArgs.contains("claude-agent-sdk") || lowerArgs.contains("claude-acp"))
-                        ? "Claude (Zed ACP)"
-                        : "Claude Code"
-                    discoveredAgents.append((name, entry.pid, entry.ppid, entry.cpu, entry.tty, entry.args))
-                    continue
-                }
-            }
-
-            // 2. Antigravity CLI
-            if lowerComm == "agy" || lowerArgs.contains("agy ") || lowerArgs.hasPrefix("agy") || lowerArgs.contains("/agy ") || lowerArgs.contains("antigravity") {
-                discoveredAgents.append(("Antigravity", entry.pid, entry.ppid, entry.cpu, entry.tty, entry.args))
-                continue
-            }
-
-            // 3. OpenCode CLI
-            if lowerComm == "opencode" || lowerArgs.contains("opencode") || lowerArgs.contains("open-code") {
-                discoveredAgents.append(("OpenCode", entry.pid, entry.ppid, entry.cpu, entry.tty, entry.args))
-                continue
-            }
-
-            // 4. Aider CLI
-            if lowerComm == "aider" || lowerArgs.contains("aider ") || lowerArgs.hasPrefix("aider") {
-                discoveredAgents.append(("Aider", entry.pid, entry.ppid, entry.cpu, entry.tty, entry.args))
-                continue
-            }
-        }
-
         var activeKeys: Set<String> = []
         var discoveredData: [DiscoveredAgentData] = []
 
-        for agent in discoveredAgents {
+        // Matching rules and de-duplication live in `AgentProcessMatcher`.
+        for agent in AgentProcessMatcher.discover(rawEntries) {
             let key = "proc-\(agent.name.lowercased().replacingOccurrences(of: " ", with: "-"))-\(agent.pid)"
             activeKeys.insert(key)
 
-            let activeChildren = rawEntries.filter { $0.ppid == agent.pid }
-            let totalCpu = agent.cpu + activeChildren.reduce(0.0) { $0 + $1.cpu }
-            let hasActiveTool = activeChildren.contains(where: { $0.cpu > 0.1 })
+            let usage = AgentProcessMatcher.cpuUsage(of: agent, in: rawEntries)
+            let inferredState: AgentState = (usage.hasActiveTool || usage.total > 1.5) ? .working : .waitingUser
 
-            let inferredState: AgentState
-            if hasActiveTool || totalCpu > 1.5 {
-                inferredState = .working
+            let details: (cwd: String, terminal: String)
+            if let cached = cachedDetails[key] {
+                details = cached
+            } else if let pid = pid_t(exactly: agent.pid) {
+                details = (
+                    DarwinProcessHelper.getProcessCWD(pid: pid) ?? "",
+                    DarwinProcessHelper.findGUIApp(for: pid)?.localizedName ?? ""
+                )
             } else {
-                inferredState = .waitingUser
+                details = ("", "")
             }
-
-            let cwd = DarwinProcessHelper.getProcessCWD(pid: pid_t(agent.pid)) ?? ""
-            let terminalName = DarwinProcessHelper.findGUIApp(for: pid_t(agent.pid))?.localizedName ?? ""
 
             discoveredData.append(DiscoveredAgentData(
                 key: key,
                 name: agent.name,
                 pid: agent.pid,
-                cwd: cwd,
-                terminalName: terminalName,
-                totalCpu: totalCpu,
+                cwd: details.cwd,
+                terminalName: details.terminal,
+                totalCpu: usage.total,
                 inferredState: inferredState
             ))
         }
@@ -821,6 +776,7 @@ final class AgentHarnessController: ObservableObject {
     private func applySnapshotResult(discovered: [DiscoveredAgentData], activeKeys: Set<String>) {
         guard isMonitoringEnabled && isProcessScanningEnabled else { return }
         for item in discovered {
+            processDetailsCache[item.key] = (item.cwd, item.terminalName)
             let hasFreshHttpHook = sessions.values.contains(where: {
                 $0.source == .httpHook &&
                 $0.agent.caseInsensitiveCompare(item.name) == .orderedSame &&
@@ -888,6 +844,10 @@ final class AgentHarnessController: ObservableObject {
                 sessions[item.key] = newSession
                 Log.lifecycle.notice("Discovered agent process: \(item.name) [PID \(item.pid)] in \(item.terminalName)")
             }
+        }
+
+        for key in processDetailsCache.keys where !activeKeys.contains(key) {
+            processDetailsCache.removeValue(forKey: key)
         }
 
         for (key, session) in sessions where key.hasPrefix("proc-") {

@@ -109,6 +109,21 @@ nonisolated enum NotchConfiguration {
     /// Slower still while we are just waiting for the user to grant access.
     static let accessibilityAuthorizationPollInterval: Duration = .seconds(3)
 
+    // MARK: - Agent harness
+
+    /// A hook session with no event for this long is dropped, live pid or not.
+    /// An interrupted agent sends no Stop; process scanning takes over from here.
+    static let agentHookInactivityTimeout: TimeInterval = 15 * 60
+
+    /// Oldest hook sessions are evicted beyond this.
+    static let agentMaxHookSessions = 32
+
+    /// A connection that has not delivered a full request by then is closed.
+    static let agentHTTPRequestTimeout: TimeInterval = 5
+
+    /// Further connections are refused while this many are open.
+    static let agentHTTPMaxConnections = 16
+
     // MARK: - Private API
 
     /// Off by default. Flip to `true` to route the window level through
