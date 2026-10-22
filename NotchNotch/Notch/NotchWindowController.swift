@@ -23,6 +23,10 @@ final class NotchWindowController {
     private var window: NotchOverlayWindow?
     private var hoverMonitor: NotchHoverMonitor?
     private var cancellables: Set<AnyCancellable> = []
+    /// `DistributedNotificationCenter` block observers are not Combine
+    /// cancellables; kept so `stop()` can remove them and a restart does not
+    /// register a second set.
+    private var distributedObservers: [NSObjectProtocol] = []
 
     private let stateMachine: NotchStateMachine
 
@@ -75,6 +79,9 @@ final class NotchWindowController {
         let monitor = NotchHoverMonitor { [weak self] location, isDragging in
             self?.handlePointer(location, isDragging: isDragging)
         }
+        monitor.onClickOutside = { [weak self] location in
+            self?.stateMachine.clickedOutside(at: location)
+        }
         monitor.start()
         hoverMonitor = monitor
 
@@ -88,6 +95,10 @@ final class NotchWindowController {
         hoverMonitor?.stop()
         hoverMonitor = nil
         cancellables.removeAll()
+        for observer in distributedObservers {
+            DistributedNotificationCenter.default().removeObserver(observer)
+        }
+        distributedObservers.removeAll()
         stateMachine.collapseImmediately()
         window?.orderOut(nil)
         Log.lifecycle.notice("controller: stopped")
@@ -230,8 +241,10 @@ final class NotchWindowController {
                 // GOTCHA: @Published emits in willSet, so `stateMachine.state`
                 // is still the OLD value in here. Always use the `state`
                 // argument, never re-read the property.
+                // The poll keeps running in every state: it exists because
+                // the global monitor goes blind over our own window, which is
+                // exactly the open panel.
                 self.updateInteractivity(for: state)
-                self.hoverMonitor?.setPollingEnabled(state == .collapsed)
             }
             .store(in: &cancellables)
     }
@@ -342,10 +355,10 @@ final class NotchWindowController {
         latchedFileDrag = nil
         guard let active = activeFileDrag else { return }
         activeFileDrag = nil
-        let inside = stateMachine.layout.hitRegion(for: stateMachine.state, fileDrag: true).contains(location)
-        if inside {
-            NotificationCenter.default.post(name: .notchFileDropped, object: active.urls)
-        } else if active.inside {
+        // The drop itself is taken by AppKit/SwiftUI (`onDrop` in the panel and
+        // the shelf), the only path that knows which target it landed on.
+        // Here we only end the drag state this poll-side tracker started.
+        if active.inside {
             NotificationCenter.default.post(name: .notchFileDragExited, object: nil)
         }
     }
@@ -396,19 +409,20 @@ final class NotchWindowController {
             }
             .store(in: &cancellables)
 
-        DistributedNotificationCenter.default()
-            .addObserver(forName: Notification.Name("co.jianyuelab.NotchNotch.expand"), object: nil, queue: .main) { [weak self] _ in
-                self?.window?.setInteractive(true)
-                self?.stateMachine.expandImmediately()
-            }
-
-        DistributedNotificationCenter.default()
-            .addObserver(forName: Notification.Name("co.jianyuelab.NotchNotch.selectTab"), object: nil, queue: .main) { [weak self] notif in
-                self?.window?.setInteractive(true)
-                self?.stateMachine.expandImmediately()
-                let tab = (notif.object as? String) ?? (notif.userInfo?["tab"] as? String)
-                NotificationCenter.default.post(name: Notification.Name("co.jianyuelab.NotchNotch.selectTab"), object: tab)
-            }
+        // The distributed observers only forward onto the in-process center;
+        // the sinks above do the work, so each post is handled exactly once.
+        let center = DistributedNotificationCenter.default()
+        distributedObservers.append(center.addObserver(
+            forName: Notification.Name("co.jianyuelab.NotchNotch.expand"), object: nil, queue: .main
+        ) { _ in
+            NotificationCenter.default.post(name: Notification.Name("co.jianyuelab.NotchNotch.expand"), object: nil)
+        })
+        distributedObservers.append(center.addObserver(
+            forName: Notification.Name("co.jianyuelab.NotchNotch.selectTab"), object: nil, queue: .main
+        ) { notif in
+            let tab = (notif.object as? String) ?? (notif.userInfo?["tab"] as? String)
+            NotificationCenter.default.post(name: Notification.Name("co.jianyuelab.NotchNotch.selectTab"), object: tab)
+        })
     }
 }
 
@@ -421,9 +435,12 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
         let pboard = sender.draggingPasteboard
         if pboard.canReadObject(forClasses: [NSURL.self], options: nil) {
+            // `notchFileDragEntered` is posted by the controller's poll-side
+            // tracker, which sees the drag before AppKit does; not again here.
+            // Still forward to super so SwiftUI's `onDrop` targets see it.
             onFileDragEntered?()
-            NotificationCenter.default.post(name: .notchFileDragEntered, object: nil)
-            return .copy
+            let operation = super.draggingEntered(sender)
+            return operation.isEmpty ? .copy : operation
         }
         return super.draggingEntered(sender)
     }
@@ -431,7 +448,8 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
     override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
         let pboard = sender.draggingPasteboard
         if pboard.canReadObject(forClasses: [NSURL.self], options: nil) {
-            return .copy
+            let operation = super.draggingUpdated(sender)
+            return operation.isEmpty ? .copy : operation
         }
         return super.draggingUpdated(sender)
     }
@@ -439,7 +457,6 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
     override func draggingExited(_ sender: (any NSDraggingInfo)?) {
         super.draggingExited(sender)
         onFileDragExited?()
-        NotificationCenter.default.post(name: .notchFileDragExited, object: nil)
     }
 }
 

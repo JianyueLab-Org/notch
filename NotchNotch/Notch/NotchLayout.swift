@@ -127,7 +127,9 @@ nonisolated struct NotchLayout: Equatable, Sendable {
     }
 
     /// Hit target for the current state. A file drag uses the taller collapsed
-    /// region; once the panel is open both paths share the exit region.
+    /// region; while the panel is open both paths share the exit region.
+    /// `collapsing` uses the collapsed target, so only a return to the notch
+    /// cancels a close — not a pass through where the panel used to be.
     func hitRegion(for state: NotchState, fileDrag: Bool) -> CGRect {
         if state.usesExpandedHitRegion { return exitRegion }
         return fileDrag ? fileDragEnterRegion : enterRegion
@@ -150,7 +152,10 @@ nonisolated struct NotchLayout: Equatable, Sendable {
     /// mouse-moved to the same point, so the flag is already correct by the
     /// time the click arrives.
     func acceptsClick(at point: CGPoint, in state: NotchState, isShowingAlert: Bool = false) -> Bool {
-        if isShowingAlert && state == .collapsed {
+        // The alert bar replaces the body whenever the panel is not visibly
+        // expanded (collapsing included), so its ears must stay clickable for
+        // exactly as long as `NotchPanelView` draws them.
+        if isShowingAlert && !state.isVisiblyExpanded {
             return alertBarRect.insetBy(dx: -2, dy: -2).contains(point)
         }
         guard state != .collapsed else { return false }

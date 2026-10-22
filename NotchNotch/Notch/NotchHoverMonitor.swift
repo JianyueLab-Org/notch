@@ -14,10 +14,15 @@ final class NotchHoverMonitor {
 
     private var globalMonitor: Any?
     private var localMonitor: Any?
+    private var clickMonitor: Any?
     private var pollTimer: DispatchSourceTimer?
     private var activityToken: NSObjectProtocol?
 
     private let onMove: (CGPoint, Bool) -> Void
+
+    /// Mouse-downs that went to *other* apps — a global monitor never sees
+    /// clicks on our own window, so every call here is a click outside it.
+    var onClickOutside: ((CGPoint) -> Void)?
 
     /// The events worth watching. Drags are included so the panel still tracks
     /// the cursor while a file is being dragged around (Phase 2 needs that, and
@@ -25,6 +30,15 @@ final class NotchHoverMonitor {
     private static let mask: NSEvent.EventTypeMask = [
         .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
     ]
+
+    /// File drags are always left-button. Right/other drags still move the
+    /// cursor (so they stay in `mask`) but must not count as a drag, or the
+    /// event monitors and the poll — which can only see button state — would
+    /// disagree about the same gesture.
+    private static func isFileDragEvent(_ event: NSEvent) -> Bool {
+        event.type == .leftMouseDragged
+    }
+    nonisolated private static let fileDragButtonMask = 1 << 0
 
     init(onMove: @escaping (CGPoint, Bool) -> Void) {
         self.onMove = onMove
@@ -43,7 +57,7 @@ final class NotchHoverMonitor {
             // that rather than hopping, so a future AppKit change would trap
             // loudly here instead of racing silently.
             MainActor.assumeIsolated {
-                let isDragging = [.leftMouseDragged, .rightMouseDragged, .otherMouseDragged].contains(event.type)
+                let isDragging = Self.isFileDragEvent(event)
                 self?.deliverCurrentLocation(isDragging: isDragging)
             }
         }
@@ -53,10 +67,18 @@ final class NotchHoverMonitor {
         // cannot. Returning the event unchanged keeps normal dispatch intact.
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: Self.mask) { [weak self] event in
             MainActor.assumeIsolated {
-                let isDragging = [.leftMouseDragged, .rightMouseDragged, .otherMouseDragged].contains(event.type)
+                let isDragging = Self.isFileDragEvent(event)
                 self?.deliverCurrentLocation(isDragging: isDragging)
             }
             return event
+        }
+
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.onClickOutside?(NSEvent.mouseLocation)
+            }
         }
 
         startPolling()
@@ -66,8 +88,10 @@ final class NotchHoverMonitor {
     func stop() {
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }
+        if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
         globalMonitor = nil
         localMonitor = nil
+        clickMonitor = nil
         stopPolling()
         Log.hover.notice("hover: monitors removed")
     }
@@ -96,7 +120,7 @@ final class NotchHoverMonitor {
         timer.schedule(deadline: .now(), repeating: .milliseconds(intervalMs), leeway: .milliseconds(2))
         timer.setEventHandler { @Sendable [weak self, pollerState] in
             let loc = NSEvent.mouseLocation
-            let isDragging = (NSEvent.pressedMouseButtons & 1) != 0
+            let isDragging = (NSEvent.pressedMouseButtons & Self.fileDragButtonMask) != 0
             if abs(loc.x - pollerState.lastLoc.x) < 0.5 && abs(loc.y - pollerState.lastLoc.y) < 0.5 && isDragging == pollerState.lastDragging {
                 return
             }
@@ -117,14 +141,6 @@ final class NotchHoverMonitor {
         if let activityToken {
             ProcessInfo.processInfo.endActivity(activityToken)
             self.activityToken = nil
-        }
-    }
-
-    func setPollingEnabled(_ enabled: Bool) {
-        if enabled {
-            startPolling()
-        } else {
-            stopPolling()
         }
     }
 

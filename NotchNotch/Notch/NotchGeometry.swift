@@ -43,7 +43,6 @@ extension NotchGeometry {
     @MainActor
     static func preferredScreen() -> NSScreen? {
         NSScreen.screens.first(where: { $0.hasHardwareNotch })
-            ?? NSScreen.main
             ?? NSScreen.screens.first
     }
 
@@ -64,13 +63,19 @@ extension NotchGeometry {
         //
         // The notch is exactly the gap *between* those two rects, and its height
         // is the top safe-area inset.
+        //
+        // NSScreen.h does not say which space these rects are in (global, or
+        // local to the screen). Only their widths and the gap between them are
+        // used, which are the same in either space, and the left strip is
+        // anchored to `frame.minX` — so a notched display that is not the
+        // primary one (not at the global origin) still lands correctly.
         let insetTop = screen.safeAreaInsets.top
         if insetTop > 0,
            let left = screen.auxiliaryTopLeftArea,
            let right = screen.auxiliaryTopRightArea,
            right.minX > left.maxX {
 
-            let rect = CGRect(x: left.maxX,
+            let rect = CGRect(x: frame.minX + left.width,
                               y: frame.maxY - insetTop,
                               width: right.minX - left.maxX,
                               height: insetTop)

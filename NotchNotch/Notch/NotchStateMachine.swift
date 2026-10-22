@@ -36,9 +36,11 @@ nonisolated enum NotchState: String, Equatable, Sendable, CaseIterable {
     }
 
     /// Once expanded, hysteresis switches hit-testing from the small notch
-    /// rect to the large panel rect.
+    /// rect to the large panel rect. Not while collapsing: the cursor has
+    /// already left, and sweeping back across the shrinking panel must not
+    /// reopen it.
     var usesExpandedHitRegion: Bool {
-        self != .collapsed
+        isVisiblyExpanded
     }
 }
 
@@ -59,6 +61,18 @@ final class NotchStateMachine: ObservableObject {
     /// Dwell confirmation before an expand actually starts.
     private var expandDwellTask: Task<Void, Never>?
 
+    /// Set by `expandImmediately()`. A forced open usually happens with the
+    /// cursor nowhere near the notch (menu item, notification), so the normal
+    /// "pointer is outside → close" rule would shut it on the next mouse move.
+    /// Pinned, the panel ignores the outside rule until the cursor has been
+    /// inside once, or a click outside / a toggle closes it.
+    private(set) var isPinnedOpen = false
+
+    /// Last position fed to `pointerMoved`, so a dwell can re-check it when it
+    /// fires instead of trusting where the cursor was when it started.
+    private var lastPointer: CGPoint?
+    private var lastPointerIsFileDrag = false
+
     init(layout: NotchLayout) {
         self.layout = layout
     }
@@ -76,6 +90,8 @@ final class NotchStateMachine: ObservableObject {
     /// `fileDrag` selects the taller collapsed target; it does not open the
     /// panel by itself when the pointer is outside that target.
     func pointerMoved(to location: CGPoint, fileDrag: Bool = false) {
+        lastPointer = location
+        lastPointerIsFileDrag = fileDrag
         let region = layout.hitRegion(for: state, fileDrag: fileDrag)
         if region.contains(location) {
             pointerIsInside(fileDrag: fileDrag)
@@ -84,9 +100,19 @@ final class NotchStateMachine: ObservableObject {
         }
     }
 
+    /// A mouse-down that went to another app. Only matters while pinned: an
+    /// unpinned panel already closes when the cursor leaves it.
+    func clickedOutside(at location: CGPoint) {
+        guard isPinnedOpen, !layout.exitRegion.contains(location) else { return }
+        isPinnedOpen = false
+        cancelPendingWork()
+        beginCollapse()
+    }
+
     /// Force the panel shut — display reconfiguration, app shutdown, etc.
     func collapseImmediately() {
         cancelPendingWork()
+        isPinnedOpen = false
         guard state != .collapsed else { return }
         Log.state.notice("state: \(self.state.rawValue, privacy: .public) -> collapsed (forced)")
         withAnimation(NotchConfiguration.collapseAnimation) {
@@ -97,6 +123,8 @@ final class NotchStateMachine: ObservableObject {
     /// Force the panel open — menu bar toggle, hotkey, etc.
     func expandImmediately() {
         cancelPendingWork()
+        // Already inside: nothing to protect against, so do not pin.
+        isPinnedOpen = !(lastPointer.map { layout.exitRegion.contains($0) } ?? false)
         guard state != .expanded else { return }
         print("[NotchNotch] ⚡️ Forced expand! (\(state.rawValue) -> expanded)")
         Log.state.notice("state: \(self.state.rawValue, privacy: .public) -> expanded (forced)")
@@ -133,6 +161,13 @@ final class NotchStateMachine: ObservableObject {
                 try? await Task.sleep(for: NotchConfiguration.hoverExpandDwellDelay)
                 guard !Task.isCancelled, let self else { return }
                 self.expandDwellTask = nil
+                // Re-validate on fire: the state may have moved on (a collapse
+                // settling) and the cursor may have left without an outside
+                // event reaching us in between.
+                guard !self.state.isVisiblyExpanded,
+                      let pointer = self.lastPointer,
+                      self.layout.hitRegion(for: self.state, fileDrag: self.lastPointerIsFileDrag).contains(pointer)
+                else { return }
                 print("[NotchNotch] 🎯 Pointer dwelled in notch region! Expanding... (\(self.state.rawValue) -> expanding)")
                 fflush(stdout)
                 self.transition(to: .expanding, animation: NotchConfiguration.expandAnimation)
@@ -143,6 +178,9 @@ final class NotchStateMachine: ObservableObject {
                 expandDwellTask?.cancel()
                 expandDwellTask = nil
             }
+            // The cursor has reached the panel; from here on it closes the
+            // normal way.
+            isPinnedOpen = false
         }
     }
 
@@ -151,6 +189,7 @@ final class NotchStateMachine: ObservableObject {
             expandDwellTask?.cancel()
             expandDwellTask = nil
         }
+        guard !isPinnedOpen else { return }
 
         switch state {
         case .collapsed, .collapsing:

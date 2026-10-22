@@ -61,21 +61,18 @@ struct NotchPanelView: View {
 
     private var hudBarHeight: CGFloat { machine.layout.alertBarHeight }
 
-    private var isAgentActive: Bool {
-        agentController.isWorking || agentController.isWaiting
-    }
-
     private var isWeatherActive: Bool {
         weather.isEnabled && weather.showInEars && (weather.currentSnapshot != nil)
     }
 
+    /// Read from the layout rather than recomputed here, so the painted body
+    /// and the hit regions always agree on whether the ears are showing.
     private var hasLiveActivity: Bool {
-        isMusicPlaying || schedule.hasActiveEvent || isAgentActive || isWeatherActive
+        machine.layout.hasLiveActivity
     }
 
     private var collapsedWidth: CGFloat {
-        let notchWidth = machine.layout.geometry.notchRect.width
-        return hasLiveActivity ? notchWidth + NotchConfiguration.compactWidthExtension : notchWidth
+        machine.layout.collapsedSize.width
     }
 
     private var bodySize: CGSize {
@@ -131,18 +128,6 @@ struct NotchPanelView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .notchFileDragExited)) { _ in
             isDraggingFile = false
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .notchFileDropped)) { notif in
-            isDraggingFile = false
-            if let urls = notif.object as? [URL], !urls.isEmpty {
-                shelf.addURLs(urls)
-                withAnimation(.easeInOut(duration: 0.12)) {
-                    activeTab = .shelf
-                }
-                if !machine.state.isVisiblyExpanded {
-                    machine.expandImmediately()
-                }
-            }
         }
         .onChange(of: isDraggingFile) { isDragging in
             if isDragging {
