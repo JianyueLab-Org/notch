@@ -56,17 +56,22 @@ public struct HourlyForecastItem: Codable, Equatable, Identifiable, Sendable {
     public let temperature: Double
     public let weatherCode: Int
     public let precipitationProbability: Int
+    /// Open-Meteo's sunrise/sunset-based flag. Optional so snapshots cached before it
+    /// was requested still decode.
+    public let isDaytime: Bool?
 
     public init(
         time: Date,
         temperature: Double,
         weatherCode: Int,
-        precipitationProbability: Int
+        precipitationProbability: Int,
+        isDaytime: Bool? = nil
     ) {
         self.time = time
         self.temperature = temperature
         self.weatherCode = weatherCode
         self.precipitationProbability = precipitationProbability
+        self.isDaytime = isDaytime
     }
 }
 
@@ -81,6 +86,12 @@ public struct WeatherSnapshot: Codable, Equatable, Sendable {
     public let cityName: String
     public let lastUpdated: Date
     public let isDaytime: Bool
+    /// The forecast location's zone, not the Mac's. Optional for older cached snapshots.
+    public let timeZoneIdentifier: String?
+
+    public var timeZone: TimeZone? {
+        timeZoneIdentifier.flatMap(TimeZone.init(identifier:))
+    }
 
     public init(
         temperature: Double,
@@ -92,7 +103,8 @@ public struct WeatherSnapshot: Codable, Equatable, Sendable {
         hourlyForecast: [HourlyForecastItem],
         cityName: String,
         lastUpdated: Date,
-        isDaytime: Bool
+        isDaytime: Bool,
+        timeZoneIdentifier: String? = nil
     ) {
         self.temperature = temperature
         self.apparentTemperature = apparentTemperature
@@ -104,6 +116,7 @@ public struct WeatherSnapshot: Codable, Equatable, Sendable {
         self.cityName = cityName
         self.lastUpdated = lastUpdated
         self.isDaytime = isDaytime
+        self.timeZoneIdentifier = timeZoneIdentifier
     }
 }
 

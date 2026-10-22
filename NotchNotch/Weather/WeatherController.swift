@@ -83,7 +83,7 @@ public final class WeatherController: ObservableObject {
             guard locationMode != oldValue else { return }
             defaults.set(locationMode.rawValue, forKey: Keys.weatherLocationMode)
             if isEnabled {
-                refresh()
+                refresh(restart: true)
             }
         }
     }
@@ -121,11 +121,6 @@ public final class WeatherController: ObservableObject {
         return WMOCodeHelper.symbolName(for: snapshot.weatherCode, isDaytime: snapshot.isDaytime)
     }
 
-    public var currentConditionDescription: String {
-        guard let snapshot = currentSnapshot else { return "暂无天气信息" }
-        return WMOCodeHelper.description(for: snapshot.weatherCode)
-    }
-
     // MARK: - Private Properties
 
     private let locationService: LocationService
@@ -137,6 +132,9 @@ public final class WeatherController: ObservableObject {
     private var authorizationCancellable: AnyCancellable?
     private(set) var isStarted: Bool = false
     private var currentRefreshTask: Task<Void, Never>?
+    /// Bumped per refresh so a superseded task, finishing after its replacement has
+    /// started, cannot clear the replacement's loading state or report its error.
+    private var refreshGeneration: Int = 0
 
     // MARK: - Initialization
 
@@ -225,19 +223,23 @@ public final class WeatherController: ObservableObject {
 
     // MARK: - Refresh Logic
 
-    public func refresh() {
-        _ = refreshTask()
+    /// `restart` is for settings changes: the in-flight task captured the old city or
+    /// mode, so joining it would leave the stale result up until the next timer tick.
+    public func refresh(restart: Bool = false) {
+        _ = refreshTask(restart: restart)
     }
 
     @discardableResult
-    public func refreshTask() -> Task<Void, Never>? {
+    public func refreshTask(restart: Bool = false) -> Task<Void, Never>? {
         guard isEnabled else { return nil }
-        if isLoading, let current = currentRefreshTask {
-            return current
+        if let current = currentRefreshTask {
+            guard restart else { return current }
+            current.cancel()
         }
-        guard !isLoading else { return nil }
         isLoading = true
         lastError = nil
+        refreshGeneration += 1
+        let generation = refreshGeneration
 
         let mode = locationMode
         let city = customCity
@@ -245,8 +247,10 @@ public final class WeatherController: ObservableObject {
         let task = Task { @MainActor [weak self] in
             guard let self = self else { return }
             defer {
-                self.isLoading = false
-                self.currentRefreshTask = nil
+                if self.refreshGeneration == generation {
+                    self.isLoading = false
+                    self.currentRefreshTask = nil
+                }
             }
 
             do {
@@ -264,9 +268,10 @@ public final class WeatherController: ObservableObject {
                     self.defaults.set(data, forKey: Keys.weatherCachedSnapshot)
                 }
                 self.lastError = nil
-            } catch is CancellationError {
+            } catch where error.isCancellation {
                 // Task was cancelled, leave state untouched
             } catch {
+                guard self.refreshGeneration == generation else { return }
                 self.lastError = error.localizedDescription
             }
         }
@@ -302,7 +307,7 @@ public final class WeatherController: ObservableObject {
         let trimmed = city.trimmingCharacters(in: .whitespacesAndNewlines)
         self.customCity = trimmed
         if isEnabled {
-            refresh()
+            refresh(restart: true)
         }
     }
 
@@ -391,14 +396,8 @@ public final class WeatherController: ObservableObject {
                     self.isLocationPermissionDenied = GPSLocationProvider.shared.isDenied
                     guard self.isEnabled, self.locationMode == .auto else { return }
                     // The refresh that triggered the prompt has already settled for the IP
-                    // fallback; let it finish before starting the one that supersedes it,
-                    // because `refreshTask()` hands back the in-flight task instead of
-                    // queueing a second one.
-                    if let inFlight = self.currentRefreshTask {
-                        inFlight.cancel()
-                        await inFlight.value
-                    }
-                    self.refresh()
+                    // fallback; supersede it rather than join it.
+                    self.refresh(restart: true)
                 }
             }
     }

@@ -24,6 +24,16 @@ struct WeatherCardView: View {
         return formatter
     }()
 
+    /// Hourly labels read in the forecast location's clock, not the Mac's: a city
+    /// abroad should show its own 09:00, not the Mac's wall time at that instant.
+    private static func hourLabel(for date: Date, in timeZone: TimeZone?) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "HH:mm"
+        formatter.timeZone = timeZone ?? .current
+        return formatter.string(from: date)
+    }
+
     var body: some View {
         Group {
             if let snapshot = weather.currentSnapshot {
@@ -267,7 +277,7 @@ struct WeatherCardView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 12) {
                     ForEach(Array(snapshot.hourlyForecast.enumerated()), id: \.element.id) { index, item in
-                        hourlyColumn(item: item, isFirst: index == 0)
+                        hourlyColumn(item: item, isFirst: index == 0, timeZone: snapshot.timeZone)
                     }
                 }
                 .padding(.horizontal, 2)
@@ -282,13 +292,13 @@ struct WeatherCardView: View {
 
     // MARK: - Hourly Item Column
 
-    private func hourlyColumn(item: HourlyForecastItem, isFirst: Bool) -> some View {
-        let isDay = isDaytime(for: item.time)
+    private func hourlyColumn(item: HourlyForecastItem, isFirst: Bool, timeZone: TimeZone?) -> some View {
+        let isDay = item.isDaytime ?? isDaytime(for: item.time, in: timeZone)
         let symbolName = WMOCodeHelper.symbolName(for: item.weatherCode, isDaytime: isDay)
         let color = weatherSymbolColor(for: item.weatherCode, isDaytime: isDay)
 
         return VStack(spacing: 4) {
-            Text(isFirst ? L10n.tr(.weatherNow) : Self.timeFormatter.string(from: item.time))
+            Text(isFirst ? L10n.tr(.weatherNow) : Self.hourLabel(for: item.time, in: timeZone))
                 .font(.system(size: 11, weight: isFirst ? .bold : .medium, design: .rounded))
                 .foregroundStyle(isFirst ? JYLTheme.primary : JYLTheme.textSecondary)
                 .lineLimit(1)
@@ -352,8 +362,11 @@ struct WeatherCardView: View {
         return L10n.tr(.weatherUpdatedAt, Self.timeFormatter.string(from: date))
     }
 
-    private func isDaytime(for date: Date) -> Bool {
-        let hour = Calendar.current.component(.hour, from: date)
+    /// Fallback for cached snapshots without Open-Meteo's sunrise-based `is_day` flag.
+    private func isDaytime(for date: Date, in timeZone: TimeZone?) -> Bool {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone ?? .current
+        let hour = calendar.component(.hour, from: date)
         return hour >= 6 && hour < 18
     }
 

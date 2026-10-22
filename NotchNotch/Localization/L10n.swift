@@ -29,6 +29,7 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case weatherErrorStatus
     case weatherErrorDecoding
     case weatherErrorNetwork
+    case weatherErrorInvalidHTTPResponse
 
     // MARK: - Media Player Card
     case mediaNotPlaying
@@ -60,6 +61,8 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case scheduleToday
     case scheduleUntitled
     case scheduleAllClear
+    case scheduleCalendarLabel
+    case scheduleNotAuthorized
     case scheduleDurationMinutes
     case scheduleDurationHours
     case scheduleDurationHoursMinutes
@@ -71,6 +74,7 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case shelfRevealInFinder
     case shelfAirDrop
     case shelfItemsCount
+    case shelfFolderItemCount
 
     // MARK: - Clipboard History
     case clipboardEmptyTitle
@@ -201,6 +205,7 @@ public struct L10n {
         .weatherErrorStatus: "天气服务响应异常（状态码：%d）",
         .weatherErrorDecoding: "解析天气数据失败：%@",
         .weatherErrorNetwork: "网络请求失败：%@",
+        .weatherErrorInvalidHTTPResponse: "未能获取有效的 HTTP 响应",
 
         // Media Player
         .mediaNotPlaying: "未在播放媒体",
@@ -232,6 +237,8 @@ public struct L10n {
         .scheduleToday: "今天",
         .scheduleUntitled: "未命名日程",
         .scheduleAllClear: "今天没有了",
+        .scheduleCalendarLabel: "日历",
+        .scheduleNotAuthorized: "未授权",
         .scheduleDurationMinutes: "%d分",
         .scheduleDurationHours: "%d小时",
         .scheduleDurationHoursMinutes: "%d小时 %d分",
@@ -243,6 +250,7 @@ public struct L10n {
         .shelfRevealInFinder: "在访达中显示",
         .shelfAirDrop: "隔空投送",
         .shelfItemsCount: "%d 项文件",
+        .shelfFolderItemCount: "%d 项",
 
         // Clipboard
         .clipboardEmptyTitle: "剪贴板历史为空",
@@ -371,6 +379,7 @@ public struct L10n {
         .weatherErrorStatus: "Weather service error (status %d)",
         .weatherErrorDecoding: "Could not read the weather data: %@",
         .weatherErrorNetwork: "Network request failed: %@",
+        .weatherErrorInvalidHTTPResponse: "No valid HTTP response",
 
         // Media Player
         .mediaNotPlaying: "Not Playing",
@@ -402,6 +411,8 @@ public struct L10n {
         .scheduleToday: "today",
         .scheduleUntitled: "Untitled Event",
         .scheduleAllClear: "All Clear",
+        .scheduleCalendarLabel: "Calendar",
+        .scheduleNotAuthorized: "not authorized",
         .scheduleDurationMinutes: "%dm",
         .scheduleDurationHours: "%dhr",
         .scheduleDurationHoursMinutes: "%dhr %dm",
@@ -413,6 +424,7 @@ public struct L10n {
         .shelfRevealInFinder: "Reveal in Finder",
         .shelfAirDrop: "AirDrop",
         .shelfItemsCount: "%d items",
+        .shelfFolderItemCount: "%d items",
 
         // Clipboard
         .clipboardEmptyTitle: "Clipboard history is empty",

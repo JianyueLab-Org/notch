@@ -17,7 +17,9 @@ final class ShelfController: ObservableObject {
     @Published private(set) var items: [ShelfItem] = []
     @Published var isTargeted: Bool = false
 
-    private static let persistenceKey = "co.jianyuelab.NotchNotch.shelfPaths"
+    private static let persistenceKey = "co.jianyuelab.NotchNotch.shelfBookmarks"
+    /// Pre-bookmark storage; read once to migrate, then removed.
+    private static let legacyPathsKey = "co.jianyuelab.NotchNotch.shelfPaths"
 
     init() {
         loadPersisted()
@@ -34,6 +36,10 @@ final class ShelfController: ObservableObject {
                 continue
             }
             newItems.insert(ShelfItem(url: standard), at: 0)
+        }
+        // Newest first, so the cap drops the oldest staged items.
+        if newItems.count > NotchConfiguration.shelfMaxItems {
+            newItems = Array(newItems.prefix(NotchConfiguration.shelfMaxItems))
         }
 
         if newItems != items {
@@ -68,16 +74,37 @@ final class ShelfController: ObservableObject {
     // MARK: - Persistence
 
     private func loadPersisted() {
-        guard let savedPaths = UserDefaults.standard.stringArray(forKey: Self.persistenceKey) else { return }
-        let loaded = savedPaths.compactMap { path -> ShelfItem? in
-            guard FileManager.default.fileExists(atPath: path) else { return nil }
-            return ShelfItem(url: URL(fileURLWithPath: path))
+        let defaults = UserDefaults.standard
+        if let bookmarks = defaults.array(forKey: Self.persistenceKey) as? [Data] {
+            var needsSave = false
+            items = bookmarks.compactMap { data -> ShelfItem? in
+                var isStale = false
+                guard let url = try? URL(
+                    resolvingBookmarkData: data,
+                    options: [.withoutUI, .withoutMounting],
+                    relativeTo: nil,
+                    bookmarkDataIsStale: &isStale
+                ), FileManager.default.fileExists(atPath: url.path) else {
+                    needsSave = true
+                    return nil
+                }
+                // A stale bookmark still resolved; re-mint it so the next launch does too.
+                if isStale { needsSave = true }
+                return ShelfItem(url: url, bookmark: isStale ? nil : data)
+            }
+            if needsSave { savePersisted() }
+        } else if let savedPaths = defaults.stringArray(forKey: Self.legacyPathsKey) {
+            items = savedPaths.compactMap { path -> ShelfItem? in
+                guard FileManager.default.fileExists(atPath: path) else { return nil }
+                return ShelfItem(url: URL(fileURLWithPath: path))
+            }
+            savePersisted()
+            defaults.removeObject(forKey: Self.legacyPathsKey)
         }
-        items = loaded
     }
 
     private func savePersisted() {
-        let paths = items.map { $0.url.path }
-        UserDefaults.standard.set(paths, forKey: Self.persistenceKey)
+        let bookmarks = items.compactMap(\.bookmark)
+        UserDefaults.standard.set(bookmarks, forKey: Self.persistenceKey)
     }
 }

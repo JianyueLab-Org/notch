@@ -51,7 +51,13 @@ enum ScheduleAlertType: Equatable {
 }
 
 actor CalendarReader {
-    private let eventStore = EKEventStore()
+    private var eventStore = EKEventStore()
+
+    /// A store created before access was granted keeps returning no events, so it is
+    /// replaced when access is granted while the app is running.
+    func resetStore() {
+        eventStore = EKEventStore()
+    }
 
     func fetchEvents(start: Date, end: Date) -> [EventSnapshot] {
         let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: nil)
@@ -236,8 +242,8 @@ final class ScheduleController: ObservableObject {
         hasActiveEvent = false
         currentEventTitle = "Calendar Access Required"
         currentEventStatus = "Enable in System Settings > Privacy"
-        nextEventTitle = "Calendar"
-        nextEventTime = "not authorized"
+        nextEventTitle = L10n.tr(.scheduleCalendarLabel)
+        nextEventTime = L10n.tr(.scheduleNotAuthorized)
     }
 
     private func fetchEvents() {
@@ -261,6 +267,11 @@ final class ScheduleController: ObservableObject {
         }
         #endif
 
+        // Access granted in System Settings while we were running: drop the demo
+        // ruler and the store that was created without access.
+        let accessJustGranted = !isAuthorized
+        isAuthorized = true
+
         let now = Date()
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: now)
@@ -269,6 +280,9 @@ final class ScheduleController: ObservableObject {
         // Offload database query to background CalendarReader actor so main thread 120fps animations are never hitched
         Task { [weak self] in
             guard let self else { return }
+            if accessJustGranted {
+                await self.reader.resetStore()
+            }
             let snapshots = await self.reader.fetchEvents(start: startOfDay, end: endOfDay)
             self.processEvents(snapshots, now: now, endOfDay: endOfDay)
         }

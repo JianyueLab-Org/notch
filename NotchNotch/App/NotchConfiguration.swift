@@ -121,6 +121,14 @@ nonisolated enum NotchConfiguration {
     /// Slower still while we are just waiting for the user to grant access.
     static let accessibilityAuthorizationPollInterval: Duration = .seconds(3)
 
+    // MARK: - Clipboard & Shelf
+
+    /// Larger copies are not recorded: every copy rewrites the whole history file.
+    static let clipboardMaxItemBytes = 256 * 1024
+
+    /// Oldest staged files are dropped beyond this.
+    static let shelfMaxItems = 30
+
     // MARK: - Agent harness
 
     /// A hook session with no event for this long is dropped, live pid or not.

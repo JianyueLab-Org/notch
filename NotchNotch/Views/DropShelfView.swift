@@ -148,7 +148,8 @@ struct DropShelfView: View {
                 .truncationMode(.middle)
                 .frame(width: 60)
 
-            Text(item.formattedSize)
+            // A blank line rather than nothing, so package tiles keep the same height.
+            Text(item.formattedSize ?? " ")
                 .font(.system(size: 8, weight: .regular, design: .monospaced))
                 .foregroundStyle(JYLTheme.textMuted)
         }

@@ -93,6 +93,8 @@ public final class LocationService: @unchecked Sendable {
                 Log.location.info("Auto location resolved by CoreLocation")
                 return resolved
             } catch {
+                // A superseded refresh must not go on to burn an IP lookup.
+                if error.isCancellation || Task.isCancelled { throw CancellationError() }
                 Log.location.info("CoreLocation unavailable, falling back to IP geolocation")
                 return try await fallbackIPLocation()
             }
@@ -115,6 +117,7 @@ public final class LocationService: @unchecked Sendable {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            if error.isCancellation || Task.isCancelled { throw CancellationError() }
             throw LocationError.networkError(error.localizedDescription)
         }
 
@@ -148,10 +151,12 @@ public final class LocationService: @unchecked Sendable {
             return primary
         }
 
+        try Task.checkCancellation()
         if let secondary = await querySecondaryIPApi() {
             return secondary
         }
 
+        try Task.checkCancellation()
         Log.location.error("Every IP geolocation provider failed")
         throw LocationError.locationUnavailable
     }
