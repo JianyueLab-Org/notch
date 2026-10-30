@@ -14,24 +14,26 @@ struct EventSnapshot: Sendable {
     let title: String?
     let startDate: Date
     let endDate: Date
+    /// Colour of the owning calendar as set in Calendar.app; nil when EventKit has none.
+    let calendarColor: Color?
 }
 
 enum ScheduleAlertType: Equatable {
-    case startsSoon(title: String, date: Date, minutes: Int = 10)
-    case endsSoon(title: String, date: Date, minutes: Int = 10)
+    case startsSoon(title: String, date: Date, minutes: Int = 10, calendarColor: Color? = nil)
+    case endsSoon(title: String, date: Date, minutes: Int = 10, calendarColor: Color? = nil)
 
     var title: String {
         switch self {
-        case .startsSoon(let title, _, _): return title
-        case .endsSoon(let title, _, _): return title
+        case .startsSoon(let title, _, _, _): return title
+        case .endsSoon(let title, _, _, _): return title
         }
     }
 
     @MainActor
     var badgeText: String {
         switch self {
-        case .startsSoon(_, _, let minutes): return L10n.tr(.scheduleStartsInBadge, minutes)
-        case .endsSoon(_, _, let minutes): return L10n.tr(.scheduleEndsInBadge, minutes)
+        case .startsSoon(_, _, let minutes, _): return L10n.tr(.scheduleStartsInBadge, minutes)
+        case .endsSoon(_, _, let minutes, _): return L10n.tr(.scheduleEndsInBadge, minutes)
         }
     }
 
@@ -42,10 +44,19 @@ enum ScheduleAlertType: Equatable {
         }
     }
 
+    /// Urgency tint for the badge: amber before a start, red before an end.
     var tintColor: Color {
         switch self {
         case .startsSoon: return Color(red: 0.98, green: 0.65, blue: 0.16)
         case .endsSoon: return Color(red: 0.95, green: 0.35, blue: 0.35)
+        }
+    }
+
+    /// The event's calendar colour, falling back to the urgency tint.
+    var iconColor: Color {
+        switch self {
+        case .startsSoon(_, _, _, let color), .endsSoon(_, _, _, let color):
+            return color ?? tintColor
         }
     }
 }
@@ -64,7 +75,21 @@ actor CalendarReader {
         return eventStore.events(matching: predicate)
             .filter { !$0.isAllDay && $0.status != .canceled }
             .sorted { $0.startDate < $1.startDate }
-            .map { EventSnapshot(title: $0.title, startDate: $0.startDate, endDate: $0.endDate) }
+            .map {
+                EventSnapshot(
+                    title: $0.title,
+                    startDate: $0.startDate,
+                    endDate: $0.endDate,
+                    calendarColor: Self.color(of: $0.calendar)
+                )
+            }
+    }
+
+    /// NSColor is not Sendable, so the colour is flattened to sRGB components
+    /// before it leaves the actor.
+    private static func color(of calendar: EKCalendar?) -> Color? {
+        guard let rgb = calendar?.color?.usingColorSpace(.sRGB) else { return nil }
+        return Color(.sRGB, red: rgb.redComponent, green: rgb.greenComponent, blue: rgb.blueComponent)
     }
 
     func requestFullAccess() async -> Bool {
@@ -108,6 +133,10 @@ final class ScheduleController: ObservableObject {
     @Published var currentEventEndDate: Date?
     @Published var nextEventStartDate: Date?
     @Published var nextEventEndDate: Date?
+
+    /// Calendar colours of the events behind the currentEvent* / nextEvent* fields.
+    @Published var currentEventColor: Color = JYLTheme.primary
+    @Published var nextEventColor: Color = JYLTheme.primary
 
     // Schedule Reminders & Alert banner:
     @Published var activeAlert: ScheduleAlertType? = nil
@@ -240,6 +269,8 @@ final class ScheduleController: ObservableObject {
     private func handlePermissionDenied() {
         isAuthorized = false
         hasActiveEvent = false
+        currentEventColor = JYLTheme.primary
+        nextEventColor = JYLTheme.primary
         currentEventTitle = "Calendar Access Required"
         currentEventStatus = "Enable in System Settings > Privacy"
         nextEventTitle = L10n.tr(.scheduleCalendarLabel)
@@ -304,6 +335,7 @@ final class ScheduleController: ObservableObject {
             currentEventTitle = current.title ?? L10n.tr(.scheduleUntitled)
             currentEventStartDate = current.startDate
             currentEventEndDate = current.endDate
+            currentEventColor = current.calendarColor ?? JYLTheme.primary
 
             let total = current.endDate.timeIntervalSince(current.startDate)
             let elapsed = now.timeIntervalSince(current.startDate)
@@ -329,6 +361,7 @@ final class ScheduleController: ObservableObject {
                 nextEventTitle = nextEvent.title ?? L10n.tr(.scheduleUntitled)
                 nextEventStartDate = nextEvent.startDate
                 nextEventEndDate = nextEvent.endDate
+                nextEventColor = nextEvent.calendarColor ?? JYLTheme.primary
                 let until = max(0, nextEvent.startDate.timeIntervalSince(now))
                 nextEventTime = L10n.tr(.scheduleInDuration, formatDuration(until))
             } else {
@@ -336,6 +369,7 @@ final class ScheduleController: ObservableObject {
                 nextEventTime = L10n.tr(.scheduleToday)
                 nextEventStartDate = nil
                 nextEventEndDate = nil
+                nextEventColor = JYLTheme.primary
             }
         } else if let next {
             hasActiveEvent = false
@@ -343,6 +377,7 @@ final class ScheduleController: ObservableObject {
             currentEventTitle = next.title ?? L10n.tr(.scheduleUntitled)
             currentEventStartDate = next.startDate
             currentEventEndDate = next.endDate
+            currentEventColor = next.calendarColor ?? JYLTheme.primary
 
             let until = max(0, next.startDate.timeIntervalSince(now))
             currentEventStatus = L10n.tr(.scheduleStartsAt, formatDuration(until), formatClock(next.startDate))
@@ -361,6 +396,7 @@ final class ScheduleController: ObservableObject {
                 nextEventTitle = after.title ?? L10n.tr(.scheduleUntitled)
                 nextEventStartDate = after.startDate
                 nextEventEndDate = after.endDate
+                nextEventColor = after.calendarColor ?? JYLTheme.primary
                 let afterUntil = max(0, after.startDate.timeIntervalSince(now))
                 nextEventTime = L10n.tr(.scheduleInDuration, formatDuration(afterUntil))
             } else {
@@ -368,6 +404,7 @@ final class ScheduleController: ObservableObject {
                 nextEventTime = L10n.tr(.scheduleToday)
                 nextEventStartDate = nil
                 nextEventEndDate = nil
+                nextEventColor = JYLTheme.primary
             }
         } else {
             hasActiveEvent = false
@@ -381,6 +418,8 @@ final class ScheduleController: ObservableObject {
             currentEventEndDate = nil
             nextEventStartDate = nil
             nextEventEndDate = nil
+            currentEventColor = JYLTheme.primary
+            nextEventColor = JYLTheme.primary
         }
 
         if isReminderEnabled {
@@ -457,7 +496,7 @@ final class ScheduleController: ObservableObject {
                     if !sentReminderKeys.contains(key) {
                         sentReminderKeys.insert(key)
                         let minutesLeft = max(1, Int((startDiff / 60).rounded(.up)))
-                        triggerAlert(.startsSoon(title: title, date: event.startDate, minutes: minutesLeft))
+                        triggerAlert(.startsSoon(title: title, date: event.startDate, minutes: minutesLeft, calendarColor: event.calendarColor))
                         break
                     }
                 }
@@ -471,7 +510,7 @@ final class ScheduleController: ObservableObject {
                     if !sentReminderKeys.contains(key) {
                         sentReminderKeys.insert(key)
                         let minutesLeft = max(1, Int((endDiff / 60).rounded(.up)))
-                        triggerAlert(.endsSoon(title: title, date: event.endDate, minutes: minutesLeft))
+                        triggerAlert(.endsSoon(title: title, date: event.endDate, minutes: minutesLeft, calendarColor: event.calendarColor))
                         break
                     }
                 }

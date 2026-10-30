@@ -318,11 +318,11 @@ struct NotchPanelView: View {
         } else if schedule.hasActiveEvent {
             ZStack {
                 RoundedRectangle(cornerRadius: 6.5, style: .continuous)
-                    .fill(JYLTheme.primaryMuted)
+                    .fill(schedule.currentEventColor.opacity(0.16))
                     .frame(width: 22, height: 22)
                 Image(systemName: "calendar")
                     .font(.system(size: 12.5, weight: .bold))
-                    .foregroundStyle(JYLTheme.primary)
+                    .foregroundStyle(schedule.currentEventColor)
             }
         } else if isWeatherActive, let _ = weather.currentSnapshot {
             ZStack {
@@ -393,11 +393,11 @@ struct NotchPanelView: View {
         } else if schedule.hasActiveEvent {
             ZStack {
                 Circle()
-                    .stroke(JYLTheme.primaryMuted, lineWidth: 3.2)
+                    .stroke(schedule.currentEventColor.opacity(0.16), lineWidth: 3.2)
                     .frame(width: 20, height: 20)
                 Circle()
                     .trim(from: 0, to: max(0.04, min(1.0, schedule.progress)))
-                    .stroke(JYLTheme.primary, style: StrokeStyle(lineWidth: 3.2, lineCap: .round))
+                    .stroke(schedule.currentEventColor, style: StrokeStyle(lineWidth: 3.2, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .frame(width: 20, height: 20)
             }
@@ -422,7 +422,7 @@ struct NotchPanelView: View {
             HStack(spacing: 7) {
                 Image(systemName: alert.iconName)
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(alert.tintColor)
+                    .foregroundStyle(alert.iconColor)
                     .frame(width: 18)
 
                 Text(alert.title)

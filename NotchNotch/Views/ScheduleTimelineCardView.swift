@@ -2,9 +2,9 @@
 //  ScheduleTimelineCardView.swift
 //  NotchNotch
 //
-//  Schedule card with custom orange tick ruler gauge and upcoming event status.
-//  Matches benchmark layout: event-specific orange capsules, -15m/+15m/+45m markers,
-//  and right-aligned countdown footer.
+//  Schedule card with a tick ruler gauge and upcoming event status.
+//  Event capsules, their ticks and the next-event marker take the colour of the
+//  event's calendar; -15m/+15m/+45m markers and a right-aligned countdown footer.
 //
 
 import SwiftUI
@@ -90,6 +90,9 @@ struct ScheduleTimelineCardView: View {
             let nextEndX = width * nextEndFrac
             let hasNextCapsule = nextEndX > nextStartX + 6
 
+            let activeColor = schedule.currentEventColor
+            let nextColor = schedule.nextEventColor
+
             ZStack(alignment: .leading) {
                 // Background ticks + event capsules
                 Canvas { context, size in
@@ -105,8 +108,8 @@ struct ScheduleTimelineCardView: View {
                             height: h - 2.0
                         )
                         let path = Path(roundedRect: capsuleRect, cornerRadius: (h - 2.0) / 2)
-                        context.fill(path, with: .color(JYLTheme.primaryMuted.opacity(0.85)))
-                        context.stroke(path, with: .color(JYLTheme.primary), lineWidth: 1.2)
+                        context.fill(path, with: .color(activeColor.opacity(0.16 * 0.85)))
+                        context.stroke(path, with: .color(activeColor), lineWidth: 1.2)
                     }
 
                     // 2. Draw Next Event Capsule if present
@@ -118,8 +121,8 @@ struct ScheduleTimelineCardView: View {
                             height: h - 2.0
                         )
                         let path = Path(roundedRect: capsuleRect, cornerRadius: (h - 2.0) / 2)
-                        context.fill(path, with: .color(JYLTheme.primaryMuted.opacity(0.85)))
-                        context.stroke(path, with: .color(JYLTheme.primary), lineWidth: 1.2)
+                        context.fill(path, with: .color(nextColor.opacity(0.16 * 0.85)))
+                        context.stroke(path, with: .color(nextColor), lineWidth: 1.2)
                     }
 
                     // 3. Draw vertical tick marks
@@ -130,7 +133,6 @@ struct ScheduleTimelineCardView: View {
 
                         let inActive = hasActiveCapsule && (frac >= activeStartFrac && frac <= activeEndFrac)
                         let inNext = hasNextCapsule && (frac >= nextStartFrac && frac <= nextEndFrac)
-                        let isEventTick = inActive || inNext
 
                         let isMajor = (i % 6 == 0)
                         let tickHeight: CGFloat = isMajor ? 12 : 7.5
@@ -138,7 +140,9 @@ struct ScheduleTimelineCardView: View {
                         let tickWidth: CGFloat = 1.0
                         let tickRect = CGRect(x: x - tickWidth / 2, y: tickY, width: tickWidth, height: tickHeight)
 
-                        let tickColor: Color = isEventTick ? JYLTheme.primary : JYLTheme.neutral600.opacity(0.8)
+                        let tickColor: Color = inActive ? activeColor
+                            : inNext ? nextColor
+                            : JYLTheme.neutral600.opacity(0.8)
                         context.fill(Path(tickRect), with: .color(tickColor))
                     }
                 }
@@ -221,7 +225,7 @@ struct ScheduleTimelineCardView: View {
         HStack {
             HStack(spacing: 4) {
                 RoundedRectangle(cornerRadius: 2)
-                    .stroke(JYLTheme.primary, style: StrokeStyle(lineWidth: 1.1, dash: [2, 1.5]))
+                    .stroke(schedule.nextEventColor, style: StrokeStyle(lineWidth: 1.1, dash: [2, 1.5]))
                     .frame(width: 7, height: 7)
                 Text("\(loc.isChinese ? "下个日程" : "Next") · \(displayNextTitle)")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
