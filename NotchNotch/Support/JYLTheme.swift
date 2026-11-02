@@ -190,4 +190,19 @@ public extension View {
     ) -> some View {
         modifier(JYLCardModifier(cornerRadius: cornerRadius, isHighlighted: isHighlighted, highlightGradient: highlightGradient))
     }
+
+    /// Fades the leading and trailing edges to clear, so a horizontal carousel
+    /// reads as scrollable instead of ending on a hard cut. Pair each fade with
+    /// at least as much content padding so the first item is unfaded at rest.
+    func horizontalEdgeFade(leading: CGFloat = 12, trailing: CGFloat = 12) -> some View {
+        mask(
+            HStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: leading)
+                Color.black
+                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: trailing)
+            }
+        )
+    }
 }

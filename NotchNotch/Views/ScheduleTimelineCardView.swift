@@ -223,10 +223,12 @@ struct ScheduleTimelineCardView: View {
 
     private var footer: some View {
         HStack {
-            HStack(spacing: 4) {
-                RoundedRectangle(cornerRadius: 2)
-                    .stroke(schedule.nextEventColor, style: StrokeStyle(lineWidth: 1.1, dash: [2, 1.5]))
-                    .frame(width: 7, height: 7)
+            HStack(spacing: 5) {
+                // A solid dot in the calendar's colour, as Calendar.app marks
+                // events; a dashed outline read as a loading or error state.
+                Circle()
+                    .fill(schedule.nextEventColor)
+                    .frame(width: 6, height: 6)
                 Text("\(loc.isChinese ? "下个日程" : "Next") · \(displayNextTitle)")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(JYLTheme.textPrimary)

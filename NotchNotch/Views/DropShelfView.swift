@@ -73,7 +73,21 @@ struct DropShelfView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(12)
+        // Inner dashed well: the conventional drop-target affordance. Radius is
+        // the card's 13 minus the 7pt inset, so the two corners stay concentric.
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(shelf.isTargeted ? JYLTheme.primaryMuted : Color.clear)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(
+                            shelf.isTargeted ? JYLTheme.primary.opacity(0.7) : Color.white.opacity(0.12),
+                            style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                        )
+                )
+        )
+        .animation(.easeOut(duration: 0.15), value: shelf.isTargeted)
+        .padding(7)
     }
 
     private var itemsContent: some View {
@@ -286,7 +300,7 @@ struct AirDropIconView: View {
     var body: some View {
         Canvas { context, canvasSize in
             let center = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
-            let color = isHighlighted ? Color(red: 0.96, green: 0.62, blue: 0.04) : Color.white.opacity(0.92)
+            let color = isHighlighted ? JYLTheme.primary : Color.white.opacity(0.92)
 
             let dim = min(canvasSize.width, canvasSize.height)
 

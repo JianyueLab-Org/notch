@@ -174,7 +174,7 @@ struct NotchPanelView: View {
             } else {
                 compactContent
                     .opacity(isOpen ? 0 : 1)
-                    .animation(isOpen ? .easeOut(duration: 0.08) : .easeIn(duration: 0.14).delay(0.08), value: isOpen)
+                    .animation(isOpen ? .easeOut(duration: 0.08) : .easeOut(duration: 0.14).delay(0.08), value: isOpen)
                     .allowsHitTesting(!isOpen)
 
                 if machine.state.isOnScreen {
@@ -656,14 +656,7 @@ struct NotchPanelView: View {
                 Button {
                     SettingsWindowController.shared.show()
                 } label: {
-                    ZStack {
-                        Circle()
-                            .fill(JYLTheme.neutral800)
-                            .frame(width: 26, height: 26)
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 11.5, weight: .semibold))
-                            .foregroundStyle(JYLTheme.textSecondary)
-                    }
+                    CircleIconLabel(icon: "gearshape.fill", isSelected: false)
                 }
                 .buttonStyle(TabButtonStyle())
                 .help(L10n.tr(.menuSettings))
@@ -723,30 +716,7 @@ struct NotchPanelView: View {
                 activeTab = tab
             }
         } label: {
-            ZStack(alignment: .topTrailing) {
-                Circle()
-                    .fill(isSelected ? JYLTheme.neutral700 : JYLTheme.neutral800)
-                    .overlay(
-                        Circle()
-                            .strokeBorder(isSelected ? Color.white.opacity(0.18) : Color.clear, lineWidth: 0.5)
-                    )
-                    .frame(width: 26, height: 26)
-
-                Image(systemName: icon)
-                    .font(.system(size: 11.5, weight: .semibold))
-                    .foregroundStyle(isSelected ? JYLTheme.textPrimary : JYLTheme.textSecondary)
-                    .frame(width: 26, height: 26)
-
-                if let badge {
-                    Text(badge)
-                        .font(.system(size: 7.5, weight: .bold, design: .rounded))
-                        .foregroundStyle(JYLTheme.textPrimary)
-                        .padding(.horizontal, 3)
-                        .padding(.vertical, 0.5)
-                        .background(Capsule().fill(JYLTheme.primary))
-                        .offset(x: 3, y: -2)
-                }
-            }
+            CircleIconLabel(icon: icon, isSelected: isSelected, badge: badge)
         }
         .buttonStyle(TabButtonStyle())
         .help(tab.localizedTitle)
@@ -786,10 +756,57 @@ struct TabButtonStyle: ButtonStyle {
     }
 }
 
+/// A top-bar circle button face. Hover only brightens the icon and fill — it is
+/// passed over many times a minute, so it changes colour instead of moving.
+private struct CircleIconLabel: View {
+    let icon: String
+    let isSelected: Bool
+    var badge: String? = nil
+
+    @State private var isHovering = false
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Circle()
+                .fill(isSelected ? JYLTheme.neutral700 : (isHovering ? Color(hex: "#323238") : JYLTheme.neutral800))
+                .overlay(
+                    Circle()
+                        .strokeBorder(Color.white.opacity(isSelected ? 0.18 : 0), lineWidth: 0.5)
+                )
+                .frame(width: 26, height: 26)
+
+            Image(systemName: icon)
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(isSelected || isHovering ? JYLTheme.textPrimary : JYLTheme.textSecondary)
+                .frame(width: 26, height: 26)
+
+            if let badge {
+                // Dark text: white on amber is ~2:1 contrast and unreadable at this size.
+                Text(badge)
+                    .font(.system(size: 8, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(JYLTheme.neutral950)
+                    .padding(.horizontal, 3.5)
+                    .frame(minWidth: 13, minHeight: 13)
+                    .background(Capsule().fill(JYLTheme.primary))
+                    .overlay(Capsule().strokeBorder(Color.black, lineWidth: 1.5))
+                    .offset(x: 4, y: -3)
+            }
+        }
+        .contentShape(Circle())
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) { isHovering = hovering }
+        }
+    }
+}
+
 struct ScaleButtonStyle: ButtonStyle {
+    /// Small glyphs need a deeper press to read; large cards stay near 0.97.
+    var scale: CGFloat = 0.94
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
+            .scaleEffect(configuration.isPressed ? scale : 1.0)
             .opacity(configuration.isPressed ? 0.85 : 1.0)
             .animation(.spring(response: 0.12, dampingFraction: 0.85), value: configuration.isPressed)
     }

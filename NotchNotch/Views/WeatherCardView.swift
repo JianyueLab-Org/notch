@@ -149,10 +149,10 @@ struct WeatherCardView: View {
                         .help((loc.isChinese ? "更新告警: " : "Update warning: ") + error)
                 }
 
-                // The footer row that used to carry this was the 12pt that put
-                // the card over budget; the timestamp lives on the button now.
+                // The footer row that used to carry the update time was the 12pt
+                // that put the card over budget; it lives in the hourly header now.
                 refreshButton
-                    .help(formatUpdateTime(snapshot.lastUpdated))
+                    .help(L10n.tr(.weatherRefresh))
             }
 
             Spacer(minLength: 0)
@@ -266,23 +266,26 @@ struct WeatherCardView: View {
 
                 Spacer()
 
-                let high = weather.temperatureUnit.format(celsius: snapshot.highTemperature)
-                let low = weather.temperatureUnit.format(celsius: snapshot.lowTemperature)
-                Text(loc.isChinese ? "最高 \(high) · 最低 \(low)" : "H: \(high) · L: \(low)")
+                // High/low is already on the left card's hero row.
+                Text(formatUpdateTime(snapshot.lastUpdated))
                     .font(.system(size: 10.5, weight: .medium, design: .rounded))
-                    .foregroundStyle(JYLTheme.textSecondary)
+                    .foregroundStyle(JYLTheme.textMuted)
+                    .lineLimit(1)
             }
 
-            // Content Carousel
+            // Content Carousel — bleeds into the card's 11pt side padding so the
+            // edge fades sit in that padding and the first column is unfaded at rest.
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 12) {
                     ForEach(Array(snapshot.hourlyForecast.enumerated()), id: \.element.id) { index, item in
                         hourlyColumn(item: item, isFirst: index == 0, timeZone: snapshot.timeZone)
                     }
                 }
-                .padding(.horizontal, 2)
+                .padding(.horizontal, 11)
                 .padding(.vertical, 2)
             }
+            .horizontalEdgeFade(leading: 11, trailing: 22)
+            .padding(.horizontal, -11)
         }
         .padding(.horizontal, 11)
         .padding(.vertical, 8)
@@ -321,7 +324,7 @@ struct WeatherCardView: View {
                     Text("\(item.precipitationProbability)%")
                         .font(.system(size: 9.5, weight: .medium, design: .rounded))
                 }
-                .foregroundStyle(Color.cyan)
+                .foregroundStyle(JYLTheme.chart2)
                 .frame(height: 14)
             } else {
                 Color.clear

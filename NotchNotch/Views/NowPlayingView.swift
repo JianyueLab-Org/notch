@@ -102,25 +102,26 @@ struct NowPlayingView: View {
                     .foregroundStyle(JYLTheme.textPrimary)
             }
             Text(permissionHint(permission))
-                .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundStyle(JYLTheme.textSecondary)
                 .lineLimit(1)
-            Spacer(minLength: 2)
+                .padding(.bottom, 6)
             HStack(spacing: 6) {
                 if let onRequestAuthorization {
                     Button {
                         onRequestAuthorization()
                     } label: {
                         Text(L10n.tr(.mediaGrant))
-                            .font(.system(size: 9, weight: .semibold, design: .rounded))
-                            .foregroundStyle(JYLTheme.textPrimary)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2.5)
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            // Dark on amber: white on #f59e0b is ~2:1 contrast.
+                            .foregroundStyle(JYLTheme.neutral950)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
                             .background(
                                 Capsule().fill(JYLTheme.primary)
                             )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(ScaleButtonStyle(scale: 0.96))
                 }
 
                 Button {
@@ -130,13 +131,13 @@ struct NowPlayingView: View {
                 } label: {
                     HStack(spacing: 3) {
                         Text(L10n.tr(.mediaOpenSettings))
-                            .font(.system(size: 9, weight: .semibold, design: .rounded))
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
                         Image(systemName: "arrow.up.forward.app")
-                            .font(.system(size: 7.5))
+                            .font(.system(size: 8.5))
                     }
                     .foregroundStyle(JYLTheme.textSecondary)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2.5)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
                     .background(
                         Capsule().fill(JYLTheme.neutral800)
                     )
@@ -209,22 +210,43 @@ struct NowPlayingView: View {
     }
 
     private var transport: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 8) {
             button("backward.fill", size: 10.5) { send(.previousTrack) }
             button(track.isPlaying ? "pause.fill" : "play.fill", size: 13.5) { send(.togglePlayPause) }
             button("forward.fill", size: 10.5) { send(.nextTrack) }
         }
+        // Pulls the first glyph back under the title's leading edge; the wider
+        // hit area would otherwise indent it.
+        .padding(.leading, -7)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func button(_ symbol: String, size: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: size, weight: .semibold))
-                .foregroundStyle(JYLTheme.textPrimary)
-                .frame(width: 22, height: 18)
-                .contentShape(Rectangle())
+            TransportGlyph(symbol: symbol, size: size)
         }
         .buttonStyle(ScaleButtonStyle())
+    }
+}
+
+/// 28×24 hit area — the old 22×18 was easy to miss on a hover-opened panel.
+private struct TransportGlyph: View {
+    let symbol: String
+    let size: CGFloat
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(JYLTheme.textPrimary)
+            .frame(width: 28, height: 24)
+            .background(
+                Capsule().fill(Color.white.opacity(isHovering ? 0.1 : 0))
+            )
+            .contentShape(Capsule())
+            .onHover { hovering in
+                withAnimation(.easeOut(duration: 0.12)) { isHovering = hovering }
+            }
     }
 }
