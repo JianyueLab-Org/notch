@@ -29,16 +29,23 @@ nonisolated enum PluginPreferences {
         defaults.object(forKey: httpEnabledKey) as? Bool ?? true
     }
 
-    /// The scanning key is kept until the agent plugin is installed, so its
-    /// choice still applies when the plugin arrives after the upgrade.
+    /// The old monitoring key was a master switch, so `false` also disables the
+    /// agent plugin. The scanning key is kept until the agent plugin is installed,
+    /// so its choice still applies when the plugin arrives after the upgrade; it
+    /// only ever writes `false`, so an "off" from the master switch survives.
     static func migrate(defaults: UserDefaults, installedPluginIDs: Set<String>) {
         if let monitoring = defaults.object(forKey: legacyMonitoringKey) as? Bool {
             defaults.set(monitoring, forKey: httpEnabledKey)
+            if !monitoring {
+                defaults.set(false, forKey: enabledKey(agentsPluginID))
+            }
             defaults.removeObject(forKey: legacyMonitoringKey)
         }
         if let scanning = defaults.object(forKey: legacyScanningKey) as? Bool,
            installedPluginIDs.contains(agentsPluginID) {
-            defaults.set(scanning, forKey: enabledKey(agentsPluginID))
+            if !scanning {
+                defaults.set(false, forKey: enabledKey(agentsPluginID))
+            }
             defaults.removeObject(forKey: legacyScanningKey)
         }
     }

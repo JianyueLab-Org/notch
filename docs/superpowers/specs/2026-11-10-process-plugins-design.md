@@ -144,8 +144,8 @@ controls the HTTP listener. The 7823 bind status stays visible. New strings get 
 
 On first launch of 27.2.0:
 
-- `agentProcessScanningEnabled == true` and the agent plugin installed → enable the agent plugin.
-- `agentMonitoringEnabled` → HTTP listener toggle.
+- `agentProcessScanningEnabled` with the agent plugin installed: false disables the agent plugin; true leaves it at its default (enabled).
+- `agentMonitoringEnabled` → HTTP listener toggle; false also disables the agent plugin.
 - `agentMonitoringEnabled` is deleted after it is applied.
 - `agentProcessScanningEnabled` is deleted once the agent plugin is installed and the value applied.
 
