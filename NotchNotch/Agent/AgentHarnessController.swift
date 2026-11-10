@@ -45,6 +45,28 @@ nonisolated enum DarwinProcessHelper {
         return (pid_t(info.pbi_ppid), comm)
     }
 
+    /// First open file of `pid` whose path satisfies `matches`, via the kernel fd
+    /// table (what `lsof` reads), so the scan never shells out for it.
+    static func openFilePath(of pid: pid_t, matching matches: (String) -> Bool) -> String? {
+        let bufferSize = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
+        guard bufferSize > 0 else { return nil }
+        let stride = MemoryLayout<proc_fdinfo>.stride
+        var fds = [proc_fdinfo](repeating: proc_fdinfo(), count: Int(bufferSize) / stride)
+        let filled = fds.withUnsafeMutableBytes { proc_pidinfo(pid, PROC_PIDLISTFDS, 0, $0.baseAddress, bufferSize) }
+        guard filled > 0 else { return nil }
+
+        let infoSize = Int32(MemoryLayout<vnode_fdinfowithpath>.size)
+        for fd in fds.prefix(Int(filled) / stride) where fd.proc_fdtype == UInt32(PROX_FDTYPE_VNODE) {
+            var info = vnode_fdinfowithpath()
+            guard proc_pidfdinfo(pid, fd.proc_fd, PROC_PIDFDVNODEPATHINFO, &info, infoSize) == infoSize else { continue }
+            let path = withUnsafePointer(to: &info.pvip.vip_path) { ptr in
+                ptr.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { String(cString: $0) }
+            }
+            if matches(path) { return path }
+        }
+        return nil
+    }
+
     /// Recursively climbs up the PPID hierarchy to discover the hosting GUI application
     /// (e.g. Ghostty, Zed, Terminal, iTerm2, VS Code, Cursor, Warp).
     static func findGUIApp(for pid: pid_t) -> NSRunningApplication? {
@@ -188,6 +210,8 @@ struct DiscoveredAgentData: Sendable {
     let terminalName: String
     let totalCpu: Double
     let inferredState: AgentState
+    /// Conversation title, for agents whose title can be read (omp). nil when unknown.
+    let title: String?
 }
 
 enum AgentListenerStatus: Equatable {
@@ -384,13 +408,12 @@ final class AgentHarnessController: ObservableObject {
         // Alert on a transition only. A hook that repeats the same state must not re-beep.
         if resolvedState == .waitingUser && previousState != .waitingUser {
             // Needs user reply (permission, question, interactive input)
-            let alertTitle = title.isEmpty ? "Reply Needed" : title
             triggerAlert(
                 AgentAlert(
                     sessionId: sessionId,
                     agent: agent,
                     state: .waitingUser,
-                    title: alertTitle,
+                    title: session.title,
                     detail: "Input or approval required",
                     terminal: terminal,
                     pid: pid,
@@ -401,13 +424,12 @@ final class AgentHarnessController: ObservableObject {
             NSSound.beep()
         } else if resolvedState == .waitingSubagent && previousState != .waitingSubagent {
             // Subagent execution in background - subtle alert without audio beep
-            let alertTitle = title.isEmpty ? "Subagent Active" : title
             triggerAlert(
                 AgentAlert(
                     sessionId: sessionId,
                     agent: agent,
                     state: .waitingSubagent,
-                    title: alertTitle,
+                    title: session.title,
                     detail: "Delegated subagent running",
                     terminal: terminal,
                     pid: pid,
@@ -417,13 +439,12 @@ final class AgentHarnessController: ObservableObject {
             )
         } else if resolvedState == .completed && (previousState == .working || previousState?.isWaiting == true) {
             // Turn completed
-            let alertTitle = title.isEmpty ? "Task Completed" : title
             triggerAlert(
                 AgentAlert(
                     sessionId: sessionId,
                     agent: agent,
                     state: .completed,
-                    title: alertTitle,
+                    title: session.title,
                     detail: "Finished execution successfully",
                     terminal: terminal,
                     pid: pid,
@@ -758,6 +779,13 @@ final class AgentHarnessController: ObservableObject {
             } else {
                 details = ("", "")
             }
+            // Re-read every poll: omp rewrites the title in place, and `/new` or
+            // `/resume` moves the same process to another session file.
+            let title = agent.name == OmpSession.agentName
+                ? pid_t(exactly: agent.pid)
+                    .flatMap { DarwinProcessHelper.openFilePath(of: $0, matching: OmpSession.isMainSessionFile) }
+                    .flatMap(OmpSession.title(ofSessionFile:))
+                : nil
 
             discoveredData.append(DiscoveredAgentData(
                 key: key,
@@ -766,7 +794,8 @@ final class AgentHarnessController: ObservableObject {
                 cwd: details.cwd,
                 terminalName: details.terminal,
                 totalCpu: usage.total,
-                inferredState: inferredState
+                inferredState: inferredState,
+                title: title
             ))
         }
 
@@ -777,12 +806,20 @@ final class AgentHarnessController: ObservableObject {
         guard isMonitoringEnabled && isProcessScanningEnabled else { return }
         for item in discovered {
             processDetailsCache[item.key] = (item.cwd, item.terminalName)
+            // A hook that names its pid owns that process only; one without a pid
+            // covers every process of its agent.
             let hasFreshHttpHook = sessions.values.contains(where: {
                 $0.source == .httpHook &&
-                $0.agent.caseInsensitiveCompare(item.name) == .orderedSame &&
+                ($0.pid.map { $0 == item.pid } ?? ($0.agent.caseInsensitiveCompare(item.name) == .orderedSame)) &&
                 Date().timeIntervalSince($0.lastUpdated) < 180
             })
             if hasFreshHttpHook {
+                // A scanned twin frozen in its last inferred state would outrank the
+                // hook session in `updateActiveSession` (REPLY over BUSY).
+                if sessions.removeValue(forKey: item.key) != nil {
+                    quietPollsBySession.removeValue(forKey: item.key)
+                    if currentAlert?.sessionId == item.key { dismissAlert() }
+                }
                 continue
             }
 
@@ -790,6 +827,7 @@ final class AgentHarnessController: ObservableObject {
                 let previousState = existing.state
                 existing.cpuPercent = item.totalCpu
                 existing.lastUpdated = Date()
+                if let title = item.title { existing.title = title }
 
                 var inferred = item.inferredState
                 if previousState == .working && inferred == .waitingUser {
@@ -813,7 +851,7 @@ final class AgentHarnessController: ObservableObject {
                                 sessionId: item.key,
                                 agent: item.name,
                                 state: .waitingUser,
-                                title: "\(item.name) Needs Input",
+                                title: existing.title,
                                 detail: "Execution paused, awaiting user response",
                                 terminal: existing.terminal,
                                 pid: item.pid,
@@ -833,7 +871,7 @@ final class AgentHarnessController: ObservableObject {
                     agent: item.name,
                     state: item.inferredState,
                     event: "ProcessDetected",
-                    title: "\(item.name) Process",
+                    title: item.title ?? "",
                     cwd: item.cwd,
                     terminal: item.terminalName,
                     pid: item.pid,
@@ -863,7 +901,7 @@ final class AgentHarnessController: ObservableObject {
                             sessionId: key,
                             agent: session.agent,
                             state: .completed,
-                            title: "\(session.agent) Finished",
+                            title: session.title,
                             detail: "Process exited",
                             terminal: session.terminal,
                             pid: session.pid,

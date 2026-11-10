@@ -478,10 +478,26 @@ struct NotchPanelView: View {
                     .foregroundStyle(alert.state.color)
                     .frame(width: 18)
 
-                Text(alert.agent)
-                    .font(.system(size: 12.5, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
+                // The conversation title, when the agent reports one, leads; the agent
+                // name drops to a caption so the bar still says who is asking.
+                if alert.title.isEmpty {
+                    Text(alert.agent)
+                        .font(.system(size: 12.5, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                } else {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(alert.title)
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        Text(alert.agent)
+                            .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                            .foregroundStyle(JYLTheme.textMuted)
+                            .lineLimit(1)
+                    }
+                }
             }
             .padding(.leading, 18)
             .frame(width: hudEarWidth, alignment: .leading)

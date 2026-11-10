@@ -63,14 +63,14 @@ nonisolated enum AgentProcessMatcher {
         agentName(for: ProcessCommand(comm: comm, args: args, tty: tty))
     }
 
-    /// Rules are ordered; the first match names the agent. Grok and Codex come
-    /// first because they are matched exactly, while the rules after them are
+    /// Rules are ordered; the first match names the agent. Grok, Codex and omp
+    /// come first because they are matched exactly, while the rules after them are
     /// substring matches that would also fire on a path or argument mentioning
     /// another agent's name.
     static func agentName(for cmd: ProcessCommand) -> String? {
         if isScanNoise(cmd) || isInsideAppBundle(cmd.args) { return nil }
 
-        // 1–2. Grok / Codex: executable name only, never a substring of the
+        // 1–3. Grok / Codex / omp: executable name only, never a substring of the
         // command line. Shell wrappers that only mention the name inside a
         // script (Grok's `__grok_*` shim) must not match. Without a controlling
         // terminal the process is a daemon, an MCP server or a `codex exec`
@@ -82,29 +82,34 @@ nonisolated enum AgentProcessMatcher {
             switch name {
             case "grok": agent = "Grok"
             case "codex": agent = "Codex"
+            case OmpSession.agentName:
+                // `omp __omp_worker_*` (eval, daemon broker, text predict) are helpers.
+                // Subagents run inside the session process, so only the session matches.
+                if cmd.tokens.contains(where: { $0.hasPrefix("__omp_") }) { return nil }
+                agent = OmpSession.agentName
             default: continue
             }
             return cmd.hasTTY ? agent : nil
         }
 
-        // 3. Claude Code / Claude CLI
+        // 4. Claude Code / Claude CLI
         if (cmd.comm.contains("claude") || cmd.args.contains("claude")) && !cmd.args.contains("--chrome-native-host") {
             return (cmd.args.contains("claude-agent-sdk") || cmd.args.contains("claude-acp"))
                 ? "Claude (Zed ACP)"
                 : "Claude Code"
         }
 
-        // 4. Antigravity CLI
+        // 5. Antigravity CLI
         if cmd.comm == "agy" || cmd.args.contains("agy ") || cmd.args.hasPrefix("agy") || cmd.args.contains("/agy ") || cmd.args.contains("antigravity") {
             return "Antigravity"
         }
 
-        // 5. OpenCode CLI
+        // 6. OpenCode CLI
         if cmd.comm == "opencode" || cmd.args.contains("opencode") || cmd.args.contains("open-code") {
             return "OpenCode"
         }
 
-        // 6. Aider CLI
+        // 7. Aider CLI
         if names.contains("aider") || cmd.args.contains("aider ") || cmd.args.hasPrefix("aider") {
             return "Aider"
         }

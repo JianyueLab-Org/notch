@@ -83,7 +83,7 @@ struct AgentSession: Identifiable, Equatable, Sendable {
     var agent: String           // e.g. "Claude", "Antigravity", "Codex", "Grok", "OpenCode", "Aider"
     var state: AgentState
     var event: String           // e.g. "PreToolUse", "Notification", "Stop"
-    var title: String           // Prompt or task summary
+    var title: String           // Conversation title or prompt summary; empty when unknown
     var cwd: String             // Working directory
     var terminal: String        // e.g. "Ghostty", "Terminal", "tmux", "iTerm", "Zed"
     var pid: Int?               // Process ID
