@@ -63,7 +63,9 @@ final class PluginHost: ObservableObject {
     /// are followed. Running processes of plugins that disappeared are stopped.
     /// Migration runs on every scan, so a plugin installed while the app runs
     /// still picks up the pre-plugin settings. Enabled managed plugins that are
-    /// not running, crashed or waiting out a restart delay are launched.
+    /// not running or crashed are launched; a pending restart delay is skipped,
+    /// because Refresh is an explicit request. Exits still count toward the
+    /// crash limit.
     func reload() {
         let fm = FileManager.default
         let entries = (try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
@@ -107,8 +109,8 @@ final class PluginHost: ObservableObject {
         for record in records where record.manifest?.kind == .managed
             && record.status != .crashed
             && processes[record.id] == nil
-            && restartTasks[record.id] == nil
             && isEnabled(record.id) {
+            restartTasks.removeValue(forKey: record.id)?.cancel()
             launch(record.id)
         }
     }
@@ -152,13 +154,17 @@ final class PluginHost: ObservableObject {
         }
     }
 
-    /// App quit: stdin close and SIGTERM are sent before returning, because the
-    /// process exits right after and an async stop would never run.
+    /// App quit: every child gets stdin closed and SIGTERM first, then one
+    /// shared grace period, then SIGKILL for any that are still running. This
+    /// blocks quit for at most `ManagedPluginProcess.stopGrace`.
     func stopAll() {
-        for id in Array(processes.keys) {
-            restartTasks.removeValue(forKey: id)?.cancel()
-            processes.removeValue(forKey: id)?.stopNow()
-        }
+        for task in restartTasks.values { task.cancel() }
+        restartTasks.removeAll()
+        let stopping = Array(processes.values)
+        processes.removeAll()
+        for process in stopping { process.terminateNow() }
+        let deadline = Date().addingTimeInterval(ManagedPluginProcess.stopGrace)
+        for process in stopping { process.waitOrKill(until: deadline) }
         httpServer.stop()
     }
 
@@ -268,9 +274,11 @@ final class PluginHost: ObservableObject {
         if listenerStatus != .ready { listenerStatus = .starting }
         httpServer.start(
             port: Self.httpPort,
-            onData: { [weak self] data in
-                guard let envelope = PluginMessageDecoder.decode(data) else { return }
-                Task { @MainActor in self?.receiveHTTP(envelope) }
+            // DispatchQueue.main, not Task: bodies from one hook arrive in order.
+            onEnvelope: { [weak self] envelope in
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated { self?.receiveHTTP(envelope) }
+                }
             },
             onEvent: { [weak self] event in
                 Task { @MainActor in

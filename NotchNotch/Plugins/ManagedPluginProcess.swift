@@ -100,13 +100,23 @@ nonisolated final class ManagedPluginProcess: @unchecked Sendable {
         }
     }
 
-    /// App quit: closes stdin and sends SIGTERM before returning. No SIGKILL
-    /// follow-up, because the app exits before the grace period would end.
-    func stopNow() {
+    /// App quit, step 1: closes stdin and sends SIGTERM before returning.
+    func terminateNow() {
         queue.sync { [self] in
             try? stdinPipe.fileHandleForWriting.close()
             guard process.isRunning else { return }
             process.terminate()
+        }
+    }
+
+    /// App quit, step 2: waits for exit until `deadline`, then SIGKILLs. Blocks
+    /// the caller, because the app exits as soon as quit returns.
+    func waitOrKill(until deadline: Date) {
+        while queue.sync(execute: { process.isRunning }) && Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.02)
+        }
+        queue.sync { [self] in
+            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
         }
     }
 

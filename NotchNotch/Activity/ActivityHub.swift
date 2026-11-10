@@ -94,7 +94,7 @@ final class ActivityHub: ObservableObject {
     }
 
     private func end(_ key: String, alert: Bool) {
-        // A managed twin hidden by an explicit report stays hidden until it ends, so its end is hidden too.
+        // A managed session hidden by a fresh explicit report at the moment it ends stays silent.
         let wasVisible = ActivityRules.visible(Array(sessions.values), now: Date()).contains { $0.key == key }
         guard let session = sessions.removeValue(forKey: key) else { return }
         Log.plugins.notice("session \(key, privacy: .public) ended")

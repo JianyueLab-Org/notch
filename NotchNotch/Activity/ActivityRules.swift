@@ -40,10 +40,11 @@ nonisolated enum ActivityRules {
     }
 
     /// A managed session is hidden while an external or HTTP session reports
-    /// the same pid and was updated within `explicitHold`: the report is exact,
-    /// the scan is a guess, and a frozen guess would outrank it (REPLY over BUSY).
-    /// A fresh report without a pid cannot name its process, so it hides every
-    /// managed session whose label matches its own (case-insensitive).
+    /// the same pid and was updated within `explicitHold`, whatever that
+    /// session's state: the report is exact, the scan is a guess, and a frozen
+    /// guess would outrank it (REPLY over BUSY). A fresh report without a pid
+    /// cannot name its process, so it hides every managed session whose label
+    /// matches its own (case-insensitive).
     static func visible(_ sessions: [ActivitySession], now: Date) -> [ActivitySession] {
         var explicitPIDs = Set<Int>()
         var pidlessLabels = Set<String>()

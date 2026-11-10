@@ -30,7 +30,7 @@ nonisolated final class PluginHTTPServer: @unchecked Sendable {
     private var connections: [Int: NWConnection] = [:]
     private var nextConnectionID = 0
     private let queue = DispatchQueue(label: "co.jianyuelab.NotchNotch.pluginServer", qos: .userInitiated)
-    private var onDataReceived: (@Sendable (Data) -> Void)?
+    private var onEnvelopeReceived: (@Sendable (PluginEnvelope) -> Void)?
     private var onListenerEvent: (@Sendable (PluginListenerEvent) -> Void)?
 
     private static let maxHeaderBytes = 16 * 1024
@@ -38,12 +38,12 @@ nonisolated final class PluginHTTPServer: @unchecked Sendable {
 
     func start(
         port: UInt16 = 7823,
-        onData: @escaping @Sendable (Data) -> Void,
+        onEnvelope: @escaping @Sendable (PluginEnvelope) -> Void,
         onEvent: @escaping @Sendable (PluginListenerEvent) -> Void
     ) {
         queue.async { [weak self] in
             guard let self else { return }
-            self.onDataReceived = onData
+            self.onEnvelopeReceived = onEnvelope
             self.onListenerEvent = onEvent
             self.startOnQueue(port: port)
         }
@@ -286,12 +286,13 @@ nonisolated final class PluginHTTPServer: @unchecked Sendable {
     }
 
     /// 200 only for a body the hub can use, so a hook script sees its mistake.
+    /// The body is decoded once, here; the host receives the envelope.
     private func finishRequest(connection: NWConnection, body: Data) {
-        guard PluginMessageDecoder.decode(body) != nil else {
+        guard let envelope = PluginMessageDecoder.decode(body) else {
             sendResponse(connection: connection, statusCode: 400, reason: "Bad Request")
             return
         }
-        onDataReceived?(Data(body))
+        onEnvelopeReceived?(envelope)
         sendResponse(connection: connection, statusCode: 200, reason: "OK")
     }
 

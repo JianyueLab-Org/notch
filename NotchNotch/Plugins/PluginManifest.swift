@@ -35,18 +35,26 @@ nonisolated struct PluginManifest: Equatable, Sendable {
         guard let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             return .failure(.invalidJSON)
         }
-        guard let id = dict["id"] as? String else { return .failure(.missingField("id")) }
+        guard let rawID = dict["id"] else { return .failure(.missingField("id")) }
+        guard let id = rawID as? String else { return .failure(.wrongType("id")) }
         guard id.range(of: #"^[a-z0-9]+(\.[a-z0-9-]+)+$"#, options: .regularExpression) != nil else {
             return .failure(.badID(id))
         }
-        guard let name = dict["name"] as? [String: String] else { return .failure(.missingField("name")) }
+        guard let rawName = dict["name"] else { return .failure(.missingField("name")) }
+        guard let name = rawName as? [String: String] else { return .failure(.wrongType("name")) }
         guard name["en"]?.isEmpty == false else { return .failure(.missingField("name.en")) }
-        guard let version = dict["version"] as? String else { return .failure(.missingField("version")) }
-        guard let rawKind = dict["kind"] as? String else { return .failure(.missingField("kind")) }
+        guard let rawVersion = dict["version"] else { return .failure(.missingField("version")) }
+        guard let version = rawVersion as? String else { return .failure(.wrongType("version")) }
+        guard let rawKindValue = dict["kind"] else { return .failure(.missingField("kind")) }
+        guard let rawKind = rawKindValue as? String else { return .failure(.wrongType("kind")) }
         guard let kind = Kind(rawValue: rawKind) else { return .failure(.badKind(rawKind)) }
-        guard let apiVersion = dict["apiVersion"] as? Int else { return .failure(.missingField("apiVersion")) }
+        guard let rawAPI = dict["apiVersion"] else { return .failure(.missingField("apiVersion")) }
+        guard let apiVersion = StrictJSON.int(rawAPI) else { return .failure(.wrongType("apiVersion")) }
         guard apiVersion == currentAPIVersion else { return .failure(.unsupportedAPI(apiVersion)) }
 
+        if let rawExecutable = dict["executable"], !(rawExecutable is String) {
+            return .failure(.wrongType("executable"))
+        }
         let executable = dict["executable"] as? String
         if kind == .managed {
             guard let executable, !executable.isEmpty else { return .failure(.managedWithoutExecutable) }
@@ -67,6 +75,7 @@ nonisolated enum PluginManifestError: Error, Equatable, Sendable, CustomStringCo
     case unreadable
     case invalidJSON
     case missingField(String)
+    case wrongType(String)
     case badID(String)
     case badKind(String)
     case unsupportedAPI(Int)
@@ -79,6 +88,7 @@ nonisolated enum PluginManifestError: Error, Equatable, Sendable, CustomStringCo
         case .unreadable: return "manifest.json missing or unreadable"
         case .invalidJSON: return "manifest.json is not a JSON object"
         case .missingField(let field): return "missing field \(field)"
+        case .wrongType(let field): return "field \(field) has the wrong type"
         case .badID(let id): return "invalid id \(id)"
         case .badKind(let kind): return "unknown kind \(kind)"
         case .unsupportedAPI(let version): return "apiVersion \(version) is not supported (expected \(PluginManifest.currentAPIVersion))"

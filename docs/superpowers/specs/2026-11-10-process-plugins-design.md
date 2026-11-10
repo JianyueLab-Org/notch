@@ -23,7 +23,7 @@ become plugins. The released app contains no agent-specific detection code.
 ```
 NotchNotch.app (core)
   PluginHost     manifest scan, launch, restart with backoff, stop
-  ActivityHub    sessions, pid dedup, active-session priority, alert queue
+  ActivityHub    sessions, pid dedup, active-session priority, alert banner
   HTTP listener  127.0.0.1:7823, POST /event
   UI             ear, alert bar, focus, Settings → Plugins
 
@@ -89,6 +89,9 @@ One JSON object per line on stdio; one object per POST body on HTTP.
 - `state`: `working`, `waitingUser`, `waitingSubagent`, `completed`, `idle`.
 - `label`: agent name shown under the title, e.g. `Claude Code`, `omp`.
 - `alert`: the plugin asks for an alert on this update. The core alerts only when `alert` is true.
+  `alert` must be a JSON boolean and `pid` a JSON integer; a non-boolean `alert` or a non-string
+  `type` rejects the message, a non-integer `pid` is ignored.
+- Managed plugin stdout accepts typed messages only, never legacy bodies.
 - HTTP bodies may carry `plugin` (manifest id). A body without `plugin` belongs to the built-in
   `http` source.
 - HTTP bodies without `type` are legacy: `state`, `agent`, `event`, `session_id`, `cwd`, `title`,
@@ -99,15 +102,15 @@ One JSON object per line on stdio; one object per POST body on HTTP.
 
 ### Pid dedup
 
-When two live sessions report the same `pid`, the session updated most recently from an `external`
-or `http` source hides the `managed` one until it ends or is idle for 180 s. This replaces the
-current `hasFreshHttpHook` logic. An `external` or `http` session without a `pid`, updated within
-180 s, hides every `managed` session whose label matches its own, case-insensitive.
+When two live sessions report the same `pid`, an `external` or `http` session updated within the
+last 180 s, in any state, hides the `managed` one. This replaces the pre-plugin `hasFreshHttpHook`
+logic. An `external` or `http` session without a `pid`, updated within 180 s, hides every `managed`
+session whose label matches its own, case-insensitive.
 
 ## Lifecycle and errors
 
-- Launch: enabled managed plugins start at app launch, on enable and on Settings → Refresh. The
-  core writes `hello`, then `config`.
+- Launch: enabled managed plugins start at app launch, on enable and on Settings → Refresh.
+  Refresh also skips a pending restart delay. The core writes `hello`, then `config`.
 - Exit: restart after 1, 2, 4, 8 s. Five exits within 10 minutes mark the plugin
   `crashed` and stop restarts until it is re-enabled. All its sessions are removed at each exit.
 - Stop: on disable or app quit, close stdin, then `SIGTERM`, then `SIGKILL` after 2 s.

@@ -36,15 +36,17 @@ nonisolated enum PluginMessageDecoder {
     static func decode(_ data: Data) -> PluginEnvelope? {
         guard let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
         let plugin = nonEmpty(dict["plugin"])
-        guard let type = dict["type"] as? String else {
+        guard let rawType = dict["type"] else {
             return PluginEnvelope(plugin: plugin, message: .sessionUpdate(legacy(dict)))
         }
+        guard let type = rawType as? String else { return nil }
         switch type {
         case "session.update":
             guard let id = nonEmpty(dict["id"]),
                   let rawState = dict["state"] as? String,
                   let state = ActivityState(rawValue: rawState),
-                  let label = nonEmpty(dict["label"]) else { return nil }
+                  let label = nonEmpty(dict["label"]),
+                  let alert = typedAlert(dict["alert"]) else { return nil }
             return PluginEnvelope(plugin: plugin, message: .sessionUpdate(SessionUpdate(
                 id: id,
                 state: state,
@@ -52,11 +54,11 @@ nonisolated enum PluginMessageDecoder {
                 title: nonEmpty(dict["title"]),
                 pid: validatedPID(dict["pid"]),
                 cwd: nonEmpty(dict["cwd"]),
-                alert: dict["alert"] as? Bool ?? false
+                alert: alert
             )))
         case "session.end":
-            guard let id = nonEmpty(dict["id"]) else { return nil }
-            return PluginEnvelope(plugin: plugin, message: .sessionEnd(id: id, alert: dict["alert"] as? Bool ?? false))
+            guard let id = nonEmpty(dict["id"]), let alert = typedAlert(dict["alert"]) else { return nil }
+            return PluginEnvelope(plugin: plugin, message: .sessionEnd(id: id, alert: alert))
         default:
             return nil
         }
@@ -101,9 +103,16 @@ nonisolated enum PluginMessageDecoder {
 
     /// `pid_t` is 32-bit, so an out-of-range JSON number must be rejected, not
     /// trapped on. 0 and 1 are the kernel and launchd, never an agent.
+    /// JSON booleans and fractions are not pids.
     static func validatedPID(_ value: Any?) -> Int? {
-        guard let raw = value as? Int, let pid = Int32(exactly: raw), pid > 1 else { return nil }
+        guard let raw = StrictJSON.int(value), let pid = Int32(exactly: raw), pid > 1 else { return nil }
         return Int(pid)
+    }
+
+    /// Absent means false; anything other than a JSON boolean rejects the message.
+    private static func typedAlert(_ value: Any?) -> Bool? {
+        guard let value else { return false }
+        return StrictJSON.bool(value)
     }
 
     private static func nonEmpty(_ value: Any?) -> String? {
