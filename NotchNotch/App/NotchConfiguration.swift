@@ -131,16 +131,6 @@ nonisolated enum NotchConfiguration {
 
     // MARK: - Agent harness
 
-    /// A hook session with no event for this long is dropped, live pid or not.
-    /// An interrupted agent sends no Stop; process scanning takes over from here.
-    static let agentHookInactivityTimeout: TimeInterval = 15 * 60
-
-    /// Oldest hook sessions are evicted beyond this.
-    static let agentMaxHookSessions = 32
-
-    /// A connection that has not delivered a full request by then is closed.
-    static let agentHTTPRequestTimeout: TimeInterval = 5
-
     /// An explicit session that stops reporting (interrupted agent, no Stop) is dropped after this.
     static let activityInactivityTimeout: TimeInterval = 15 * 60
 

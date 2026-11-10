@@ -83,11 +83,6 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case clipboardAgeJustNow
 
     // MARK: - Agent & HUD
-    case agentWaitingUser
-    case agentWaitingSubagent
-    case agentWorking
-    case agentJumpToTerminal
-    case agentAlertDismiss
     case agentListenerReady
     case agentListenerStarting
     case agentListenerFailed
@@ -101,7 +96,7 @@ public enum L10nKey: String, CaseIterable, Sendable {
     // MARK: - Settings Navigation Tabs
     case settingsTabGeneral
     case settingsTabWeather
-    case settingsTabAgent
+    case settingsTabPlugins
     case settingsTabClipboard
     case settingsTabAbout
 
@@ -148,15 +143,18 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case locationErrorNetwork
     case locationLocalityUnknown
 
-    // MARK: - Settings Agent
-    case settingsAgentMasterTitle
-    case settingsAgentMasterDesc
-    case settingsAgentScanTitle
-    case settingsAgentScanDesc
-    case settingsAgentHookTitle
-    case settingsAgentHookDesc
-    case settingsAgentCopyHookBtn
-    case settingsAgentHookCopied
+    // MARK: - Settings Plugins
+    case settingsPluginsHTTPTitle
+    case settingsPluginsHTTPDesc
+    case settingsPluginsEmpty
+    case settingsPluginsOpenFolder
+    case settingsPluginsReload
+    case settingsPluginsTestAlert
+    case pluginStatusRunning
+    case pluginStatusStopped
+    case pluginStatusCrashed
+    case pluginStatusInvalid
+    case pluginStatusExternal
 
     // MARK: - Settings Clipboard
     case settingsClipboardRetentionTitle
@@ -259,11 +257,6 @@ public struct L10n {
         .clipboardAgeJustNow: "刚刚",
 
         // Agent & HUD
-        .agentWaitingUser: "等待回复",
-        .agentWaitingSubagent: "子任务执行中",
-        .agentWorking: "AI 运行中",
-        .agentJumpToTerminal: "跳转终端",
-        .agentAlertDismiss: "忽略",
         .agentListenerReady: "运行中 · 7823",
         .agentListenerStarting: "正在绑定 · 7823",
         .agentListenerFailed: "端口 7823 绑定失败",
@@ -277,7 +270,7 @@ public struct L10n {
         // Settings Tabs
         .settingsTabGeneral: "常规",
         .settingsTabWeather: "天气",
-        .settingsTabAgent: "AI Agent",
+        .settingsTabPlugins: "插件",
         .settingsTabClipboard: "剪贴板",
         .settingsTabAbout: "关于",
 
@@ -324,15 +317,18 @@ public struct L10n {
         .locationErrorNetwork: "网络错误：%@",
         .locationLocalityUnknown: "本地",
 
-        // Settings Agent
-        .settingsAgentMasterTitle: "AI Agent 监控",
-        .settingsAgentMasterDesc: "实时感知终端中 Claude Code、Antigravity、Codex、Grok 等智能体生命周期",
-        .settingsAgentScanTitle: "本地进程轮询扫描",
-        .settingsAgentScanDesc: "无 Webhook 钩子时自动扫描系统进程树中的活跃 CLI 代理",
-        .settingsAgentHookTitle: "Agent Webhook 挂载指令",
-        .settingsAgentHookDesc: "在终端中运行以下指令可获得毫秒级实时生命周期推送",
-        .settingsAgentCopyHookBtn: "复制 Hook 安装指令",
-        .settingsAgentHookCopied: "已复制指令",
+        // Settings Plugins
+        .settingsPluginsHTTPTitle: "本地事件接口",
+        .settingsPluginsHTTPDesc: "监听 127.0.0.1:7823/event，接收外部插件和 Hook 脚本推送的会话事件",
+        .settingsPluginsEmpty: "尚未安装插件。把插件文件夹放进插件目录后点击刷新。",
+        .settingsPluginsOpenFolder: "打开插件目录",
+        .settingsPluginsReload: "刷新",
+        .settingsPluginsTestAlert: "测试灵动岛提醒",
+        .pluginStatusRunning: "运行中",
+        .pluginStatusStopped: "已停止",
+        .pluginStatusCrashed: "已崩溃",
+        .pluginStatusInvalid: "无效",
+        .pluginStatusExternal: "外部",
 
         // Settings Clipboard
         .settingsClipboardRetentionTitle: "历史记录保留数量",
@@ -433,11 +429,6 @@ public struct L10n {
         .clipboardAgeJustNow: "Just now",
 
         // Agent & HUD
-        .agentWaitingUser: "Awaiting Reply",
-        .agentWaitingSubagent: "Subagent Busy",
-        .agentWorking: "Agent Working",
-        .agentJumpToTerminal: "Jump to Terminal",
-        .agentAlertDismiss: "Dismiss",
         .agentListenerReady: "Running · Port 7823",
         .agentListenerStarting: "Binding · Port 7823",
         .agentListenerFailed: "Port 7823 failed to bind",
@@ -451,7 +442,7 @@ public struct L10n {
         // Settings Tabs
         .settingsTabGeneral: "General",
         .settingsTabWeather: "Weather",
-        .settingsTabAgent: "AI Agent",
+        .settingsTabPlugins: "Plugins",
         .settingsTabClipboard: "Clipboard",
         .settingsTabAbout: "About",
 
@@ -498,15 +489,18 @@ public struct L10n {
         .locationErrorNetwork: "Network error: %@",
         .locationLocalityUnknown: "Local",
 
-        // Settings Agent
-        .settingsAgentMasterTitle: "AI Agent Monitoring",
-        .settingsAgentMasterDesc: "Track local CLI agents like Claude Code, Antigravity, Codex, and Grok in real time",
-        .settingsAgentScanTitle: "Background Process Scanning",
-        .settingsAgentScanDesc: "Scan process trees for active agent sessions when webhook is not connected",
-        .settingsAgentHookTitle: "Agent Webhook Command",
-        .settingsAgentHookDesc: "Run this command in terminal to enable sub-millisecond lifecycle push",
-        .settingsAgentCopyHookBtn: "Copy Hook Command",
-        .settingsAgentHookCopied: "Command Copied",
+        // Settings Plugins
+        .settingsPluginsHTTPTitle: "Local Event API",
+        .settingsPluginsHTTPDesc: "Listens on 127.0.0.1:7823/event for session events from external plugins and hook scripts",
+        .settingsPluginsEmpty: "No plugins installed. Put a plugin folder in the plugins directory, then refresh.",
+        .settingsPluginsOpenFolder: "Open Plugins Folder",
+        .settingsPluginsReload: "Refresh",
+        .settingsPluginsTestAlert: "Test Notch Alert",
+        .pluginStatusRunning: "Running",
+        .pluginStatusStopped: "Stopped",
+        .pluginStatusCrashed: "Crashed",
+        .pluginStatusInvalid: "Invalid",
+        .pluginStatusExternal: "External",
 
         // Settings Clipboard
         .settingsClipboardRetentionTitle: "History Retention Limit",
