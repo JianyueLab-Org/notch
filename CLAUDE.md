@@ -31,7 +31,7 @@ Categories in `Support/Log.swift`: `lifecycle`, `geometry`, `window`, `hover`, `
 `private-api`, `media`, `location`, `plugins`.
 
 Only one process may hold port 7823, so kill a previously launched copy (`pkill -f NotchNotch`)
-before relaunching or the agent HTTP server silently fails to bind.
+before relaunching or the plugin HTTP listener silently fails to bind.
 
 ### Verification
 
@@ -57,7 +57,10 @@ observed on the in-process `NotificationCenter`.
 
 Agent alert banners take over the panel and will interrupt a capture; suppress a plugin's alerts with
 `defaults write co.jianyuelab.NotchNotch co.jianyuelab.NotchNotch.plugin.<plugin id>.enabled -bool false`,
-relaunch, and `defaults delete` the key afterwards to restore the default.
+relaunch, and `defaults delete` the key afterwards to restore the default. Legacy hook bodies (no `plugin`
+key) are silenced with
+`defaults write co.jianyuelab.NotchNotch co.jianyuelab.NotchNotch.httpListenerEnabled -bool false`,
+relaunch, and `defaults delete` to restore.
 
 ## Architecture
 
@@ -66,9 +69,10 @@ relaunch, and `defaults delete` the key afterwards to restore the default.
 `NotchNotchApp` (the only SwiftUI `Scene` is a `MenuBarExtra`; the overlay is *not* a scene) →
 `AppDelegate` → **`NotchWindowController`**, which is the single file that knows about the window,
 the state machine and the hover monitor at once. It also injects `NowPlayingController` and
-`ShelfController`. Everything else (`ScheduleController`, `ClipboardManager`, `WeatherController`,
-`AgentHarnessController`, `SystemMediaHUDController`) is a `.shared` singleton that self-starts in
-its private `init`, so merely touching `.shared` begins polling/monitoring.
+`ShelfController`. `AppDelegate` also starts `PluginHost`; `ActivityHub.shared` is touched by
+`PluginHost` and the views. Everything else (`ScheduleController`, `ClipboardManager`,
+`WeatherController`, `SystemMediaHUDController`) is a `.shared` singleton that self-starts in its
+private `init`, so merely touching `.shared` begins polling/monitoring.
 
 ### The Notch/ quartet
 
