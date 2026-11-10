@@ -1,0 +1,7 @@
+{
+  "id": "co.jianyuelab.notchnotch.omp",
+  "name": { "en": "omp", "zh-Hans": "omp" },
+  "version": "27.2.0",
+  "kind": "external",
+  "apiVersion": 1
+}

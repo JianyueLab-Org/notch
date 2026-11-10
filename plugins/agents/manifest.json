@@ -1,0 +1,8 @@
+{
+  "id": "co.jianyuelab.notchnotch.agents",
+  "name": { "en": "Agent Detection", "zh-Hans": "Agent 识别" },
+  "version": "27.2.0",
+  "kind": "managed",
+  "executable": "agents",
+  "apiVersion": 1
+}

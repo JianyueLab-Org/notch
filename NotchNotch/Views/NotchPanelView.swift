@@ -34,7 +34,7 @@ struct NotchPanelView: View {
     @ObservedObject var shelf: ShelfController
     @ObservedObject var schedule: ScheduleController
     @ObservedObject private var hud = SystemMediaHUDController.shared
-    @ObservedObject private var agentController = AgentHarnessController.shared
+    @ObservedObject private var activity = ActivityHub.shared
     @ObservedObject private var clipboard = ClipboardManager.shared
     @ObservedObject private var weather = WeatherController.shared
     @ObservedObject private var loc = LocalizationManager.shared
@@ -47,8 +47,8 @@ struct NotchPanelView: View {
         hud.isShowing && !isOpen
     }
 
-    private var isShowingAgentAlert: Bool {
-        agentController.isShowingAlert && !isOpen
+    private var isShowingActivityAlert: Bool {
+        activity.isShowingAlert && !isOpen
     }
 
     private var isShowingScheduleAlert: Bool {
@@ -76,7 +76,7 @@ struct NotchPanelView: View {
     }
 
     private var bodySize: CGSize {
-        if isShowingHUD || isShowingAgentAlert || isShowingScheduleAlert {
+        if isShowingHUD || isShowingActivityAlert || isShowingScheduleAlert {
             return CGSize(width: hudBarWidth, height: hudBarHeight)
         }
         return isOpen ? machine.layout.expandedSize : CGSize(width: collapsedWidth, height: machine.layout.collapsedSize.height)
@@ -146,7 +146,7 @@ struct NotchPanelView: View {
     }
 
     private var notchShape: NotchShape {
-        if isShowingHUD || isShowingAgentAlert || isShowingScheduleAlert {
+        if isShowingHUD || isShowingActivityAlert || isShowingScheduleAlert {
             return NotchShape(topRadius: 8, bottomRadius: 13)
         }
         let collapsedTop = hasLiveActivity ? NotchConfiguration.collapsedTopCornerRadius : 0
@@ -165,7 +165,7 @@ struct NotchPanelView: View {
             if isShowingScheduleAlert, let alert = schedule.activeAlert {
                 scheduleAlertContent(alert)
                     .transition(.opacity)
-            } else if isShowingAgentAlert, let alert = agentController.currentAlert {
+            } else if isShowingActivityAlert, let alert = activity.currentAlert {
                 agentAlertContent(alert)
                     .transition(.opacity)
             } else if isShowingHUD {
@@ -191,14 +191,14 @@ struct NotchPanelView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: bodySize.width)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: bodySize.height)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isShowingHUD)
-        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isShowingAgentAlert)
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isShowingActivityAlert)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isShowingScheduleAlert)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: hasLiveActivity)
         .compositingGroup()
         .shadow(
-            color: .black.opacity((isOpen || isShowingHUD || isShowingAgentAlert || isShowingScheduleAlert) ? 0.45 : (hasLiveActivity ? 0.25 : 0)),
-            radius: (isOpen || isShowingHUD || isShowingAgentAlert || isShowingScheduleAlert) ? 14 : 4,
-            y: (isOpen || isShowingHUD || isShowingAgentAlert || isShowingScheduleAlert) ? 6 : 2
+            color: .black.opacity((isOpen || isShowingHUD || isShowingActivityAlert || isShowingScheduleAlert) ? 0.45 : (hasLiveActivity ? 0.25 : 0)),
+            radius: (isOpen || isShowingHUD || isShowingActivityAlert || isShowingScheduleAlert) ? 14 : 4,
+            y: (isOpen || isShowingHUD || isShowingActivityAlert || isShowingScheduleAlert) ? 6 : 2
         )
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDraggingFile) { providers in
             isDraggingFile = true
@@ -288,7 +288,7 @@ struct NotchPanelView: View {
                         .foregroundStyle(JYLTheme.textPrimary)
                 }
             }
-        } else if agentController.isWaitingUser {
+        } else if activity.isWaitingUser {
             ZStack {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(JYLTheme.primaryMuted)
@@ -297,7 +297,7 @@ struct NotchPanelView: View {
                     .font(.system(size: 11.5, weight: .bold))
                     .foregroundStyle(JYLTheme.primary)
             }
-        } else if agentController.isWaitingSubagent {
+        } else if activity.isWaitingSubagent {
             ZStack {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(Color(hex: "#a78bfa", opacity: 0.20))
@@ -306,7 +306,7 @@ struct NotchPanelView: View {
                     .font(.system(size: 11.5, weight: .bold))
                     .foregroundStyle(JYLTheme.chart3)
             }
-        } else if agentController.isWorking {
+        } else if activity.isWorking {
             ZStack {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(JYLTheme.infoMuted)
@@ -359,23 +359,23 @@ struct NotchPanelView: View {
                         .frame(width: 19, height: 19)
                 }
             }
-        } else if agentController.isWaitingUser {
-            Text(AgentState.waitingUser.shortTag)
+        } else if activity.isWaitingUser {
+            Text(ActivityState.waitingUser.shortTag)
                 .font(.system(size: 7.5, weight: .black, design: .rounded))
                 .lineLimit(1)
                 .foregroundStyle(JYLTheme.primary)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 2)
                 .background(Capsule().fill(JYLTheme.primaryMuted))
-        } else if agentController.isWaitingSubagent {
-            Text(AgentState.waitingSubagent.shortTag)
+        } else if activity.isWaitingSubagent {
+            Text(ActivityState.waitingSubagent.shortTag)
                 .font(.system(size: 7.5, weight: .black, design: .rounded))
                 .lineLimit(1)
                 .foregroundStyle(JYLTheme.chart3)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 2)
                 .background(Capsule().fill(Color(hex: "#a78bfa", opacity: 0.22)))
-        } else if agentController.isWorking {
+        } else if activity.isWorking {
             TimelineView(.animation) { timeline in
                 let time = timeline.date.timeIntervalSinceReferenceDate
                 let angle = (time.truncatingRemainder(dividingBy: 1.5)) / 1.5 * 360
@@ -467,7 +467,7 @@ struct NotchPanelView: View {
 
     // MARK: - Agent Alert HUD Bar
 
-    private func agentAlertContent(_ alert: AgentAlert) -> some View {
+    private func agentAlertContent(_ alert: ActivityAlert) -> some View {
         let notchWidth = machine.layout.geometry.notchRect.width
 
         return HStack(spacing: 0) {
@@ -481,7 +481,7 @@ struct NotchPanelView: View {
                 // The conversation title, when the agent reports one, leads; the agent
                 // name drops to a caption so the bar still says who is asking.
                 if alert.title.isEmpty {
-                    Text(alert.agent)
+                    Text(alert.label)
                         .font(.system(size: 12.5, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .lineLimit(1)
@@ -492,7 +492,7 @@ struct NotchPanelView: View {
                             .foregroundStyle(.white)
                             .lineLimit(1)
                             .truncationMode(.tail)
-                        Text(alert.agent)
+                        Text(alert.label)
                             .font(.system(size: 9.5, weight: .medium, design: .rounded))
                             .foregroundStyle(JYLTheme.textMuted)
                             .lineLimit(1)
@@ -508,7 +508,7 @@ struct NotchPanelView: View {
 
             // Right ear (completely outside physical notch)
             Button {
-                agentController.focusActiveAgent()
+                activity.focusActiveSession()
             } label: {
                 HStack(spacing: 6) {
                     Text(alert.state.displayName)
@@ -527,7 +527,7 @@ struct NotchPanelView: View {
         .frame(width: hudBarWidth, height: hudBarHeight)
         .contentShape(Rectangle())
         .onTapGesture {
-            agentController.focusActiveAgent()
+            activity.focusActiveSession()
         }
     }
 
@@ -665,7 +665,7 @@ struct NotchPanelView: View {
             HStack(spacing: 6) {
                 Spacer(minLength: 0)
 
-                if agentController.isMonitoringEnabled, let agent = agentController.activeSession, agent.state != .idle {
+                if let agent = activity.activeSession, agent.state != .idle {
                     agentTopBarBadge(agent)
                 }
 
@@ -682,16 +682,16 @@ struct NotchPanelView: View {
         .frame(height: 26)
     }
 
-    private func agentTopBarBadge(_ agent: AgentSession) -> some View {
+    private func agentTopBarBadge(_ agent: ActivitySession) -> some View {
         Button {
-            agentController.focusSession(agent)
+            activity.focusActiveSession()
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: agent.state.iconName)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(agent.state.color)
 
-                Text(agent.agent)
+                Text(agent.label)
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(JYLTheme.textPrimary)
                     .lineLimit(1)
@@ -718,7 +718,7 @@ struct NotchPanelView: View {
             )
         }
         .buttonStyle(TabButtonStyle())
-        .help(loc.isChinese ? "在终端中跳转至 \(agent.agent) (\(agent.state.displayName))" : "Jump to \(agent.agent) (\(agent.state.displayName)) in Terminal")
+        .help(loc.isChinese ? "在终端中跳转至 \(agent.label) (\(agent.state.displayName))" : "Jump to \(agent.label) (\(agent.state.displayName)) in Terminal")
     }
 
     private func circleIconButton(

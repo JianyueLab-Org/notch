@@ -1,5 +1,7 @@
 # Module Registry Implementation Plan (Plugin System — Phase 1)
 
+Superseded by `../specs/2026-11-10-process-plugins-design.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace NotchNotch's three hardcoded feature-registration sites (the `NotchActiveTab` enum, the collapsed-ear `if/else` chains, and the duplicated `hasLiveActivity` aggregation) with one `ModuleRegistry`, so that later phases can register JS plugins through the same surface built-in features use.

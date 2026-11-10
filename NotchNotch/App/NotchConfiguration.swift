@@ -129,17 +129,16 @@ nonisolated enum NotchConfiguration {
     /// Oldest staged files are dropped beyond this.
     static let shelfMaxItems = 30
 
-    // MARK: - Agent harness
+    // MARK: - Activity & plugins
 
-    /// A hook session with no event for this long is dropped, live pid or not.
-    /// An interrupted agent sends no Stop; process scanning takes over from here.
-    static let agentHookInactivityTimeout: TimeInterval = 15 * 60
+    /// An explicit session that stops reporting (interrupted agent, no Stop) is dropped after this.
+    static let activityInactivityTimeout: TimeInterval = 15 * 60
 
-    /// Oldest hook sessions are evicted beyond this.
-    static let agentMaxHookSessions = 32
+    /// Oldest external/HTTP sessions are evicted beyond this. Any local process can mint ids.
+    static let activityMaxExplicitSessions = 32
 
     /// A connection that has not delivered a full request by then is closed.
-    static let agentHTTPRequestTimeout: TimeInterval = 5
+    static let pluginHTTPRequestTimeout: TimeInterval = 5
 
     /// Further connections are refused while this many are open.
     static let agentHTTPMaxConnections = 16

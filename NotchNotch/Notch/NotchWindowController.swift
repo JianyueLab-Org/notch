@@ -112,7 +112,7 @@ final class NotchWindowController {
         let detected = NotchGeometry.detect(on: screen)
         geometry = detected
         let isMusicPlaying = (nowPlaying.nowPlaying?.isPlaying == true) && (nowPlaying.nowPlaying?.hasTrack == true)
-        let isAgentActive = (AgentHarnessController.shared.activeSession?.state == .working || AgentHarnessController.shared.activeSession?.state.isWaiting == true)
+        let isAgentActive = (ActivityHub.shared.activeSession?.state == .working || ActivityHub.shared.activeSession?.state.isWaiting == true)
         let isWeatherActive = WeatherController.shared.isEnabled && WeatherController.shared.showInEars && (WeatherController.shared.currentSnapshot != nil)
         let hasLive = isMusicPlaying || schedule.hasActiveEvent || isAgentActive || isWeatherActive
         let layout = NotchLayout(geometry: detected, hasLiveActivity: hasLive)
@@ -135,7 +135,7 @@ final class NotchWindowController {
         Publishers.CombineLatest4(
             nowPlaying.$nowPlaying,
             schedule.$hasActiveEvent,
-            AgentHarnessController.shared.$activeSession,
+            ActivityHub.shared.$activeSession,
             weatherPublisher
         )
         .receive(on: DispatchQueue.main)
@@ -159,7 +159,7 @@ final class NotchWindowController {
             }
             .store(in: &cancellables)
 
-        AgentHarnessController.shared.$isShowingAlert
+        ActivityHub.shared.$isShowingAlert
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isShowing in
                 guard let self else { return }
@@ -250,7 +250,7 @@ final class NotchWindowController {
     }
 
     private var isAlertShowing: Bool {
-        AgentHarnessController.shared.isShowingAlert || schedule.isShowingAlert
+        ActivityHub.shared.isShowingAlert || schedule.isShowingAlert
     }
 
     /// The window must accept clicks only while the cursor is genuinely over the

@@ -1,5 +1,7 @@
 # Plugin System Specification
 
+Superseded by `2026-11-10-process-plugins-design.md`.
+
 ## Overview
 
 This specification details a plugin system for NotchNotch that lets third parties extend the notch

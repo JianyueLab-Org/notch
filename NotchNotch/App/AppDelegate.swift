@@ -23,9 +23,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let controller = NotchWindowController()
         controller.start()
         notchController = controller
+
+        // Writing to a plugin that has exited must fail with EPIPE, not kill the app.
+        signal(SIGPIPE, SIG_IGN)
+        // Starts the HTTP listener and enabled plugins.
+        _ = PluginHost.shared
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        PluginHost.shared.stopAll()
         notchController?.stop()
     }
 }
