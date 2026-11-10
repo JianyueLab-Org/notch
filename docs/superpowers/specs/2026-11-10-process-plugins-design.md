@@ -107,7 +107,7 @@ current `hasFreshHttpHook` logic.
 
 - Launch: enabled managed plugins start at app launch and on enable. The core writes `hello`, then
   `config`.
-- Exit: restart after 1, 2, 4, 8, 16, 30, 30 … s. Five exits within 10 minutes mark the plugin
+- Exit: restart after 1, 2, 4, 8 s. Five exits within 10 minutes mark the plugin
   `crashed` and stop restarts until it is re-enabled. All its sessions are removed at each exit.
 - Stop: on disable or app quit, close stdin, then `SIGTERM`, then `SIGKILL` after 2 s.
 - stderr: the last 20 lines are kept per plugin and shown in Settings.

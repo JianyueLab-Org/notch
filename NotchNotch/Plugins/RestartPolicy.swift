@@ -14,7 +14,7 @@ nonisolated struct RestartPolicy: Sendable {
         case crashed
     }
 
-    static let delays: [TimeInterval] = [1, 2, 4, 8, 16, 30]
+    static let delays: [TimeInterval] = [1, 2, 4, 8]
     static let maxExits = 5
     static let window: TimeInterval = 600
 

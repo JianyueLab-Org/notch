@@ -23,7 +23,7 @@
 - Plugin API version: `1`.
 - Plugin ids: agent plugin `co.jianyuelab.notchnotch.agents`, omp plugin `co.jianyuelab.notchnotch.omp`. Built-in HTTP source id `http`.
 - UserDefaults keys: `co.jianyuelab.NotchNotch.httpListenerEnabled`, `co.jianyuelab.NotchNotch.plugin.<id>.enabled` (absent = enabled).
-- Restart delays `1, 2, 4, 8, 16, 30` s; 5 exits within 600 s = crashed; stop grace 2 s; stderr tail 20 lines.
+- Restart delays `1, 2, 4, 8` s; 5 exits within 600 s = crashed; stop grace 2 s; stderr tail 20 lines.
 - Pid dedup hold: 180 s.
 - The project has no XCTest target. Tests are `swift` scripts under `.temp/plugin-checks/`, compiled with the pure source files. Build: `xcodebuild -scheme NotchNotch -configuration Debug -derivedDataPath build/DerivedData build`.
 
@@ -727,7 +727,7 @@ nonisolated struct RestartPolicy: Sendable {
         case crashed
     }
 
-    static let delays: [TimeInterval] = [1, 2, 4, 8, 16, 30]
+    static let delays: [TimeInterval] = [1, 2, 4, 8]
     static let maxExits = 5
     static let window: TimeInterval = 600
 
