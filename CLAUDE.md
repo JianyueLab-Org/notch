@@ -17,6 +17,9 @@ xcodebuild -scheme NotchNotch -configuration Debug -derivedDataPath build/Derive
 # Release
 xcodebuild -scheme NotchNotch -configuration Release -derivedDataPath build/DerivedData build
 
+# Agent plugin: build, sign and zip into build/plugins/agents/
+plugins/agents/build.sh
+
 # Run with stdout visible (the app prints a lot of state-transition tracing)
 build/DerivedData/Build/Products/Debug/NotchNotch.app/Contents/MacOS/NotchNotch 2>&1 | tee .temp/app_stdout.log
 
@@ -25,7 +28,7 @@ log stream --predicate 'subsystem == "co.jianyuelab.NotchNotch"'
 ```
 
 Categories in `Support/Log.swift`: `lifecycle`, `geometry`, `window`, `hover`, `state`,
-`private-api`, `media`, `location`.
+`private-api`, `media`, `location`, `plugins`.
 
 Only one process may hold port 7823, so kill a previously launched copy (`pkill -f NotchNotch`)
 before relaunching or the agent HTTP server silently fails to bind.
@@ -52,9 +55,9 @@ screencapture -x .temp/expanded.png
 `NotchActiveTab` raw values), plus `"settings"` to open the Settings window. Both names are also
 observed on the in-process `NotificationCenter`.
 
-Agent alert banners take over the panel and will interrupt a capture; suppress them with
-`defaults write co.jianyuelab.NotchNotch co.jianyuelab.NotchNotch.agentMonitoringEnabled -bool false`
-and `defaults delete` the key afterwards to restore the default.
+Agent alert banners take over the panel and will interrupt a capture; suppress a plugin's alerts with
+`defaults write co.jianyuelab.NotchNotch co.jianyuelab.NotchNotch.plugin.<plugin id>.enabled -bool false`,
+relaunch, and `defaults delete` the key afterwards to restore the default.
 
 ## Architecture
 
@@ -120,7 +123,7 @@ event; and `orderFrontRegardless()` is required because an accessory app is neve
 ### Live activity → compact width
 
 `NotchWindowController.observeLiveActivities()` is the single aggregation point. A `CombineLatest4` of
-now-playing / schedule / agent / weather decides `hasLiveActivity`, which widens the collapsed body by
+now-playing / schedule / agent (`ActivityHub.shared.$activeSession`) / weather decides `hasLiveActivity`, which widens the collapsed body by
 `compactWidthExtension` to reveal the ear indicators. Adding a new "ear" feature means extending both
 that publisher **and** the identical inline recomputation in `reload()`.
 
@@ -141,30 +144,21 @@ traps or force-unwraps. Window elevation is additionally gated behind
 `NotchConfiguration.usesPrivateWindowElevation` (currently `false`). Keep new SPI use inside these
 files.
 
-### Agent harness (`Agent/`)
+### Plugins (`Plugins/`, `Activity/`, `plugins/`)
 
-Two ingestion paths into `AgentHarnessController`:
-1. `AgentHTTPServer` — a dependency-free `NWListener` on `127.0.0.1:7823`, POST JSON to `/event`.
-   Recognised keys: `state`, `agent`, `event`, `session_id`, `cwd`, `title`, `terminal`, `pid`.
-   `state` matching is deliberately fuzzy (`waitinguser`/`waiting_user`/`reply`/`action` all map to
-   `.waitingUser`) so different CLI hook scripts can post without a shared schema.
-2. Process polling — `ps` snapshot parsing that recognises Claude Code, Antigravity, Codex, Grok,
-   omp, OpenCode and Aider, then climbs the kernel PPID tree (`proc_pidinfo`/`proc_bsdinfo`, with a tmux special
-   case) to find the hosting GUI terminal so the alert can focus it. For omp, `OmpSession` reads the
-   conversation title from line 1 of the main session file the process holds open (found through the
-   kernel fd table; subagent transcripts are skipped). omp opens that file on its first write, so an
-   omp process that has not run a turn yet has no title.
+The core has no agent-specific code. Spec: `docs/superpowers/specs/2026-11-10-process-plugins-design.md`.
 
-Both are toggleable; when monitoring is off nothing is started at all.
-
-A hook session with a `pid` suppresses the scanned session for that process while the hook is fresh
-(< 180s). A hook session without a `pid` suppresses every scanned process of the same agent.
-`AgentAlert.title` is the conversation title, empty when unknown; the alert bar shows it above the
-agent name.
-
-`scripts/omp/notchnotch.ts` is an omp extension that posts main-session `agent_start`/`agent_end`
-with the session name and pid. omp auto-loads `~/.omp/agent/extensions/*.ts`; jhl's nix-config links
-the file from a pinned `notchnotch` flake input on the Macs.
+- `PluginHost` scans `~/Library/Application Support/NotchNotch/Plugins/<id>/manifest.json` (symlinks
+  followed), launches `managed` plugins and reads JSON lines from their stdout, restarts them with
+  backoff (5 exits in 10 min = crashed), and routes HTTP bodies from `127.0.0.1:7823/event`.
+- `ActivityHub` holds every session (`<plugin id>/<session id>`), picks the active one, dedups a
+  managed session against an explicit report of the same pid (180 s), and shows alerts. Plugins set
+  `alert`; legacy HTTP bodies (no `type`) alert on the old transitions.
+- `ActivityFocus` turns a session pid into the hosting GUI app (tmux special case included).
+- `plugins/agents/`: SwiftPM agent plugin. `plugins/agents/build.sh` builds, signs and zips it.
+- `plugins/omp/`: omp extension + `external` manifest.
+- Pure files (`PluginMessage`, `PluginManifest`, `PluginPreferences`, `RestartPolicy`,
+  `ActivityState`, `ActivityRules`) compile in `.temp/` scripts.
 
 ### Configuration and tokens
 

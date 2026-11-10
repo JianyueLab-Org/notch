@@ -32,12 +32,11 @@ A refined MacBook Pro notch companion panel for macOS. Transforms the hardware n
   - Live timeline ruler showing elapsed and remaining meeting progress.
   - Configurable advance reminders (5, 10, 15, 30 minutes before start / 5, 10, 15 minutes before end).
 
-- **AI Agent Lifecycle Integration**:
-  - Real-time detection of local CLI agents: **Claude Code**, **Antigravity**, **Codex**, **Grok**, **omp**, **OpenCode**, and **Aider**.
-  - Lightweight embedded HTTP server (`127.0.0.1:7823/event`) for millisecond-level lifecycle webhook ingestion.
-  - omp conversation titles in agent alerts. The omp extension `scripts/omp/notchnotch.ts` reports exact turn ends; link it into `~/.omp/agent/extensions/`.
-  - Deep ancestor process tree analysis to automatically locate and focus the parent terminal window (Ghostty, Zed ACP, iTerm, Terminal, Warp, VS Code).
-  - Fully toggleable in Settings with zero background overhead when disabled.
+- **Plugins**:
+  - Agent Detection plugin: detects local CLI agents (**Claude Code**, **Antigravity**, **Codex**, **Grok**, **OpenCode**, **Aider**) by process scanning. Released as `NotchNotchAgents-<version>.zip`; unzip into `~/Library/Application Support/NotchNotch/Plugins/`.
+  - omp plugin (`plugins/omp/`): exact omp turn ends with the conversation title. Link `notchnotch.ts` into `~/.omp/agent/extensions/` and the `plugins/omp` directory into the Plugins directory.
+  - Local event API on `127.0.0.1:7823/event` for hook scripts and external plugins.
+  - Clicking an alert focuses the hosting terminal (Ghostty, Zed, iTerm, Terminal, Warp, VS Code, tmux).
 
 - **Native macOS Experience**:
   - Designed for Apple Silicon ProMotion displays with fluid 120Hz spring physics.
