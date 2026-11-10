@@ -21,3 +21,4 @@ xcuserdata/
 .temp/
 .superpowers/
 .worktrees/
+plugins/agents/.build/
