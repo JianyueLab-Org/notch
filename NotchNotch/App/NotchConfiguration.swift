@@ -129,7 +129,7 @@ nonisolated enum NotchConfiguration {
     /// Oldest staged files are dropped beyond this.
     static let shelfMaxItems = 30
 
-    // MARK: - Agent harness
+    // MARK: - Activity & plugins
 
     /// An explicit session that stops reporting (interrupted agent, no Stop) is dropped after this.
     static let activityInactivityTimeout: TimeInterval = 15 * 60

@@ -1011,6 +1011,8 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Clipboard Tab
+
     private var clipboardSection: some View {
         VStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 12) {

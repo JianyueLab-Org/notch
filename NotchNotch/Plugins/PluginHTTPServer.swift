@@ -74,8 +74,8 @@ nonisolated final class PluginHTTPServer: @unchecked Sendable {
             tcpOptions.enableKeepalive = false
             let params = NWParameters(tls: nil, tcp: tcpOptions)
             params.allowLocalEndpointReuse = true
-            // `NWListener(using:on:)` binds the wildcard address. Hook scripts and the
-            // settings copy both post to 127.0.0.1, so the socket has to match that.
+            // `NWListener(using:on:)` binds the wildcard address. Clients post to
+            // 127.0.0.1, so the socket has to match that.
             params.requiredLocalEndpoint = NWEndpoint.hostPort(host: .ipv4(.loopback), port: nwPort)
 
             let listener = try NWListener(using: params)
@@ -90,7 +90,7 @@ nonisolated final class PluginHTTPServer: @unchecked Sendable {
             self.listener = listener
             listener.start(queue: queue)
         } catch {
-            Log.lifecycle.error("Failed to start Agent HTTP listener on port \(port): \(error.localizedDescription)")
+            Log.lifecycle.error("Failed to start Plugin HTTP listener on port \(port): \(error.localizedDescription)")
             emit(.failed)
         }
     }
@@ -98,15 +98,15 @@ nonisolated final class PluginHTTPServer: @unchecked Sendable {
     private func handleListenerState(_ state: NWListener.State, port: UInt16) {
         switch state {
         case .ready:
-            Log.lifecycle.notice("Agent HTTP listener ready on 127.0.0.1:\(port)")
+            Log.lifecycle.notice("Plugin HTTP listener ready on 127.0.0.1:\(port)")
             emit(.ready)
         case .failed(let error):
-            Log.lifecycle.error("Agent HTTP listener failed: \(error.localizedDescription)")
+            Log.lifecycle.error("Plugin HTTP listener failed: \(error.localizedDescription)")
             listener?.cancel()
             listener = nil
             emit(.failed)
         case .cancelled:
-            Log.lifecycle.notice("Agent HTTP listener cancelled")
+            Log.lifecycle.notice("Plugin HTTP listener cancelled")
         default:
             break
         }

@@ -193,5 +193,5 @@ ternary; both idioms are in use. Any new user-facing string needs a key added to
 - Version lives in `MARKETING_VERSION` in `NotchNotch.xcodeproj/project.pbxproj` — **two** places
   (Debug and Release); bump both.
 - Entitlements (`NotchNotch.entitlements`): Apple Events, Calendars, network client **and server**
-  (the agent listener). Hardened runtime is on; new capabilities need an entitlement plus an
+  (the plugin HTTP listener). Hardened runtime is on; new capabilities need an entitlement plus an
   `INFOPLIST_KEY_NS*UsageDescription` in the pbxproj.
