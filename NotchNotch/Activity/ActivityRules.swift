@@ -42,13 +42,23 @@ nonisolated enum ActivityRules {
     /// A managed session is hidden while an external or HTTP session reports
     /// the same pid and was updated within `explicitHold`: the report is exact,
     /// the scan is a guess, and a frozen guess would outrank it (REPLY over BUSY).
+    /// A fresh report without a pid cannot name its process, so it hides every
+    /// managed session whose label matches its own (case-insensitive).
     static func visible(_ sessions: [ActivitySession], now: Date) -> [ActivitySession] {
-        let explicitPIDs = Set(sessions.compactMap { session -> Int? in
-            guard session.source != .managed, now.timeIntervalSince(session.lastUpdated) < explicitHold else { return nil }
-            return session.pid
-        })
+        var explicitPIDs = Set<Int>()
+        var pidlessLabels = Set<String>()
+        for session in sessions where session.source != .managed
+            && now.timeIntervalSince(session.lastUpdated) < explicitHold {
+            if let pid = session.pid {
+                explicitPIDs.insert(pid)
+            } else {
+                pidlessLabels.insert(session.label.lowercased())
+            }
+        }
         return sessions.filter { session in
-            guard session.source == .managed, let pid = session.pid else { return true }
+            guard session.source == .managed else { return true }
+            if pidlessLabels.contains(session.label.lowercased()) { return false }
+            guard let pid = session.pid else { return true }
             return !explicitPIDs.contains(pid)
         }
     }

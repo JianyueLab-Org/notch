@@ -101,12 +101,13 @@ One JSON object per line on stdio; one object per POST body on HTTP.
 
 When two live sessions report the same `pid`, the session updated most recently from an `external`
 or `http` source hides the `managed` one until it ends or is idle for 180 s. This replaces the
-current `hasFreshHttpHook` logic.
+current `hasFreshHttpHook` logic. An `external` or `http` session without a `pid`, updated within
+180 s, hides every `managed` session whose label matches its own, case-insensitive.
 
 ## Lifecycle and errors
 
-- Launch: enabled managed plugins start at app launch and on enable. The core writes `hello`, then
-  `config`.
+- Launch: enabled managed plugins start at app launch, on enable and on Settings → Refresh. The
+  core writes `hello`, then `config`.
 - Exit: restart after 1, 2, 4, 8 s. Five exits within 10 minutes mark the plugin
   `crashed` and stop restarts until it is re-enabled. All its sessions are removed at each exit.
 - Stop: on disable or app quit, close stdin, then `SIGTERM`, then `SIGKILL` after 2 s.
