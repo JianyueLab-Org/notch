@@ -22,20 +22,23 @@ nonisolated final class ManagedPluginProcess: @unchecked Sendable {
     private let stderrPipe = Pipe()
     private let queue: DispatchQueue
     private var lines = JSONLineBuffer()
-    private var stderrPending = ""
+    private var stderrPending = Data()
     private var stderrTail: [String] = []
 
-    private let onMessage: @Sendable (PluginMessage) -> Void
-    private let onStderr: @Sendable ([String]) -> Void
-    private let onExit: @Sendable (Int32) -> Void
+    /// An unterminated stderr line keeps only this many bytes; the rest is dropped.
+    static let stderrPendingLimit = 16 * 1024
+
+    private let onMessage: @Sendable (ManagedPluginProcess, PluginMessage) -> Void
+    private let onStderr: @Sendable (ManagedPluginProcess, [String]) -> Void
+    private let onExit: @Sendable (ManagedPluginProcess, Int32) -> Void
 
     init(
         pluginID: String,
         executable: URL,
         workingDirectory: URL,
-        onMessage: @escaping @Sendable (PluginMessage) -> Void,
-        onStderr: @escaping @Sendable ([String]) -> Void,
-        onExit: @escaping @Sendable (Int32) -> Void
+        onMessage: @escaping @Sendable (ManagedPluginProcess, PluginMessage) -> Void,
+        onStderr: @escaping @Sendable (ManagedPluginProcess, [String]) -> Void,
+        onExit: @escaping @Sendable (ManagedPluginProcess, Int32) -> Void
     ) {
         self.pluginID = pluginID
         self.queue = DispatchQueue(label: "co.jianyuelab.NotchNotch.plugin.\(pluginID)", qos: .utility)
@@ -51,12 +54,15 @@ nonisolated final class ManagedPluginProcess: @unchecked Sendable {
 
     /// `initialLines` (hello, config) are written before any output is read.
     func start(initialLines: [Data]) throws {
+        // Empty data is EOF; the handler would otherwise fire continuously until termination.
         stdoutPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let chunk = handle.availableData
+            guard !chunk.isEmpty else { handle.readabilityHandler = nil; return }
             self?.queue.async { self?.consumeStdout(chunk) }
         }
         stderrPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let chunk = handle.availableData
+            guard !chunk.isEmpty else { handle.readabilityHandler = nil; return }
             self?.queue.async { self?.consumeStderr(chunk) }
         }
         process.terminationHandler = { [weak self] process in
@@ -65,7 +71,7 @@ nonisolated final class ManagedPluginProcess: @unchecked Sendable {
                 guard let self else { return }
                 self.stdoutPipe.fileHandleForReading.readabilityHandler = nil
                 self.stderrPipe.fileHandleForReading.readabilityHandler = nil
-                self.onExit(status)
+                self.onExit(self, status)
             }
         }
         try process.run()
@@ -95,24 +101,25 @@ nonisolated final class ManagedPluginProcess: @unchecked Sendable {
     }
 
     private func consumeStdout(_ chunk: Data) {
-        guard !chunk.isEmpty else { return }
         for line in lines.append(chunk) {
             // The pipe names the plugin; an envelope `plugin` field is ignored here.
             if let envelope = PluginMessageDecoder.decode(line) {
-                onMessage(envelope.message)
+                onMessage(self, envelope.message)
             } else {
                 Log.plugins.error("plugin \(self.pluginID, privacy: .public) wrote an invalid message")
             }
         }
     }
 
+    /// Lines are split on raw bytes, so a chunk boundary inside a UTF-8
+    /// sequence cannot lose it; decoding repairs invalid bytes.
     private func consumeStderr(_ chunk: Data) {
-        guard !chunk.isEmpty, let text = String(data: chunk, encoding: .utf8) else { return }
-        stderrPending += text
-        var parts = stderrPending.components(separatedBy: "\n")
-        stderrPending = parts.removeLast()
+        stderrPending.append(chunk)
+        var parts = stderrPending.split(separator: 0x0A, omittingEmptySubsequences: false)
+        stderrPending = Data(parts.removeLast().prefix(Self.stderrPendingLimit))
         guard !parts.isEmpty else { return }
-        stderrTail = Array((stderrTail + parts).suffix(Self.stderrTailLines))
-        onStderr(stderrTail)
+        let newLines = parts.map { String(decoding: $0, as: UTF8.self) }
+        stderrTail = Array((stderrTail + newLines).suffix(Self.stderrTailLines))
+        onStderr(self, stderrTail)
     }
 }

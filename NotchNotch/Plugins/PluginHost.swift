@@ -120,6 +120,8 @@ final class PluginHost: ObservableObject {
             if !enabled { hub.removeSessions(of: id) }
         case .managed:
             if enabled {
+                // Already running: keep the live child and its status.
+                guard processes[id] == nil else { return }
                 policies[id] = RestartPolicy()
                 update(id) { $0.status = .stopped }
                 launch(id)
@@ -155,18 +157,36 @@ final class PluginHost: ObservableObject {
               let manifest = record.manifest, manifest.kind == .managed,
               let executable = manifest.executable else { return }
 
+        // Callbacks name their process: a stopped child still in its stop grace
+        // must not touch the instance that replaced it. The hop is
+        // DispatchQueue.main, not Task, so callbacks stay FIFO (an update
+        // before the end that follows it).
         let process = ManagedPluginProcess(
             pluginID: id,
             executable: record.directory.appendingPathComponent(executable),
             workingDirectory: record.directory,
-            onMessage: { [weak self] message in
-                Task { @MainActor in self?.hub.apply(message, pluginID: id, source: .managed) }
+            onMessage: { [weak self] process, message in
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        guard let self, self.processes[id] === process else { return }
+                        self.hub.apply(message, pluginID: id, source: .managed)
+                    }
+                }
             },
-            onStderr: { [weak self] tail in
-                Task { @MainActor in self?.update(id) { $0.stderrTail = tail } }
+            onStderr: { [weak self] process, tail in
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        guard let self, self.processes[id] === process else { return }
+                        self.update(id) { $0.stderrTail = tail }
+                    }
+                }
             },
-            onExit: { [weak self] status in
-                Task { @MainActor in self?.processExited(id, status: status) }
+            onExit: { [weak self] process, status in
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        self?.processExited(id, process: process, status: status)
+                    }
+                }
             }
         )
         do {
@@ -180,9 +200,10 @@ final class PluginHost: ObservableObject {
         }
     }
 
-    private func processExited(_ id: String, status: Int32) {
-        // Absent means stopProcess already took it out: an intended stop, not a crash.
-        guard processes.removeValue(forKey: id) != nil else { return }
+    private func processExited(_ id: String, process: ManagedPluginProcess, status: Int32) {
+        // Absent or replaced means stopProcess already took it out: an intended stop, not a crash.
+        guard let current = processes[id], current === process else { return }
+        processes[id] = nil
         hub.removeSessions(of: id)
         var policy = policies[id] ?? RestartPolicy()
         let decision = policy.recordExit(at: Date())
