@@ -69,17 +69,20 @@ struct PluginsSettingsSection: View {
                 Text(record.manifest?.displayName(isChinese: loc.isChinese) ?? record.id)
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(JYLTheme.textPrimary)
-                if let version = record.manifest?.version {
-                    Text(version)
+                if let manifest = record.manifest {
+                    Text(manifest.version)
                         .font(.system(size: 10.5, design: .monospaced))
                         .foregroundStyle(JYLTheme.textMuted)
+                    Text(L10n.tr(manifest.kind == .managed ? .pluginKindManaged : .pluginKindExternal))
+                        .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                        .foregroundStyle(JYLTheme.textSecondary)
                 }
-                Text(statusText(record.status))
+                Text(statusText(record))
                     .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(statusColor(record.status))
+                    .foregroundStyle(statusColor(record))
                     .padding(.horizontal, 7)
                     .padding(.vertical, 2)
-                    .background(Capsule().fill(statusColor(record.status).opacity(0.15)))
+                    .background(Capsule().fill(statusColor(record).opacity(0.15)))
                 Spacer()
                 if record.manifest != nil {
                     Toggle("", isOn: Binding(get: { host.isEnabled(record.id) }, set: { host.setEnabled(record.id, $0) }))
@@ -128,20 +131,23 @@ struct PluginsSettingsSection: View {
         .font(.system(size: 11, weight: .medium, design: .rounded))
     }
 
-    private func statusText(_ status: PluginStatus) -> String {
-        switch status {
+    /// An external plugin has no process here; its state is whether its
+    /// messages are accepted.
+    private func statusText(_ record: PluginRecord) -> String {
+        switch record.status {
         case .running: return L10n.tr(.pluginStatusRunning)
         case .stopped: return L10n.tr(.pluginStatusStopped)
         case .crashed: return L10n.tr(.pluginStatusCrashed)
         case .invalid: return L10n.tr(.pluginStatusInvalid)
-        case .external: return L10n.tr(.pluginStatusExternal)
+        case .external: return L10n.tr(host.isEnabled(record.id) ? .commonEnabled : .commonDisabled)
         }
     }
 
-    private func statusColor(_ status: PluginStatus) -> Color {
-        switch status {
+    private func statusColor(_ record: PluginRecord) -> Color {
+        switch record.status {
         case .running: return JYLTheme.success
-        case .stopped, .external: return JYLTheme.textMuted
+        case .external: return host.isEnabled(record.id) ? JYLTheme.success : JYLTheme.textMuted
+        case .stopped: return JYLTheme.textMuted
         case .crashed, .invalid: return JYLTheme.error
         }
     }

@@ -718,7 +718,7 @@ struct NotchPanelView: View {
             )
         }
         .buttonStyle(TabButtonStyle())
-        .help(loc.isChinese ? "在终端中跳转至 \(agent.label) (\(agent.state.displayName))" : "Jump to \(agent.label) (\(agent.state.displayName)) in Terminal")
+        .help(loc.isChinese ? "前往 \(agent.label)（\(agent.state.displayName)）所在的应用" : "Go to the app running \(agent.label) (\(agent.state.displayName))")
     }
 
     private func circleIconButton(

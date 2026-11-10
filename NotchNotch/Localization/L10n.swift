@@ -154,7 +154,8 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case pluginStatusStopped
     case pluginStatusCrashed
     case pluginStatusInvalid
-    case pluginStatusExternal
+    case pluginKindManaged
+    case pluginKindExternal
 
     // MARK: - Settings Clipboard
     case settingsClipboardRetentionTitle
@@ -328,7 +329,8 @@ public struct L10n {
         .pluginStatusStopped: "已停止",
         .pluginStatusCrashed: "已崩溃",
         .pluginStatusInvalid: "无效",
-        .pluginStatusExternal: "外部",
+        .pluginKindManaged: "托管",
+        .pluginKindExternal: "外部",
 
         // Settings Clipboard
         .settingsClipboardRetentionTitle: "历史记录保留数量",
@@ -500,7 +502,8 @@ public struct L10n {
         .pluginStatusStopped: "Stopped",
         .pluginStatusCrashed: "Crashed",
         .pluginStatusInvalid: "Invalid",
-        .pluginStatusExternal: "External",
+        .pluginKindManaged: "Managed",
+        .pluginKindExternal: "External",
 
         // Settings Clipboard
         .settingsClipboardRetentionTitle: "History Retention Limit",
