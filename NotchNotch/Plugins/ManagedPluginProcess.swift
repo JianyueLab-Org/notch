@@ -100,15 +100,32 @@ nonisolated final class ManagedPluginProcess: @unchecked Sendable {
         }
     }
 
+    /// App quit: closes stdin and sends SIGTERM before returning. No SIGKILL
+    /// follow-up, because the app exits before the grace period would end.
+    func stopNow() {
+        queue.sync { [self] in
+            try? stdinPipe.fileHandleForWriting.close()
+            guard process.isRunning else { return }
+            process.terminate()
+        }
+    }
+
     private func consumeStdout(_ chunk: Data) {
         for line in lines.append(chunk) {
             // The pipe names the plugin; an envelope `plugin` field is ignored here.
-            if let envelope = PluginMessageDecoder.decode(line) {
+            // A session.update without `alert` is a legacy HTTP body, which only
+            // the HTTP listener accepts.
+            if let envelope = PluginMessageDecoder.decode(line), !Self.isLegacy(envelope.message) {
                 onMessage(self, envelope.message)
             } else {
                 Log.plugins.error("plugin \(self.pluginID, privacy: .public) wrote an invalid message")
             }
         }
+    }
+
+    private static func isLegacy(_ message: PluginMessage) -> Bool {
+        if case .sessionUpdate(let update) = message { return update.alert == nil }
+        return false
     }
 
     /// Lines are split on raw bytes, so a chunk boundary inside a UTF-8

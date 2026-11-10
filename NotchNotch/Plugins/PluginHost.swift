@@ -51,19 +51,19 @@ final class PluginHost: ObservableObject {
             .appendingPathComponent("NotchNotch/Plugins", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         isHTTPEnabled = true
+        // reload() migrates the pre-plugin keys, so the HTTP flag is read after it.
         reload()
-        PluginPreferences.migrate(defaults: defaults, installedPluginIDs: Set(plugins.compactMap { $0.manifest?.id }))
         isHTTPEnabled = PluginPreferences.isHTTPEnabled(in: defaults)
         if isHTTPEnabled { startHTTP() }
-        for record in plugins where record.manifest?.kind == .managed && isEnabled(record.id) {
-            launch(record.id)
-        }
     }
 
     // MARK: - Discovery
 
     /// Rescans the directory. Symlinked plugin directories (nix store paths)
     /// are followed. Running processes of plugins that disappeared are stopped.
+    /// Migration runs on every scan, so a plugin installed while the app runs
+    /// still picks up the pre-plugin settings. Enabled managed plugins that are
+    /// not running, crashed or waiting out a restart delay are launched.
     func reload() {
         let fm = FileManager.default
         let entries = (try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
@@ -103,6 +103,14 @@ final class PluginHost: ObservableObject {
             hub.removeSessions(of: id)
         }
         plugins = records
+        PluginPreferences.migrate(defaults: defaults, installedPluginIDs: Set(records.compactMap { $0.manifest?.id }))
+        for record in records where record.manifest?.kind == .managed
+            && record.status != .crashed
+            && processes[record.id] == nil
+            && restartTasks[record.id] == nil
+            && isEnabled(record.id) {
+            launch(record.id)
+        }
     }
 
     // MARK: - Enablement
@@ -144,8 +152,13 @@ final class PluginHost: ObservableObject {
         }
     }
 
+    /// App quit: stdin close and SIGTERM are sent before returning, because the
+    /// process exits right after and an async stop would never run.
     func stopAll() {
-        for id in Array(processes.keys) { stopProcess(id) }
+        for id in Array(processes.keys) {
+            restartTasks.removeValue(forKey: id)?.cancel()
+            processes.removeValue(forKey: id)?.stopNow()
+        }
         httpServer.stop()
     }
 
