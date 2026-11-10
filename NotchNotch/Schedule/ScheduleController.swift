@@ -491,7 +491,7 @@ final class ScheduleController: ObservableObject {
             if remindBeforeStart {
                 let targetSec = Double(startReminderMinutes * 60)
                 let startDiff = event.startDate.timeIntervalSince(now)
-                if startDiff > 0 && startDiff <= targetSec + 60 {
+                if startDiff > 0 && startDiff <= targetSec {
                     let key = "\(title)_\(Int(event.startDate.timeIntervalSince1970))_start_\(startReminderMinutes)"
                     if !sentReminderKeys.contains(key) {
                         sentReminderKeys.insert(key)
@@ -505,7 +505,7 @@ final class ScheduleController: ObservableObject {
             if remindBeforeEnd {
                 let targetSec = Double(endReminderMinutes * 60)
                 let endDiff = event.endDate.timeIntervalSince(now)
-                if event.startDate <= now && endDiff > 0 && endDiff <= targetSec + 60 {
+                if event.startDate <= now && endDiff > 0 && endDiff <= targetSec {
                     let key = "\(title)_\(Int(event.startDate.timeIntervalSince1970))_end_\(endReminderMinutes)"
                     if !sentReminderKeys.contains(key) {
                         sentReminderKeys.insert(key)
