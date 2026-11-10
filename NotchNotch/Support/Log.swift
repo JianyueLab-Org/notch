@@ -23,4 +23,5 @@ nonisolated enum Log {
     static let privateAPI = Logger(subsystem: subsystem, category: "private-api")
     static let media     = Logger(subsystem: subsystem, category: "media")
     static let location  = Logger(subsystem: subsystem, category: "location")
+    static let plugins   = Logger(subsystem: subsystem, category: "plugins")
 }
