@@ -1,0 +1,9 @@
+{
+	"name": "notchnotch-omp",
+	"version": "27.1.11",
+	"private": true,
+	"description": "Reports omp main-session turns to NotchNotch",
+	"omp": {
+		"extensions": ["./notchnotch.ts"]
+	}
+}

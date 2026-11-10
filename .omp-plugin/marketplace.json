@@ -1,0 +1,15 @@
+{
+	"name": "notchnotch",
+	"owner": { "name": "JianyueLab" },
+	"metadata": { "description": "omp plugins for NotchNotch" },
+	"plugins": [
+		{
+			"name": "notchnotch",
+			"description": "Shows omp turn ends and conversation titles in the NotchNotch notch",
+			"version": "27.1.11",
+			"source": "./scripts/omp",
+			"homepage": "https://github.com/JianyueLab-Org/notch",
+			"category": "productivity"
+		}
+	]
+}

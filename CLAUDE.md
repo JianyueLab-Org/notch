@@ -149,10 +149,25 @@ Two ingestion paths into `AgentHarnessController`:
    `state` matching is deliberately fuzzy (`waitinguser`/`waiting_user`/`reply`/`action` all map to
    `.waitingUser`) so different CLI hook scripts can post without a shared schema.
 2. Process polling — `ps` snapshot parsing that recognises Claude Code, Antigravity, Codex, Grok,
-   OpenCode and Aider, then climbs the kernel PPID tree (`proc_pidinfo`/`proc_bsdinfo`, with a tmux special
-   case) to find the hosting GUI terminal so the alert can focus it.
+   omp, OpenCode and Aider, then climbs the kernel PPID tree (`proc_pidinfo`/`proc_bsdinfo`, with a tmux special
+   case) to find the hosting GUI terminal so the alert can focus it. For omp, `OmpSession` reads the
+   conversation title from line 1 of the main session file the process holds open (found through the
+   kernel fd table; subagent transcripts are skipped). omp opens that file on its first write, so an
+   omp process that has not run a turn yet has no title.
 
 Both are toggleable; when monitoring is off nothing is started at all.
+
+A hook session with a `pid` suppresses the scanned session for that process while the hook is fresh
+(< 180s). A hook session without a `pid` suppresses every scanned process of the same agent.
+`AgentAlert.title` is the conversation title, empty when unknown; the alert bar shows it above the
+agent name.
+
+`scripts/omp/notchnotch.ts` is an omp extension that posts main-session `agent_start`/`agent_end`
+with the session name and pid. The repo is an omp marketplace (`.omp-plugin/marketplace.json`) whose
+`notchnotch` plugin is `scripts/omp`. Install:
+`omp plugin marketplace add JianyueLab-Org/notch && omp plugin install notchnotch@notchnotch`.
+Keep the plugin `version` in `.omp-plugin/marketplace.json` and `scripts/omp/package.json` equal to
+`MARKETING_VERSION`.
 
 ### Configuration and tokens
 
