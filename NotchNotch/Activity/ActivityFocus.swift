@@ -120,14 +120,12 @@ nonisolated enum ActivityFocus {
         return errno == EPERM
     }
 
-
     /// Terminals and editors the fallback may activate, in preference order.
     private static let knownTerminalBundleIDs = [
         "com.mitchellh.ghostty", "dev.zed.Zed", "com.googlecode.iterm2", "com.apple.Terminal",
         "dev.warp.Warp-Stable", "com.todesktop.230313mzl4w4u92", "com.microsoft.VSCode",
         "net.kovidgoyal.kitty", "org.alacritty", "com.github.wez.wezterm",
     ]
-
 
     /// First running known terminal or editor, in preference order.
     static func fallbackTerminalApp() -> NSRunningApplication? {
