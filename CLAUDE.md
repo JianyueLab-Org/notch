@@ -161,7 +161,7 @@ The core has no agent-specific code. Spec: `docs/superpowers/specs/2026-11-10-pr
 - `ActivityFocus` turns a session pid into the hosting GUI app (tmux special case included).
 - `plugins/agents/`: SwiftPM agent plugin. `plugins/agents/build.sh` builds, signs and zips it.
 - `plugins/omp/`: omp extension + `external` manifest.
-- Pure files (`PluginMessage`, `PluginManifest`, `PluginPreferences`, `RestartPolicy`,
+- Pure files (`PluginMessage`, `PluginManifest`, `PluginPreferences`, `RestartPolicy`, `StrictJSON`,
   `ActivityState`, `ActivityRules`) compile in `.temp/` scripts.
 
 ### Configuration and tokens
