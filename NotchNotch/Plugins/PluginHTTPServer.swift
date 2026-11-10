@@ -1,16 +1,22 @@
 //
-//  AgentHTTPServer.swift
+//  PluginHTTPServer.swift
 //  NotchNotch
 //
-//  Lightweight, zero-dependency embedded HTTP server for receiving
-//  AI Agent lifecycle events on 127.0.0.1:7823/event.
+//  Lightweight, zero-dependency embedded HTTP server for plugin messages on 127.0.0.1:7823/event.
 //
 
 import Foundation
 import Network
 import OSLog
 
-enum AgentListenerEvent: Sendable {
+enum PluginListenerEvent: Sendable, Equatable {
+    case ready
+    case failed
+}
+
+enum PluginListenerStatus: Equatable {
+    case stopped
+    case starting
     case ready
     case failed
 }
@@ -18,14 +24,14 @@ enum AgentListenerEvent: Sendable {
 /// Every mutable property is confined to `queue`, including the callbacks:
 /// they are handed over in `start` on that queue, so the main thread never
 /// writes what the server queue reads.
-nonisolated final class AgentHTTPServer: @unchecked Sendable {
+nonisolated final class PluginHTTPServer: @unchecked Sendable {
 
     private var listener: NWListener?
     private var connections: [Int: NWConnection] = [:]
     private var nextConnectionID = 0
-    private let queue = DispatchQueue(label: "co.jianyuelab.NotchNotch.agentServer", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "co.jianyuelab.NotchNotch.pluginServer", qos: .userInitiated)
     private var onDataReceived: (@Sendable (Data) -> Void)?
-    private var onListenerEvent: (@Sendable (AgentListenerEvent) -> Void)?
+    private var onListenerEvent: (@Sendable (PluginListenerEvent) -> Void)?
 
     private static let maxHeaderBytes = 16 * 1024
     private static let maxBodyBytes = 256 * 1024
@@ -33,7 +39,7 @@ nonisolated final class AgentHTTPServer: @unchecked Sendable {
     func start(
         port: UInt16 = 7823,
         onData: @escaping @Sendable (Data) -> Void,
-        onEvent: @escaping @Sendable (AgentListenerEvent) -> Void
+        onEvent: @escaping @Sendable (PluginListenerEvent) -> Void
     ) {
         queue.async { [weak self] in
             guard let self else { return }
@@ -115,7 +121,7 @@ nonisolated final class AgentHTTPServer: @unchecked Sendable {
         connections.removeAll()
     }
 
-    private func emit(_ event: AgentListenerEvent) {
+    private func emit(_ event: PluginListenerEvent) {
         let callback = onListenerEvent
         DispatchQueue.main.async {
             callback?(event)
@@ -146,7 +152,7 @@ nonisolated final class AgentHTTPServer: @unchecked Sendable {
         connection.start(queue: queue)
 
         // A client that connects and never finishes its request must not hold a slot.
-        queue.asyncAfter(deadline: .now() + NotchConfiguration.agentHTTPRequestTimeout) { [weak self] in
+        queue.asyncAfter(deadline: .now() + NotchConfiguration.pluginHTTPRequestTimeout) { [weak self] in
             self?.connections[id]?.cancel()
         }
 
@@ -279,9 +285,9 @@ nonisolated final class AgentHTTPServer: @unchecked Sendable {
         }
     }
 
-    /// 200 only for a body the controller can use, so a hook script sees its mistake.
+    /// 200 only for a body the hub can use, so a hook script sees its mistake.
     private func finishRequest(connection: NWConnection, body: Data) {
-        guard (try? JSONSerialization.jsonObject(with: body)) is [String: Any] else {
+        guard PluginMessageDecoder.decode(body) != nil else {
             sendResponse(connection: connection, statusCode: 400, reason: "Bad Request")
             return
         }

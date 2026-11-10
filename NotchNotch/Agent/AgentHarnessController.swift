@@ -214,13 +214,6 @@ struct DiscoveredAgentData: Sendable {
     let title: String?
 }
 
-enum AgentListenerStatus: Equatable {
-    case stopped
-    case starting
-    case ready
-    case failed
-}
-
 @MainActor
 final class AgentHarnessController: ObservableObject {
 
@@ -234,9 +227,9 @@ final class AgentHarnessController: ObservableObject {
     @Published var activeSession: AgentSession?
     @Published var currentAlert: AgentAlert?
     @Published var isShowingAlert: Bool = false
-    @Published private(set) var listenerStatus: AgentListenerStatus = .stopped
+    @Published private(set) var listenerStatus: PluginListenerStatus = .stopped
 
-    private let httpServer = AgentHTTPServer()
+    private let httpServer = PluginHTTPServer()
     private var dismissTimer: Timer?
     private var processPollTimer: Timer?
     private var sessionPruneTimer: Timer?
