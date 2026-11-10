@@ -35,7 +35,7 @@ A refined MacBook Pro notch companion panel for macOS. Transforms the hardware n
 - **AI Agent Lifecycle Integration**:
   - Real-time detection of local CLI agents: **Claude Code**, **Antigravity**, **Codex**, **Grok**, **omp**, **OpenCode**, and **Aider**.
   - Lightweight embedded HTTP server (`127.0.0.1:7823/event`) for millisecond-level lifecycle webhook ingestion.
-  - omp conversation titles in agent alerts. The `notchnotch` omp plugin reports exact turn ends: `omp plugin marketplace add JianyueLab-Org/notch && omp plugin install notchnotch@notchnotch`.
+  - omp conversation titles in agent alerts. The omp extension `scripts/omp/notchnotch.ts` reports exact turn ends; link it into `~/.omp/agent/extensions/`.
   - Deep ancestor process tree analysis to automatically locate and focus the parent terminal window (Ghostty, Zed ACP, iTerm, Terminal, Warp, VS Code).
   - Fully toggleable in Settings with zero background overhead when disabled.
 

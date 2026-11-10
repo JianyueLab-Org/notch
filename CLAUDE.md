@@ -163,11 +163,8 @@ A hook session with a `pid` suppresses the scanned session for that process whil
 agent name.
 
 `scripts/omp/notchnotch.ts` is an omp extension that posts main-session `agent_start`/`agent_end`
-with the session name and pid. The repo is an omp marketplace (`.omp-plugin/marketplace.json`) whose
-`notchnotch` plugin is `scripts/omp`. Install:
-`omp plugin marketplace add JianyueLab-Org/notch && omp plugin install notchnotch@notchnotch`.
-Keep the plugin `version` in `.omp-plugin/marketplace.json` and `scripts/omp/package.json` equal to
-`MARKETING_VERSION`.
+with the session name and pid. omp auto-loads `~/.omp/agent/extensions/*.ts`; jhl's nix-config links
+the file from a pinned `notchnotch` flake input on the Macs.
 
 ### Configuration and tokens
 
